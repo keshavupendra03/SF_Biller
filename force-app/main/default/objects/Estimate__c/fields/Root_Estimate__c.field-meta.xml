@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Root_Estimate__c</fullName>
+    <label>Root Estimate</label>
+    <type>Lookup</type>
+    <referenceTo>Estimate__c</referenceTo>
+    <relationshipLabel>All Later Versions</relationshipLabel>
+    <relationshipName>Later_Versions</relationshipName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Null on the first version (meaning "I am the root"); set to the first version's Id on every later version, so the whole chain is fetchable in one query.</description>
+</CustomField>

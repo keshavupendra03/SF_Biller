@@ -1,0 +1,85 @@
+<template>
+    <div class="slds-p-around_medium page-container">
+        <div class="slds-grid slds-grid_align-spread slds-m-bottom_medium">
+            <lightning-button-icon data-id="back" icon-name="utility:back" alternative-text="Back" onclick={handleBack}></lightning-button-icon>
+            <h1 class="slds-text-heading_medium">Estimate Details</h1>
+            <lightning-button-icon data-id="edit" icon-name="utility:edit" alternative-text="Edit" disabled={isLoading} onclick={handleEdit}></lightning-button-icon>
+        </div>
+
+        <template if:true={hasSummary}>
+            <h2 class="slds-text-heading_large">{summary.estimateNumber}</h2>
+            <p class="slds-text-body_regular slds-m-bottom_small">Date: {summary.estimateDate}</p>
+            <span class={statusBadgeClass}>{summary.status}</span>
+
+            <hr class="slds-m-vertical_medium" />
+
+            <p class="slds-text-body_regular"><strong>For:</strong> {billToLabel}</p>
+            <template if:true={summary.vehicleLabel}>
+                <p class="slds-text-body_regular"><strong>Vehicle:</strong> {summary.vehicleLabel}</p>
+            </template>
+            <template if:true={summary.notes}>
+                <p class="slds-text-body_regular slds-text-color_weak">{summary.notes}</p>
+            </template>
+
+            <hr class="slds-m-vertical_medium" />
+
+            <h3 class="slds-text-heading_small slds-m-bottom_small">Line Items</h3>
+            <template if:true={hasLineItems}>
+                <template for:each={decoratedLineItems} for:item="line">
+                    <div key={line.key} class="line-row">
+                        <p class="slds-text-body_regular">{line.description}</p>
+                        <p class="slds-text-body_small slds-text-color_weak">
+                            {line.quantity} {line.unitLabel} x ₹{line.unitPrice} ({line.taxRatePercent}% tax)
+                            <template if:true={line.hsnSacCode}> HSN/SAC: {line.hsnSacCode}</template>
+                        </p>
+                    </div>
+                </template>
+            </template>
+
+            <div class="totals-block">
+                <div class="slds-grid slds-grid_align-spread">
+                    <span>Subtotal</span><span>₹{summary.subtotal}</span>
+                </div>
+                <template if:true={hasCgstSgstLines}>
+                    <div class="slds-grid slds-grid_align-spread">
+                        <span>CGST</span><span>₹{summary.cgst}</span>
+                    </div>
+                    <div class="slds-grid slds-grid_align-spread">
+                        <span>SGST</span><span>₹{summary.sgst}</span>
+                    </div>
+                </template>
+                <template if:true={hasIgstLines}>
+                    <div class="slds-grid slds-grid_align-spread">
+                        <span>IGST</span><span>₹{summary.igst}</span>
+                    </div>
+                </template>
+                <div class="slds-grid slds-grid_align-spread slds-text-heading_small total-row">
+                    <span>Total</span><span>₹{summary.totalAmount}</span>
+                </div>
+            </div>
+
+            <div class="action-row slds-m-top_medium">
+                <template if:true={canConvertToBill}>
+                    <lightning-button
+                        data-id="create-bill"
+                        variant="brand"
+                        label="Create Bill"
+                        onclick={handleCreateBill}
+                        class="slds-m-right_x-small slds-m-bottom_x-small"
+                    ></lightning-button>
+                </template>
+                <lightning-button
+                    data-id="print"
+                    icon-name="utility:print"
+                    label="Print"
+                    onclick={handlePrint}
+                    class="slds-m-bottom_x-small"
+                ></lightning-button>
+            </div>
+        </template>
+
+        <template lwc:if={showPreview}>
+            <c-document-preview record-id={estimateId} heading={summary.estimateNumber} onclose={handleClosePreview}></c-document-preview>
+        </template>
+    </div>
+</template>

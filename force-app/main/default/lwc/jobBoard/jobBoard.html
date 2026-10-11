@@ -1,0 +1,327 @@
+<template>
+    <lightning-card title="Jobs" icon-name="standard:work_order">
+        <div slot="actions">
+            <lightning-button
+                data-id="toggle-create-form"
+                label={toggleFormLabel}
+                onclick={handleToggleCreateForm}
+            ></lightning-button>
+        </div>
+
+        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+
+            <template if:true={showCreateForm}>
+                <div class="slds-box slds-m-bottom_medium">
+                    <p class="slds-text-heading_small slds-m-bottom_small">New Job</p>
+
+                    <!-- Customer -->
+                    <div class="slds-form-element slds-m-bottom_small">
+                        <template if:false={hasSelectedCustomer}>
+                            <lightning-input
+                                data-id="job-customer-search"
+                                type="search"
+                                label="Customer"
+                                placeholder="Search by name or phone…"
+                                value={customerSearchTerm}
+                                onchange={handleCustomerSearchChange}
+                            ></lightning-input>
+                            <template if:true={hasCustomerResults}>
+                                <ul class="slds-box slds-box_x-small slds-m-top_xx-small search-results">
+                                    <template for:each={customerResults} for:item="cust">
+                                        <li key={cust.id}>
+                                            <button
+                                                type="button"
+                                                class="slds-button slds-button_reset search-result-row"
+                                                data-id={cust.id}
+                                                onclick={handleSelectCustomer}
+                                            >
+                                                <span class="slds-text-body_regular">{cust.name}</span>
+                                                <span class="slds-text-body_small slds-text-color_weak">{cust.phone}</span>
+                                            </button>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </template>
+                            <lightning-input
+                                data-id="new-customer-toggle"
+                                type="toggle"
+                                label="This is a new customer"
+                                checked={showNewCustomerFields}
+                                onchange={handleToggleNewCustomer}
+                                class="slds-m-top_x-small"
+                            ></lightning-input>
+                            <template if:true={showNewCustomerFields}>
+                                <div class="slds-box slds-box_x-small slds-m-top_x-small">
+                                    <lightning-input
+                                        label="Name"
+                                        data-field="name"
+                                        value={newCustomer.name}
+                                        onchange={handleNewCustomerFieldChange}
+                                        class="slds-m-bottom_x-small"
+                                    ></lightning-input>
+                                    <lightning-input
+                                        label="Phone"
+                                        type="tel"
+                                        data-field="phone"
+                                        value={newCustomer.phone}
+                                        onchange={handleNewCustomerFieldChange}
+                                        class="slds-m-bottom_x-small"
+                                    ></lightning-input>
+                                    <lightning-button
+                                        data-id="save-new-customer"
+                                        label="Add Customer"
+                                        onclick={handleCreateCustomerInline}
+                                        disabled={saveNewCustomerDisabled}
+                                    ></lightning-button>
+                                </div>
+                            </template>
+                        </template>
+                        <template if:true={hasSelectedCustomer}>
+                            <div class="slds-box slds-box_x-small slds-grid slds-grid_align-spread">
+                                <span>{selectedCustomer.name}</span>
+                                <lightning-button-icon
+                                    icon-name="utility:close"
+                                    alternative-text="Change customer"
+                                    onclick={handleClearCustomer}
+                                ></lightning-button-icon>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Vehicle -->
+                    <div class="slds-form-element slds-m-bottom_small">
+                        <lightning-input
+                            data-id="new-vehicle-toggle"
+                            type="toggle"
+                            label="This is a new vehicle"
+                            checked={showNewVehicleFields}
+                            onchange={handleToggleNewVehicle}
+                            class="slds-m-bottom_x-small"
+                        ></lightning-input>
+
+                        <template if:false={showNewVehicleFields}>
+                            <template if:false={hasSelectedVehicle}>
+                                <lightning-input
+                                    data-id="job-vehicle-search"
+                                    type="search"
+                                    label="Vehicle"
+                                    placeholder="Search this customer's vehicles by registration number…"
+                                    value={vehicleSearchTerm}
+                                    onchange={handleVehicleSearchChange}
+                                ></lightning-input>
+                                <template if:true={hasVehicleResults}>
+                                    <ul class="slds-box slds-box_x-small slds-m-top_xx-small search-results">
+                                        <template for:each={vehicleResults} for:item="veh">
+                                            <li key={veh.id}>
+                                                <button
+                                                    type="button"
+                                                    class="slds-button slds-button_reset search-result-row"
+                                                    data-id={veh.id}
+                                                    onclick={handleSelectVehicle}
+                                                >
+                                                    <span class="slds-text-body_regular">{veh.registrationNumber}</span>
+                                                    <span class="slds-text-body_small slds-text-color_weak">{veh.make} {veh.model}</span>
+                                                </button>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </template>
+                            </template>
+                            <template if:true={hasSelectedVehicle}>
+                                <div class="slds-box slds-box_x-small slds-grid slds-grid_align-spread">
+                                    <span>{selectedVehicle.registrationNumber} — {selectedVehicle.make} {selectedVehicle.model}</span>
+                                    <lightning-button-icon
+                                        icon-name="utility:close"
+                                        alternative-text="Change vehicle"
+                                        onclick={handleClearVehicle}
+                                    ></lightning-button-icon>
+                                </div>
+                            </template>
+                        </template>
+
+                        <template if:true={showNewVehicleFields}>
+                            <lightning-input
+                                label="Registration number"
+                                data-field="registrationNumber"
+                                value={newVehicle.registrationNumber}
+                                onchange={handleNewVehicleFieldChange}
+                                class="slds-m-bottom_x-small"
+                            ></lightning-input>
+                            <c-vehicle-make-model-field
+                                label="Make"
+                                data-field="make"
+                                source="make"
+                                value={newVehicle.make}
+                                onchange={handleNewVehicleFieldChange}
+                            ></c-vehicle-make-model-field>
+                            <c-vehicle-make-model-field
+                                label="Model"
+                                data-field="model"
+                                source="model"
+                                make={newVehicle.make}
+                                value={newVehicle.model}
+                                onchange={handleNewVehicleFieldChange}
+                            ></c-vehicle-make-model-field>
+                            <lightning-input
+                                type="number"
+                                label="Year"
+                                data-field="year"
+                                value={newVehicle.year}
+                                onchange={handleNewVehicleFieldChange}
+                                class="slds-m-bottom_x-small"
+                            ></lightning-input>
+                            <lightning-input
+                                label="Color"
+                                data-field="color"
+                                value={newVehicle.color}
+                                onchange={handleNewVehicleFieldChange}
+                            ></lightning-input>
+                        </template>
+                    </div>
+
+                    <!-- Surveyor -->
+                    <lightning-combobox
+                        label="Surveyor"
+                        value={selectedSurveyorId}
+                        options={surveyorOptions}
+                        onchange={handleSurveyorChange}
+                        class="slds-m-bottom_small"
+                    ></lightning-combobox>
+
+                    <!-- Mechanics -->
+                    <div class="slds-form-element slds-m-bottom_small">
+                        <label class="slds-form-element__label">Assign mechanics</label>
+                        <template for:each={allMechanics} for:item="mech">
+                            <lightning-input
+                                key={mech.id}
+                                type="checkbox"
+                                label={mech.name}
+                                data-id={mech.id}
+                                onchange={handleNewJobMechanicToggle}
+                            ></lightning-input>
+                        </template>
+                    </div>
+
+                    <lightning-textarea
+                        label="Notes"
+                        value={notes}
+                        onchange={handleNotesChange}
+                        class="slds-m-bottom_small"
+                    ></lightning-textarea>
+
+                    <lightning-button
+                        data-id="submit-job"
+                        variant="brand"
+                        label={createButtonLabel}
+                        onclick={handleCreateJob}
+                        disabled={createDisabled}
+                        class="slds-size_1-of-1"
+                    ></lightning-button>
+                </div>
+            </template>
+
+            <lightning-input
+                data-id="board-search"
+                type="search"
+                variant="label-hidden"
+                label="Search jobs"
+                placeholder="Search by customer, phone, or vehicle number…"
+                value={searchTerm}
+                onchange={handleSearchChange}
+                class="slds-m-bottom_medium"
+            ></lightning-input>
+
+            <template if:true={isLoading}>
+                <lightning-spinner alternative-text="Loading board" size="small"></lightning-spinner>
+            </template>
+
+            <div class="board-scroll">
+                <template for:each={columns} for:item="column">
+                    <div
+                        key={column.id}
+                        class="board-column"
+                        data-stage-id={column.id}
+                        ondragover={handleDragOver}
+                        ondrop={handleDrop}
+                    >
+                        <div class="slds-theme_shade slds-p-around_x-small column-header">
+                            {column.name} ({column.jobs.length})
+                        </div>
+                        <template for:each={column.jobs} for:item="job">
+                            <div
+                                key={job.id}
+                                class="slds-box slds-box_x-small slds-m-top_x-small job-card"
+                                draggable="true"
+                                data-job-id={job.id}
+                                ondragstart={handleDragStart}
+                            >
+                                <button
+                                    type="button"
+                                    class="slds-button slds-button_reset slds-text-heading_small job-number-link"
+                                    data-job-id={job.id}
+                                    onclick={handleOpenJob}
+                                >{job.jobNumber}</button>
+                                <p class="slds-text-body_small">{job.customerName}</p>
+                                <p class="slds-text-body_small slds-text-color_weak">{job.vehicleLabel}</p>
+                                <template if:true={job.surveyorName}>
+                                    <p class="slds-text-body_small">Surveyor: {job.surveyorName}</p>
+                                </template>
+                                <template if:true={job.mechanicNames}>
+                                    <p class="slds-text-body_small">Mechanics: {job.mechanicNames}</p>
+                                </template>
+
+                                <lightning-combobox
+                                    variant="label-hidden"
+                                    label="Move to"
+                                    placeholder="Move to…"
+                                    options={job.otherStages}
+                                    data-job-id={job.id}
+                                    onchange={handleMoveSelect}
+                                    class="slds-m-top_x-small"
+                                ></lightning-combobox>
+
+                                <button
+                                    type="button"
+                                    data-id="toggle-mechanics"
+                                    class="slds-button slds-button_reset slds-text-link slds-m-top_x-small"
+                                    data-job-id={job.id}
+                                    onclick={handleToggleMechanicsPanel}
+                                >Mechanics…</button>
+
+                                <div class="slds-m-top_x-small">
+                                    <lightning-button
+                                        label="Estimate"
+                                        data-job-id={job.id}
+                                        onclick={handleCreateEstimateForJob}
+                                        class="slds-m-right_xx-small"
+                                    ></lightning-button>
+                                    <lightning-button
+                                        label="Bill"
+                                        data-job-id={job.id}
+                                        onclick={handleCreateBillForJob}
+                                    ></lightning-button>
+                                </div>
+
+                                <template if:true={job.isMechanicsExpanded}>
+                                    <div class="slds-box slds-box_x-small slds-m-top_x-small">
+                                        <template for:each={job.mechanicCheckboxes} for:item="mech">
+                                            <lightning-input
+                                                key={mech.id}
+                                                type="checkbox"
+                                                label={mech.name}
+                                                checked={mech.checked}
+                                                data-job-id={job.id}
+                                                data-mechanic-id={mech.id}
+                                                onchange={handleMechanicAssignmentToggle}
+                                            ></lightning-input>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </lightning-card>
+</template>

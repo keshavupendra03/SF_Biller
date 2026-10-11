@@ -1,0 +1,26 @@
+<template>
+    <div class="slds-form-element slds-m-bottom_x-small field-wrapper">
+        <lightning-input
+            data-id="input"
+            label={label}
+            value={value}
+            onchange={handleChange}
+            onfocus={handleFocus}
+            onblur={handleBlur}
+        ></lightning-input>
+        <template if:true={hasSuggestions}>
+            <ul class="slds-box slds-box_x-small slds-m-top_xx-small search-results">
+                <template for:each={suggestions} for:item="suggestion">
+                    <li key={suggestion}>
+                        <button
+                            type="button"
+                            class="slds-button slds-button_reset search-result-row"
+                            data-value={suggestion}
+                            onmousedown={handleSelectMouseDown}
+                        >{suggestion}</button>
+                    </li>
+                </template>
+            </ul>
+        </template>
+    </div>
+</template>

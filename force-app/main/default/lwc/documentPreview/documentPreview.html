@@ -1,0 +1,36 @@
+<template>
+    <section role="dialog" tabindex="-1" aria-modal="true" aria-label={heading} class="slds-modal slds-fade-in-open slds-modal_large">
+        <div class="slds-modal__container">
+            <header class="slds-modal__header">
+                <h2 class="slds-text-heading_medium slds-hyphenate">{heading}</h2>
+            </header>
+
+            <div class="slds-modal__content preview-body">
+                <template lwc:if={isFrameLoading}>
+                    <lightning-spinner alternative-text="Loading preview" size="medium"></lightning-spinner>
+                </template>
+                <iframe
+                    data-id="preview-frame"
+                    class="preview-frame"
+                    src={previewUrl}
+                    title={heading}
+                    onload={handleFrameLoad}
+                ></iframe>
+            </div>
+
+            <footer class="slds-modal__footer">
+                <lightning-button data-id="close" label="Close" onclick={handleClose} class="slds-m-right_x-small"></lightning-button>
+                <lightning-button
+                    data-id="download"
+                    variant="brand"
+                    icon-name="utility:download"
+                    label={downloadLabel}
+                    disabled={isDownloading}
+                    onclick={handleDownload}
+                ></lightning-button>
+                <a lwc:ref="downloadLink" class="slds-hide" aria-hidden="true">download</a>
+            </footer>
+        </div>
+    </section>
+    <div class="slds-backdrop slds-backdrop_open" role="presentation"></div>
+</template>

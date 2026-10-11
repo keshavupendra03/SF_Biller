@@ -1,0 +1,83 @@
+<template>
+    <div class="slds-p-around_medium page-container">
+        <div class="slds-grid slds-grid_align-spread slds-m-bottom_medium">
+            <lightning-button-icon data-id="back" icon-name="utility:back" alternative-text="Back" onclick={handleBack}></lightning-button-icon>
+            <h1 class="slds-text-heading_medium">Job Details</h1>
+            <span class="slds-p-around_x-small"></span>
+        </div>
+
+        <template if:true={hasSummary}>
+            <h2 class="slds-text-heading_large">{summary.jobNumber}</h2>
+            <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">Created: {summary.createdDate}</p>
+            <span class="slds-badge">{summary.stageName}</span>
+
+            <hr class="slds-m-vertical_medium" />
+
+            <div class="slds-text-heading_small slds-m-bottom_x-small">Customer</div>
+            <p class="slds-text-body_regular">{summary.customerName}</p>
+            <template if:true={summary.customerPhone}>
+                <p class="slds-text-body_regular slds-text-color_weak">{summary.customerPhone}</p>
+            </template>
+            <template if:true={summary.customerAddress}>
+                <p class="slds-text-body_regular slds-text-color_weak">{summary.customerAddress}</p>
+            </template>
+
+            <hr class="slds-m-vertical_medium" />
+
+            <div class="slds-text-heading_small slds-m-bottom_x-small">Vehicle</div>
+            <template if:true={hasVehicle}>
+                <p class="slds-text-body_regular">{summary.vehicleRegistrationNumber}</p>
+                <p class="slds-text-body_regular slds-text-color_weak">
+                    {summary.vehicleMakeModel}
+                    <template if:true={summary.vehicleYear}> • {summary.vehicleYear}</template>
+                    <template if:true={summary.vehicleColor}> • {summary.vehicleColor}</template>
+                </p>
+            </template>
+
+            <hr class="slds-m-vertical_medium" />
+
+            <template if:true={hasSurveyor}>
+                <p class="slds-text-body_regular"><strong>Surveyor:</strong> {summary.surveyorName}</p>
+            </template>
+            <template if:true={hasMechanics}>
+                <p class="slds-text-body_regular"><strong>Mechanics:</strong> {summary.mechanicNames}</p>
+            </template>
+            <template if:true={hasNotes}>
+                <p class="slds-text-body_regular slds-text-color_weak slds-m-top_x-small">{summary.notes}</p>
+            </template>
+
+            <hr class="slds-m-vertical_medium" />
+
+            <div class="slds-text-heading_small slds-m-bottom_small">Bills</div>
+            <template if:true={hasBills}>
+                <template for:each={summary.bills} for:item="bill">
+                    <button type="button" key={bill.id} class="slds-button slds-button_reset document-row" data-id={bill.id} onclick={handleOpenBill}>
+                        <span class="document-row-body">
+                            <span class="slds-text-body_regular">{bill.documentNumber}</span>
+                        </span>
+                        <span class="slds-text-body_regular">₹{bill.totalAmount}</span>
+                    </button>
+                </template>
+            </template>
+            <template if:false={hasBills}>
+                <p class="slds-text-color_weak slds-m-bottom_medium">No bills yet.</p>
+            </template>
+
+            <div class="slds-text-heading_small slds-m-bottom_small">Estimates</div>
+            <template if:true={hasEstimates}>
+                <template for:each={summary.estimates} for:item="estimate">
+                    <button type="button" key={estimate.id} class="slds-button slds-button_reset document-row" data-id={estimate.id} onclick={handleOpenEstimate}>
+                        <span class="document-row-body">
+                            <span class="slds-text-body_regular">{estimate.documentNumber}</span>
+                            <span class="slds-badge">{estimate.status}</span>
+                        </span>
+                        <span class="slds-text-body_regular">₹{estimate.totalAmount}</span>
+                    </button>
+                </template>
+            </template>
+            <template if:false={hasEstimates}>
+                <p class="slds-text-color_weak">No estimates yet.</p>
+            </template>
+        </template>
+    </div>
+</template>

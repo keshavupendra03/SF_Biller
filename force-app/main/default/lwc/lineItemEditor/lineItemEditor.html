@@ -1,0 +1,118 @@
+<template>
+    <section role="dialog" tabindex="-1" aria-modal="true" aria-label={heading} class="slds-modal slds-fade-in-open">
+        <div class="slds-modal__container">
+            <header class="slds-modal__header">
+                <h2 class="slds-text-heading_medium slds-hyphenate">{heading}</h2>
+            </header>
+
+            <div class="slds-modal__content slds-p-around_medium">
+                <template if:true={isFromInventory}>
+                    <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                        <span class="slds-text-body_regular">From inventory: {line.description}</span>
+                        <button type="button" class="slds-button slds-text-link" data-id="change-part" onclick={handleStartPartSearch}>Change</button>
+                    </div>
+                </template>
+
+                <template if:true={showManualHeader}>
+                    <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                        <span class="slds-text-body_regular slds-text-color_weak">Manual line</span>
+                        <button type="button" class="slds-button slds-text-link" data-id="link-to-part" onclick={handleStartPartSearch}>Search inventory</button>
+                    </div>
+                </template>
+
+                <template if:true={isSearchingPart}>
+                    <lightning-input
+                        data-id="part-search"
+                        type="search"
+                        label="Search inventory"
+                        placeholder="Search by name, SKU, or barcode…"
+                        value={partSearchTerm}
+                        onchange={handlePartSearchChange}
+                        class="slds-m-bottom_x-small"
+                    ></lightning-input>
+                    <template if:true={hasPartResults}>
+                        <ul class="slds-box slds-box_x-small slds-m-bottom_small search-results">
+                            <template for:each={partResults} for:item="part">
+                                <li key={part.id}>
+                                    <button
+                                        type="button"
+                                        class="slds-button slds-button_reset search-result-row"
+                                        data-id={part.id}
+                                        onclick={handleSelectPart}
+                                    >
+                                        <span class="slds-text-body_regular">{part.name}</span>
+                                        <span class="slds-text-body_small slds-text-color_weak">₹{part.price} • Stock: {part.currentStock}</span>
+                                    </button>
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+                    <lightning-button data-id="use-manual-line" label="Use a manual line instead" onclick={handleUseManualLine} class="slds-m-bottom_small"></lightning-button>
+                </template>
+
+                <template if:true={showManualFields}>
+                    <lightning-input
+                        label="Description"
+                        data-field="description"
+                        value={line.description}
+                        onchange={handleFieldChange}
+                        class="slds-m-bottom_x-small"
+                    ></lightning-input>
+                    <lightning-input
+                        type="number"
+                        step="0.01"
+                        label="Quantity"
+                        data-field="quantity"
+                        value={line.quantity}
+                        onchange={handleFieldChange}
+                        class="slds-m-bottom_x-small"
+                    ></lightning-input>
+                    <lightning-input
+                        type="number"
+                        step="0.01"
+                        label="Unit Price"
+                        data-field="unitPrice"
+                        value={line.unitPrice}
+                        onchange={handleFieldChange}
+                        class="slds-m-bottom_x-small"
+                    ></lightning-input>
+                    <lightning-combobox
+                        label="GST Type"
+                        value={line.gstType}
+                        options={gstTypeOptions}
+                        onchange={handleGstTypeChange}
+                        class="slds-m-bottom_x-small"
+                    ></lightning-combobox>
+                    <lightning-input
+                        type="number"
+                        step="0.01"
+                        label="Tax rate %"
+                        data-field="taxRatePercent"
+                        value={line.taxRatePercent}
+                        onchange={handleFieldChange}
+                        class="slds-m-bottom_x-small"
+                    ></lightning-input>
+                    <lightning-input
+                        label="HSN/SAC Code"
+                        data-field="hsnSacCode"
+                        value={line.hsnSacCode}
+                        onchange={handleFieldChange}
+                        class="slds-m-bottom_x-small"
+                    ></lightning-input>
+                    <lightning-input
+                        label="Unit (e.g. Pcs, Ltr)"
+                        data-field="unitLabel"
+                        value={line.unitLabel}
+                        onchange={handleFieldChange}
+                    ></lightning-input>
+                </template>
+            </div>
+
+            <footer class="slds-modal__footer">
+                <lightning-button data-id="cancel" label="Cancel" onclick={handleCancel} class="slds-m-right_x-small"></lightning-button>
+                <lightning-button data-id="save" variant="brand" label="Save" disabled={saveDisabled} onclick={handleSave}></lightning-button>
+            </footer>
+        </div>
+    </section>
+    <div class="slds-backdrop slds-backdrop_open" role="presentation"></div>
+</template>

@@ -1,0 +1,18 @@
+.field-wrapper {
+    position: relative;
+}
+
+.search-results {
+    max-height: 200px;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.search-result-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    padding: 0.5rem 0.25rem;
+    min-height: 44px;
+}

@@ -1,0 +1,203 @@
+<apex:page controller="InvoicePdfController" renderAs="{!renderAs}" showHeader="false" standardStylesheets="false" applyBodyTag="false" applyHtmlTag="false">
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style type="text/css">
+    @page { size: A4; margin: 20px; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #222; }
+    .title { text-align: center; font-size: 16px; color: #1a4fa0; font-weight: bold; margin: 8px 0; }
+    .divider { border-bottom: 1.5px solid #1a4fa0; margin-bottom: 8px; }
+    table { border-collapse: collapse; width: 100%; }
+    .header-table td { vertical-align: top; }
+    .workshop-name { font-size: 16px; font-weight: bold; }
+    .section-label { font-weight: bold; color: #555; }
+    .party-name { font-weight: bold; }
+    .two-col td { width: 50%; vertical-align: top; padding-right: 16px; }
+    .lines-table { margin-top: 8px; table-layout: fixed; border: 1px solid #1a4fa0; }
+    .lines-table th { background-color: #1a4fa0; color: #fff; font-size: 9px; padding: 4px; text-align: left; border: 1px solid #3b6cb5; word-wrap: break-word; }
+    .lines-table td { font-size: 9px; padding: 4px; border: 1px solid #ccc; word-wrap: break-word; vertical-align: top; }
+    .num { text-align: right; }
+    .center { text-align: center; }
+    .lines-table th.center { text-align: center; }
+    .totals-table { width: 220px; float: right; margin-top: 8px; }
+    .totals-table td { padding: 2px 0; }
+    .totals-total-row td { border-top: 1px solid #999; font-weight: bold; padding-top: 4px; }
+    .footer-table { margin-top: 40px; width: 100%; }
+    .footer-table td { vertical-align: bottom; }
+    .signature-space { height: 40px; }
+</style>
+</head>
+<body>
+
+<apex:outputPanel rendered="{!!recordFound}">
+    <p>Record not found — pass a valid Bill__c or Estimate__c record Id as the ?id= parameter.</p>
+</apex:outputPanel>
+
+<apex:outputPanel rendered="{!recordFound}">
+
+    <table class="header-table">
+        <tr>
+            <td>
+                <div class="workshop-name">{!workshopName}</div>
+                <apex:outputText value="{!workshopAddress}" rendered="{!NOT(ISBLANK(workshopAddress))}"/><br/>
+                <apex:outputText value="Phone no.: {0}" rendered="{!NOT(ISBLANK(workshopPhone))}">
+                    <apex:param value="{!workshopPhone}"/>
+                </apex:outputText><br/>
+                <apex:outputText value="Email: {0}" rendered="{!NOT(ISBLANK(workshopEmail))}">
+                    <apex:param value="{!workshopEmail}"/>
+                </apex:outputText><br/>
+                <apex:outputText value="GSTIN: {0}" rendered="{!NOT(ISBLANK(workshopGstin))}">
+                    <apex:param value="{!workshopGstin}"/>
+                </apex:outputText><br/>
+                <apex:outputText value="State: {0}" rendered="{!NOT(ISBLANK(workshopState))}">
+                    <apex:param value="{!workshopState}"/>
+                </apex:outputText>
+            </td>
+        </tr>
+    </table>
+
+    <div class="divider"/>
+    <div class="title">{!documentTitle}</div>
+
+    <table class="two-col">
+        <tr>
+            <td>
+                <div class="section-label">{!billToLabel}</div>
+                <div class="party-name">{!billToName}</div>
+                <apex:outputText value="{!billToAddress}" rendered="{!NOT(ISBLANK(billToAddress))}"/><br/>
+                <apex:outputText value="Contact No.: {0}" rendered="{!NOT(ISBLANK(billToContact))}">
+                    <apex:param value="{!billToContact}"/>
+                </apex:outputText><br/>
+                <apex:outputText value="GSTIN Number: {0}" rendered="{!NOT(ISBLANK(billToGstin))}">
+                    <apex:param value="{!billToGstin}"/>
+                </apex:outputText><br/>
+                <apex:outputText value="State: {0}" rendered="{!NOT(ISBLANK(billToState))}">
+                    <apex:param value="{!billToState}"/>
+                </apex:outputText>
+            </td>
+            <td>
+                <div class="section-label">{!detailsLabel}</div>
+                <apex:outputText value="{0}: {1}">
+                    <apex:param value="{!numberLabel}"/>
+                    <apex:param value="{!documentNumber}"/>
+                </apex:outputText><br/>
+                <apex:outputText value="Date: {0}">
+                    <apex:param value="{!documentDate}"/>
+                </apex:outputText><br/>
+                <apex:outputText value="Buyer''s Name: {0}" rendered="{!NOT(ISBLANK(buyersName))}">
+                    <apex:param value="{!buyersName}"/>
+                </apex:outputText><br/>
+                <apex:outputText value="Vehicle No.: {0}" rendered="{!NOT(ISBLANK(vehicleRegNumber))}">
+                    <apex:param value="{!vehicleRegNumber}"/>
+                </apex:outputText><br/>
+                <apex:outputText value="{!vehicleMakeModel}" rendered="{!NOT(ISBLANK(vehicleMakeModel))}"/>
+            </td>
+        </tr>
+    </table>
+
+    <table class="lines-table">
+        <colgroup>
+            <col style="width: 4%;"/>
+            <col style="width: 21%;"/>
+            <col style="width: 9%;"/>
+            <col style="width: 6%;"/>
+            <col style="width: 12%;"/>
+            <col style="width: 7%;"/>
+            <col style="width: 12%;"/>
+            <col style="width: 14%;"/>
+            <col style="width: 15%;"/>
+        </colgroup>
+        <tr>
+            <th>Sr</th>
+            <th>Item name</th>
+            <th class="center">HSN/SAC</th>
+            <th class="center">Qty</th>
+            <th class="center">Per Unit Price</th>
+            <th class="center">Unit</th>
+            <th class="center">Taxable Amt</th>
+            <th class="center">GST</th>
+            <th class="center">Amount</th>
+        </tr>
+        <apex:repeat value="{!lines}" var="line">
+            <tr>
+                <td>{!line.rowNumber}</td>
+                <td>{!line.description}</td>
+                <td class="center">{!IF(ISBLANK(line.hsnSacCode), '-', line.hsnSacCode)}</td>
+                <td class="center"><apex:outputText value="{0,number,#,##0.##}"><apex:param value="{!line.quantity}"/></apex:outputText></td>
+                <td class="center"><apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!line.unitPrice}"/></apex:outputText></td>
+                <td class="center">{!IF(ISBLANK(line.unit), '-', line.unit)}</td>
+                <td class="center"><apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!line.taxableAmount}"/></apex:outputText></td>
+                <td class="center">
+                    <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!line.gstAmount}"/></apex:outputText>
+                    (<apex:outputText value="{0,number,#0.0}"><apex:param value="{!line.taxRatePercent}"/></apex:outputText>%)
+                </td>
+                <td class="center"><apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!line.lineTotal}"/></apex:outputText></td>
+            </tr>
+        </apex:repeat>
+    </table>
+
+    <table style="margin-top: 12px;">
+        <tr>
+            <td style="width: 60%; vertical-align: top;">
+                <apex:outputPanel rendered="{!NOT(ISBLANK(notes))}">
+                    <div class="section-label">Description</div>
+                    <div>{!notes}</div><br/>
+                </apex:outputPanel>
+                <div class="section-label">{!amountInWordsLabel}</div>
+                <div>{!amountInWords}</div>
+                <apex:outputPanel rendered="{!NOT(ISBLANK(termsAndConditions))}">
+                    <br/>
+                    <div class="section-label">Terms And Conditions</div>
+                    <div>{!termsAndConditions}</div>
+                </apex:outputPanel>
+            </td>
+            <td style="width: 40%; vertical-align: top;">
+                <table class="totals-table">
+                    <tr><td>Sub Total</td><td class="num">Rs. <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!subtotal}"/></apex:outputText></td></tr>
+                    <apex:outputPanel rendered="{!NOT(showIgst)}" layout="none">
+                        <tr><td>SGST</td><td class="num">Rs. <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!sgst}"/></apex:outputText></td></tr>
+                        <tr><td>CGST</td><td class="num">Rs. <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!cgst}"/></apex:outputText></td></tr>
+                    </apex:outputPanel>
+                    <apex:outputPanel rendered="{!showIgst}" layout="none">
+                        <tr><td>IGST</td><td class="num">Rs. <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!igst}"/></apex:outputText></td></tr>
+                    </apex:outputPanel>
+                    <tr class="totals-total-row"><td>Total</td><td class="num">Rs. <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!grandTotal}"/></apex:outputText></td></tr>
+                    <!--- Record Payment feature disabled (2026-10) — uncomment to restore Received/Balance/Payment Mode.
+                    Apex (showPayment/amountPaid/amountDue/paymentMode on InvoicePdfController) was left untouched.
+                    <apex:outputPanel rendered="{!showPayment}" layout="none">
+                        <tr><td>Received</td><td class="num">Rs. <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!amountPaid}"/></apex:outputText></td></tr>
+                        <tr><td>Balance</td><td class="num">Rs. <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!amountDue}"/></apex:outputText></td></tr>
+                        <apex:outputPanel rendered="{!NOT(ISBLANK(paymentMode))}" layout="none">
+                            <tr><td colspan="2">Payment Mode: {!paymentMode}</td></tr>
+                        </apex:outputPanel>
+                    </apex:outputPanel>
+                    --->
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <table class="footer-table">
+        <tr>
+            <td style="width: 60%;">
+                <apex:outputPanel rendered="{!OR(NOT(ISBLANK(bankName)), NOT(ISBLANK(bankAccountNo)), NOT(ISBLANK(bankIfsc)), NOT(ISBLANK(bankAccountHolder)))}">
+                    <div class="section-label">Pay To:</div>
+                    <apex:outputText value="Bank Name: {0}" rendered="{!NOT(ISBLANK(bankName))}"><apex:param value="{!bankName}"/></apex:outputText><br/>
+                    <apex:outputText value="Bank Account No.: {0}" rendered="{!NOT(ISBLANK(bankAccountNo))}"><apex:param value="{!bankAccountNo}"/></apex:outputText><br/>
+                    <apex:outputText value="Bank IFSC code: {0}" rendered="{!NOT(ISBLANK(bankIfsc))}"><apex:param value="{!bankIfsc}"/></apex:outputText><br/>
+                    <apex:outputText value="Account Holder''s Name: {0}" rendered="{!NOT(ISBLANK(bankAccountHolder))}"><apex:param value="{!bankAccountHolder}"/></apex:outputText>
+                </apex:outputPanel>
+            </td>
+            <td style="width: 40%; text-align: right;">
+                <div>For: {!workshopName}</div>
+                <div class="signature-space"/>
+                <div>Authorized Signatory</div>
+            </td>
+        </tr>
+    </table>
+
+</apex:outputPanel>
+
+</body>
+</html>
+</apex:page>

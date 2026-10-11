@@ -1,0 +1,78 @@
+{
+  "description": "Shared GST calculation test vectors for shared/contracts/gst_rules.md. Both lib/services/gst/gst_calculator.dart (Dart) and salesforce/force-app/main/default/classes/GstCalculatorService.cls (Apex) must produce these exact outputs for these exact inputs. If you change either implementation's rounding/math, run both suites against this file before considering the change done — see root CLAUDE.md.",
+  "version": 1,
+  "notes": [
+    "'total'/'grandTotal' and per-line cgst/sgst are rounded to 2 decimals only at the point calculateBill's final totals are produced — per-line values inside a bill are NOT individually rounded before summing, matching gst_calculator.dart's _round2 being applied only to the bill-level subtotal/cgst/sgst/grandTotal.",
+    "A bill's 'gst' field is cgst + sgst computed AFTER each is rounded (it's a getter on the already-rounded values), not the unrounded sum — vectors reflect that.",
+    "Dart doubles (IEEE-754 binary floating point) and Apex Decimal (base-10 exact arithmetic) can theoretically diverge by a cent on some fractional inputs that aren't exact in binary — vector 'fractional_paise_rounds_at_bill_level_only' deliberately exercises this boundary; if it ever needs a platform-specific tolerance, that's the vector to revisit first, not evidence the contract itself is wrong."
+  ],
+  "lineVectors": [
+    {
+      "name": "single_line_qty2_x_500_at_18pct",
+      "input": { "quantity": 2, "unitPrice": 500, "taxRatePercent": 18 },
+      "expected": { "subtotal": 1000, "cgst": 90, "sgst": 90, "gst": 180, "total": 1180 }
+    },
+    {
+      "name": "zero_rated_line",
+      "input": { "quantity": 1, "unitPrice": 200, "taxRatePercent": 0 },
+      "expected": { "subtotal": 200, "cgst": 0, "sgst": 0, "gst": 0, "total": 200 }
+    },
+    {
+      "name": "high_tax_rate_28pct",
+      "input": { "quantity": 5, "unitPrice": 240, "taxRatePercent": 28 },
+      "expected": { "subtotal": 1200, "cgst": 168, "sgst": 168, "gst": 336, "total": 1536 }
+    },
+    {
+      "name": "low_tax_rate_5pct",
+      "input": { "quantity": 4, "unitPrice": 100, "taxRatePercent": 5 },
+      "expected": { "subtotal": 400, "cgst": 10, "sgst": 10, "gst": 20, "total": 420 }
+    }
+  ],
+  "billVectors": [
+    {
+      "name": "mixed_tax_rates_three_lines",
+      "input": {
+        "lines": [
+          { "quantity": 1, "unitPrice": 1000, "taxRatePercent": 18 },
+          { "quantity": 3, "unitPrice": 100, "taxRatePercent": 12 },
+          { "quantity": 1, "unitPrice": 500, "taxRatePercent": 0 }
+        ]
+      },
+      "expected": { "subtotal": 1800, "cgst": 108, "sgst": 108, "gst": 216, "grandTotal": 2016 }
+    },
+    {
+      "name": "fractional_paise_rounds_at_bill_level_only",
+      "input": {
+        "lines": [
+          { "quantity": 3, "unitPrice": 33.33, "taxRatePercent": 18 }
+        ]
+      },
+      "expected": { "subtotal": 99.99, "cgst": 9.0, "sgst": 9.0, "gst": 18.0, "grandTotal": 117.99 }
+    },
+    {
+      "name": "single_zero_tax_line",
+      "input": {
+        "lines": [
+          { "quantity": 1, "unitPrice": 500, "taxRatePercent": 0 }
+        ]
+      },
+      "expected": { "subtotal": 500, "cgst": 0, "sgst": 0, "gst": 0, "grandTotal": 500 }
+    },
+    {
+      "name": "three_lines_clean_amounts_no_rounding_ambiguity",
+      "input": {
+        "lines": [
+          { "quantity": 2, "unitPrice": 6000, "taxRatePercent": 18 },
+          { "quantity": 3, "unitPrice": 500, "taxRatePercent": 12 },
+          { "quantity": 1, "unitPrice": 1000, "taxRatePercent": 5 }
+        ]
+      },
+      "expected": { "subtotal": 14500, "cgst": 1195, "sgst": 1195, "gst": 2390, "grandTotal": 16890 }
+    },
+    {
+      "name": "empty_bill",
+      "input": { "lines": [] },
+      "expected": { "subtotal": 0, "cgst": 0, "sgst": 0, "gst": 0, "grandTotal": 0 }
+    }
+  ]
+}

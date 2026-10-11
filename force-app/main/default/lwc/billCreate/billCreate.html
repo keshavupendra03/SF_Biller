@@ -1,0 +1,414 @@
+<template>
+    <div class="slds-p-around_medium page-container">
+        <div class="slds-grid slds-grid_align-spread slds-m-bottom_medium">
+            <lightning-button-icon data-id="back" icon-name="utility:back" alternative-text="Back" onclick={handleBack}></lightning-button-icon>
+            <h1 class="slds-text-heading_medium">{cardTitle}</h1>
+            <span class="slds-p-around_x-small"></span>
+        </div>
+
+        <!-- Customer -->
+        <template if:true={isVersioning}>
+            <p class="slds-text-heading_medium slds-m-bottom_medium">{selectedCustomer.name}</p>
+        </template>
+
+        <template if:false={isVersioning}>
+            <div class="slds-form-element slds-m-bottom_medium">
+                <label class="slds-form-element__label" for="customer-search">Customer</label>
+                <template if:false={hasSelectedCustomer}>
+                    <div class="slds-form-element__control">
+                        <lightning-input
+                            id="customer-search"
+                            data-id="customer-search"
+                            type="search"
+                            variant="label-hidden"
+                            label="Customer"
+                            placeholder="Search by name or phone…"
+                            value={customerSearchTerm}
+                            onchange={handleCustomerSearchChange}
+                        ></lightning-input>
+                    </div>
+                    <template if:true={hasCustomerResults}>
+                        <ul class="slds-box slds-box_x-small slds-m-top_xx-small search-results">
+                            <template for:each={customerResults} for:item="cust">
+                                <li key={cust.id}>
+                                    <button
+                                        type="button"
+                                        class="slds-button slds-button_reset search-result-row"
+                                        data-id={cust.id}
+                                        onclick={handleSelectCustomer}
+                                    >
+                                        <span class="slds-text-body_regular">{cust.name}</span>
+                                        <span class="slds-text-body_small slds-text-color_weak">{cust.phone}</span>
+                                    </button>
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+                    <lightning-input
+                        data-id="new-customer-toggle"
+                        type="toggle"
+                        label="This is a new customer"
+                        checked={showNewCustomerFields}
+                        onchange={handleToggleNewCustomer}
+                        class="slds-m-top_x-small"
+                    ></lightning-input>
+                    <template if:true={showNewCustomerFields}>
+                        <div class="slds-box slds-box_x-small slds-m-top_x-small">
+                            <lightning-input
+                                label="Name"
+                                data-field="name"
+                                value={newCustomer.name}
+                                onchange={handleNewCustomerFieldChange}
+                                class="slds-m-bottom_x-small"
+                            ></lightning-input>
+                            <lightning-input
+                                label="Phone"
+                                type="tel"
+                                data-field="phone"
+                                value={newCustomer.phone}
+                                onchange={handleNewCustomerFieldChange}
+                                class="slds-m-bottom_x-small"
+                            ></lightning-input>
+                            <lightning-button
+                                data-id="save-new-customer"
+                                label="Add Customer"
+                                onclick={handleCreateCustomerInline}
+                                disabled={saveNewCustomerDisabled}
+                            ></lightning-button>
+                        </div>
+                    </template>
+                </template>
+                <template if:true={hasSelectedCustomer}>
+                    <div class="slds-box slds-box_x-small slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+                        <div>
+                            <p class="slds-text-heading_small">{selectedCustomer.name}</p>
+                            <p class="slds-text-body_small slds-text-color_weak">{selectedCustomer.phone}</p>
+                        </div>
+                        <lightning-button-icon
+                            icon-name="utility:close"
+                            alternative-text="Change customer"
+                            onclick={handleClearCustomer}
+                        ></lightning-button-icon>
+                    </div>
+                </template>
+            </div>
+        </template>
+
+        <!-- Vehicle -->
+        <template if:true={hasSelectedCustomer}>
+            <div class="slds-form-element slds-m-bottom_medium">
+                <label class="slds-form-element__label">Vehicle</label>
+
+                <template if:true={hasSelectedVehicle}>
+                    <div class="slds-box slds-box_x-small slds-grid slds-grid_align-spread slds-grid_vertical-align-center">
+                        <span class="slds-text-body_regular">{selectedVehicleLabel}</span>
+                        <button type="button" class="slds-button slds-text-link" data-id="change-vehicle" onclick={handleClearVehicle}>Change</button>
+                    </div>
+                </template>
+
+                <template if:false={hasSelectedVehicle}>
+                    <template if:false={showNewVehicleFields}>
+                        <template if:true={hasVehicleOptions}>
+                            <template for:each={decoratedVehicleOptions} for:item="vehicle">
+                                <button
+                                    key={vehicle.id}
+                                    type="button"
+                                    class="slds-button slds-button_reset search-result-row slds-m-bottom_xx-small"
+                                    data-id={vehicle.id}
+                                    onclick={handleSelectVehicle}
+                                >
+                                    <span class="slds-text-body_regular">{vehicle.label}</span>
+                                </button>
+                            </template>
+                        </template>
+                        <template if:false={hasVehicleOptions}>
+                            <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small">This customer has no vehicles yet.</p>
+                        </template>
+                    </template>
+
+                    <lightning-input
+                        data-id="new-vehicle-toggle"
+                        type="toggle"
+                        label="Add a new vehicle"
+                        checked={showNewVehicleFields}
+                        onchange={handleToggleNewVehicle}
+                        class="slds-m-top_x-small"
+                    ></lightning-input>
+
+                    <template if:true={showNewVehicleFields}>
+                        <div class="slds-box slds-box_x-small slds-m-top_x-small">
+                            <lightning-input
+                                label="Registration number"
+                                data-field="registrationNumber"
+                                value={newVehicle.registrationNumber}
+                                onchange={handleVehicleFieldChange}
+                                class="slds-m-bottom_x-small"
+                            ></lightning-input>
+                            <div class="slds-grid slds-wrap slds-gutters_x-small">
+                                <div class="slds-col slds-size_1-of-2">
+                                    <c-vehicle-make-model-field
+                                        label="Make"
+                                        data-field="make"
+                                        source="make"
+                                        value={newVehicle.make}
+                                        onchange={handleVehicleFieldChange}
+                                    ></c-vehicle-make-model-field>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <c-vehicle-make-model-field
+                                        label="Model"
+                                        data-field="model"
+                                        source="model"
+                                        make={newVehicle.make}
+                                        value={newVehicle.model}
+                                        onchange={handleVehicleFieldChange}
+                                    ></c-vehicle-make-model-field>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-input
+                                        label="Year"
+                                        type="number"
+                                        data-field="year"
+                                        value={newVehicle.year}
+                                        onchange={handleVehicleFieldChange}
+                                    ></lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-2">
+                                    <lightning-input
+                                        label="Color"
+                                        data-field="color"
+                                        value={newVehicle.color}
+                                        onchange={handleVehicleFieldChange}
+                                    ></lightning-input>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </template>
+            </div>
+        </template>
+
+        <!-- Line items -->
+        <div class="slds-form-element slds-m-bottom_medium">
+            <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                <label class="slds-form-element__label">Line Items</label>
+            </div>
+
+            <template for:each={decoratedLines} for:item="line">
+                <div key={line.key} class="line-row">
+                    <button type="button" class="slds-button slds-button_reset line-row-button" data-key={line.key} onclick={handleEditLine}>
+                        <span class="line-row-body">
+                            <span class="slds-text-body_regular">{line.description}</span>
+                            <span class="slds-text-body_small slds-text-color_weak">{line.quantity} x ₹{line.unitPrice} ({line.taxRatePercent}% tax)</span>
+                        </span>
+                    </button>
+                    <lightning-button-icon
+                        data-id="remove-line"
+                        icon-name="utility:delete"
+                        alternative-text="Remove line"
+                        data-key={line.key}
+                        onclick={handleRemoveLine}
+                    ></lightning-button-icon>
+                </div>
+            </template>
+
+            <template if:false={hasLines}>
+                <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">No line items yet.</p>
+            </template>
+
+            <button type="button" class="slds-button slds-text-link" data-id="add-line-item" onclick={handleAddLineItem}>+ Add Line Item</button>
+        </div>
+
+        <!-- Totals -->
+        <div class="slds-box slds-box_x-small slds-theme_shade slds-m-bottom_medium">
+            <div class="slds-grid slds-grid_align-spread">
+                <span>Subtotal</span>
+                <span>₹{formattedSubtotal}</span>
+            </div>
+            <template if:true={hasCgstSgstLines}>
+                <div class="slds-grid slds-grid_align-spread">
+                    <span>CGST</span>
+                    <span>₹{formattedCgst}</span>
+                </div>
+                <div class="slds-grid slds-grid_align-spread">
+                    <span>SGST</span>
+                    <span>₹{formattedSgst}</span>
+                </div>
+            </template>
+            <template if:true={hasIgstLines}>
+                <div class="slds-grid slds-grid_align-spread">
+                    <span>IGST</span>
+                    <span>₹{formattedIgst}</span>
+                </div>
+            </template>
+            <div class="slds-grid slds-grid_align-spread slds-text-heading_small slds-m-top_x-small">
+                <span>Total</span>
+                <span>₹{formattedGrandTotal}</span>
+            </div>
+        </div>
+
+        <!-- Bill date -->
+        <lightning-input
+            type="date"
+            label="Bill Date"
+            value={billDate}
+            onchange={handleBillDateChange}
+            class="slds-m-bottom_medium"
+        ></lightning-input>
+
+        <!-- Bill-To-Party (optional) -->
+        <div class="slds-form-element slds-m-bottom_medium">
+            <lightning-input
+                data-id="bill-to-party-toggle"
+                type="toggle"
+                label="Bill to a different party (GST invoice to a company, not the customer)"
+                checked={showBillToParty}
+                onchange={handleToggleBillToParty}
+            ></lightning-input>
+            <template if:true={showBillToParty}>
+                <div class="slds-box slds-box_x-small slds-m-top_x-small">
+                    <template if:true={hasSelectedBillToParty}>
+                        <div class="slds-grid slds-grid_align-spread slds-m-bottom_x-small">
+                            <span class="slds-text-body_regular">{selectedBillToParty.name}</span>
+                            <button type="button" class="slds-button slds-text-link" onclick={handleClearBillToParty}>Change</button>
+                        </div>
+                    </template>
+
+                    <template if:false={hasSelectedBillToParty}>
+                        <template if:false={showNewBillToPartyFields}>
+                            <lightning-input
+                                data-id="bill-to-party-search"
+                                type="search"
+                                label="Search saved bill-to parties"
+                                placeholder="Search by name…"
+                                value={billToPartySearchTerm}
+                                onchange={handleBillToPartySearchChange}
+                                class="slds-m-bottom_x-small"
+                            ></lightning-input>
+                            <template if:true={hasBillToPartyResults}>
+                                <ul class="slds-box slds-box_x-small slds-m-bottom_x-small search-results">
+                                    <template for:each={billToPartyResults} for:item="party">
+                                        <li key={party.id}>
+                                            <button
+                                                type="button"
+                                                class="slds-button slds-button_reset search-result-row"
+                                                data-id={party.id}
+                                                onclick={handleSelectBillToParty}
+                                            >
+                                                <span class="slds-text-body_regular">{party.name}</span>
+                                                <span class="slds-text-body_small slds-text-color_weak">{party.gstin}</span>
+                                            </button>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </template>
+                        </template>
+
+                        <lightning-input
+                            data-id="new-bill-to-party-toggle"
+                            type="toggle"
+                            label="This is a new party"
+                            checked={showNewBillToPartyFields}
+                            onchange={handleToggleNewBillToParty}
+                            class="slds-m-bottom_x-small"
+                        ></lightning-input>
+
+                        <template if:true={showNewBillToPartyFields}>
+                            <lightning-input
+                                label="Party name"
+                                data-field="name"
+                                value={newBillToParty.name}
+                                onchange={handleBillToPartyFieldChange}
+                                class="slds-m-bottom_x-small"
+                            ></lightning-input>
+                            <lightning-textarea
+                                label="Address"
+                                data-field="address"
+                                value={newBillToParty.address}
+                                onchange={handleBillToPartyFieldChange}
+                                class="slds-m-bottom_x-small"
+                            ></lightning-textarea>
+                            <lightning-input
+                                label="Contact phone"
+                                type="tel"
+                                data-field="contactPhone"
+                                value={newBillToParty.contactPhone}
+                                onchange={handleBillToPartyFieldChange}
+                                class="slds-m-bottom_x-small"
+                            ></lightning-input>
+                            <lightning-input
+                                label="GSTIN"
+                                data-field="gstin"
+                                value={newBillToParty.gstin}
+                                onchange={handleBillToPartyFieldChange}
+                                class="slds-m-bottom_x-small"
+                            ></lightning-input>
+                            <lightning-input
+                                label="State"
+                                data-field="state"
+                                value={newBillToParty.state}
+                                onchange={handleBillToPartyFieldChange}
+                            ></lightning-input>
+                        </template>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- Notes -->
+        <lightning-textarea
+            label="Notes"
+            value={notes}
+            onchange={handleNotesChange}
+            class="slds-m-bottom_medium"
+        ></lightning-textarea>
+
+        <!-- Record Payment feature disabled (2026-10) — uncomment alongside billCreate.js to restore "Record a payment now".
+        <template if:false={isVersioning}>
+            <div class="slds-form-element slds-m-bottom_medium">
+                <lightning-input
+                    type="toggle"
+                    label="Record a payment now"
+                    checked={recordPaymentNow}
+                    onchange={handleToggleRecordPayment}
+                ></lightning-input>
+                <template if:true={recordPaymentNow}>
+                    <div class="slds-grid slds-wrap slds-gutters_x-small slds-m-top_x-small">
+                        <div class="slds-col slds-size_1-of-2">
+                            <lightning-input
+                                type="number"
+                                label="Amount"
+                                step="0.01"
+                                value={paymentAmount}
+                                onchange={handlePaymentAmountChange}
+                            ></lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2">
+                            <lightning-combobox
+                                label="Method"
+                                value={paymentMethod}
+                                options={paymentMethodOptions}
+                                onchange={handlePaymentMethodChange}
+                            ></lightning-combobox>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+        -->
+
+        <lightning-button
+            id="submit-bill"
+            data-id="submit-bill"
+            variant="brand"
+            label={submitButtonLabel}
+            onclick={handleSubmit}
+            disabled={submitDisabled}
+            class="slds-size_1-of-1"
+        ></lightning-button>
+    </div>
+
+    <template lwc:if={showLineEditor}>
+        <c-line-item-editor record={editingLine} onsave={handleLineEditorSave} oncancel={handleLineEditorCancel}></c-line-item-editor>
+    </template>
+</template>

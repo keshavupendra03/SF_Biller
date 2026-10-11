@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Previous_Version__c</fullName>
+    <label>Previous Version</label>
+    <type>Lookup</type>
+    <referenceTo>Estimate__c</referenceTo>
+    <relationshipLabel>Next Versions</relationshipLabel>
+    <relationshipName>Next_Versions</relationshipName>
+    <deleteConstraint>SetNull</deleteConstraint>
+</CustomField>

@@ -1,0 +1,61 @@
+<template>
+    <div class="slds-p-around_medium page-container">
+        <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-m-bottom_medium">
+            <h1 class="slds-text-heading_medium">Customers</h1>
+            <lightning-button-icon
+                data-id="fab"
+                icon-name="utility:add"
+                variant="brand"
+                size="large"
+                onclick={handleToggleCreateForm}
+                alternative-text="New Customer"
+            ></lightning-button-icon>
+        </div>
+
+        <lightning-input
+            data-id="search"
+            type="search"
+            variant="label-hidden"
+            label="Search"
+            placeholder="Search by name, phone, or reg..."
+            value={searchTerm}
+            onchange={handleSearchChange}
+            class="slds-m-bottom_medium"
+        ></lightning-input>
+
+        <template if:true={showCreateForm}>
+            <div class="slds-box slds-box_x-small slds-m-bottom_medium">
+                <p class="slds-text-heading_small slds-m-bottom_x-small">New Customer</p>
+                <lightning-input data-field="name" label="Name" value={newCustomer.name} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                <lightning-input data-field="phone" label="Phone" value={newCustomer.phone} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                <lightning-input data-field="address" label="Address" value={newCustomer.address} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                <lightning-input data-field="email" label="Email" value={newCustomer.email} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                <lightning-input data-field="gstin" label="GSTIN" value={newCustomer.gstin} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                <lightning-input data-field="state" label="State (e.g. 23-Madhya Pradesh)" value={newCustomer.state} onchange={handleFieldChange} class="slds-m-bottom_small"></lightning-input>
+                <lightning-button data-id="save" label="Save Customer" variant="brand" disabled={saveDisabled} onclick={handleSave}></lightning-button>
+                <lightning-button label="Cancel" onclick={handleToggleCreateForm} class="slds-m-left_x-small"></lightning-button>
+            </div>
+        </template>
+
+        <template if:true={hasCustomers}>
+            <ul class="list-rows">
+                <template for:each={decoratedCustomers} for:item="cust">
+                    <li key={cust.id}>
+                        <button type="button" class="slds-button slds-button_reset list-row" data-id={cust.id} onclick={handleSelectCustomer}>
+                            <span class="avatar-circle">{cust.initial}</span>
+                            <span class="list-row-body">
+                                <span class="slds-text-body_regular slds-text-heading_small">{cust.name}</span>
+                                <span class="slds-text-body_small slds-text-color_weak">{cust.phone}</span>
+                            </span>
+                            <lightning-icon icon-name="utility:chevronright" size="x-small"></lightning-icon>
+                        </button>
+                    </li>
+                </template>
+            </ul>
+        </template>
+
+        <template if:true={hasNoCustomers}>
+            <p class="slds-text-color_weak slds-p-vertical_medium">No customers found.</p>
+        </template>
+    </div>
+</template>

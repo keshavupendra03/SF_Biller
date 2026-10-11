@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Mechanic__c</fullName>
+    <label>Mechanic</label>
+    <type>MasterDetail</type>
+    <referenceTo>Mechanic__c</referenceTo>
+    <relationshipLabel>Job Mechanics</relationshipLabel>
+    <relationshipName>Job_Mechanics</relationshipName>
+    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+    <reparentableMasterDetail>false</reparentableMasterDetail>
+</CustomField>

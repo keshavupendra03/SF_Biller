@@ -1,0 +1,50 @@
+<template>
+    <div class="slds-p-around_medium page-container">
+        <div class="slds-grid slds-grid_align-spread slds-m-bottom_medium">
+            <lightning-button-icon icon-name="utility:back" alternative-text="Back" onclick={handleBack}></lightning-button-icon>
+            <h1 class="slds-text-heading_medium">Part</h1>
+            <lightning-button-icon data-id="toggle-edit" icon-name="utility:edit" alternative-text="Edit" disabled={isLoading} onclick={handleToggleEdit}></lightning-button-icon>
+        </div>
+
+        <template if:true={hasDetail}>
+            <template if:false={isEditing}>
+                <h2 class="slds-text-heading_large">{detail.part.name}</h2>
+                <p class="slds-text-body_regular slds-m-bottom_xx-small">SKU: {detail.part.sku}</p>
+                <p class="slds-text-body_regular slds-m-bottom_xx-small">Current Stock: {detail.part.currentStock} {detail.part.unitLabel}</p>
+                <p class="slds-text-body_regular slds-m-bottom_medium">Price: ₹{detail.part.price} • Tax: {detail.part.taxRatePercent}% ({detail.part.gstType})</p>
+            </template>
+
+            <template if:true={isEditing}>
+                <div class="slds-box slds-box_x-small slds-m-bottom_medium">
+                    <lightning-input data-field="name" label="Name" value={editValues.name} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="sku" label="SKU" value={editValues.sku} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="barcode" label="Barcode" value={editValues.barcode} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="price" type="number" step="0.01" label="Price" value={editValues.price} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="lowStockThreshold" type="number" label="Low Stock Threshold" value={editValues.lowStockThreshold} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-combobox data-field="gstType" label="GST Type" value={editValues.gstType} options={gstTypeOptions} onchange={handleGstTypeChange} class="slds-m-bottom_x-small"></lightning-combobox>
+                    <lightning-input data-field="taxRatePercent" type="number" label="Tax Rate %" value={editValues.taxRatePercent} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="hsnCode" label="HSN Code" value={editValues.hsnCode} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="unitLabel" label="Unit" value={editValues.unitLabel} onchange={handleEditFieldChange} class="slds-m-bottom_small"></lightning-input>
+                    <lightning-button data-id="save-edit" label="Save" variant="brand" disabled={saveEditDisabled} onclick={handleSaveEdit}></lightning-button>
+                    <lightning-button label="Cancel" onclick={handleToggleEdit} class="slds-m-left_x-small"></lightning-button>
+                </div>
+            </template>
+
+            <lightning-button data-id="toggle-adjust" label="Adjust Stock" onclick={handleToggleAdjustStock} class="slds-m-bottom_medium"></lightning-button>
+
+            <template if:true={showAdjustStock}>
+                <div class="slds-box slds-box_x-small slds-m-bottom_medium">
+                    <lightning-input
+                        data-id="adjust-quantity"
+                        type="number"
+                        label="Quantity (use a negative number to remove stock)"
+                        value={adjustQuantity}
+                        onchange={handleAdjustQuantityChange}
+                        class="slds-m-bottom_x-small"
+                    ></lightning-input>
+                    <lightning-button data-id="submit-adjust" label="Apply" variant="brand" disabled={adjustDisabled} onclick={handleSubmitAdjustment}></lightning-button>
+                </div>
+            </template>
+        </template>
+    </div>
+</template>

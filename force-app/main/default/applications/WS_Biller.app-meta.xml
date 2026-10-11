@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomApplication xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>WS Biller</label>
+    <formFactors>Large</formFactors>
+    <formFactors>Small</formFactors>
+    <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
+    <isNavPersonalizationDisabled>true</isNavPersonalizationDisabled>
+    <navType>Standard</navType>
+    <tabs>Jobs_Board</tabs>
+    <tabs>Customer_List</tabs>
+    <tabs>Billing_List</tabs>
+    <tabs>Inventory_List</tabs>
+    <tabs>More_Menu</tabs>
+    <tabs>Customer_Detail</tabs>
+    <tabs>Inventory_Detail</tabs>
+    <tabs>Bill_Detail</tabs>
+    <tabs>Estimate_Detail</tabs>
+    <tabs>Job_Detail</tabs>
+    <tabs>New_Estimate</tabs>
+    <tabs>New_Bill</tabs>
+    <tabs>Directory_Menu</tabs>
+    <tabs>Mechanic_List</tabs>
+    <tabs>Surveyor_List</tabs>
+    <tabs>Bill_To_Party_List</tabs>
+    <tabs>Settings_Menu</tabs>
+    <tabs>Workshop_Profile_Page</tabs>
+    <tabs>Job_Stages_Page</tabs>
+    <tabs>standard-report</tabs>
+    <tabs>standard-Dashboard</tabs>
+    <uiType>Lightning</uiType>
+</CustomApplication>

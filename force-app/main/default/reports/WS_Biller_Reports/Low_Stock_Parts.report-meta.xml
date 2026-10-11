@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Report xmlns="http://soap.sforce.com/2006/04/metadata">
+    <columns>
+        <field>Part__c.SKU__c</field>
+    </columns>
+    <columns>
+        <field>Part__c.Current_Stock__c</field>
+    </columns>
+    <columns>
+        <field>Part__c.Low_Stock_Threshold__c</field>
+    </columns>
+    <filter>
+        <criteriaItems>
+            <column>Part__c.Is_Low_Stock__c</column>
+            <operator>equals</operator>
+            <value>1</value>
+        </criteriaItems>
+    </filter>
+    <format>Tabular</format>
+    <name>Low Stock Parts</name>
+    <reportType>CustomEntity$Part__c</reportType>
+    <showDetails>true</showDetails>
+</Report>

@@ -1,0 +1,121 @@
+<template>
+    <div class="slds-p-around_medium page-container">
+        <div class="slds-grid slds-grid_align-spread slds-m-bottom_medium">
+            <lightning-button-icon icon-name="utility:back" alternative-text="Back" onclick={handleBack}></lightning-button-icon>
+            <h1 class="slds-text-heading_medium">Customer</h1>
+            <lightning-button-icon
+                data-id="toggle-edit"
+                icon-name="utility:edit"
+                alternative-text="Edit"
+                disabled={isLoading}
+                onclick={handleToggleEdit}
+            ></lightning-button-icon>
+        </div>
+
+        <template if:true={hasDetail}>
+            <template if:false={isEditing}>
+                <h2 class="slds-text-heading_large">{detail.name}</h2>
+                <p class="slds-text-body_regular slds-m-bottom_xx-small">{detail.phone}</p>
+                <p class="slds-text-body_regular slds-m-bottom_medium">Lifetime spend: ₹{detail.lifetimeSpend}</p>
+            </template>
+
+            <template if:true={isEditing}>
+                <div class="slds-box slds-box_x-small slds-m-bottom_medium">
+                    <lightning-input data-field="name" label="Name" value={editValues.name} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="phone" label="Phone" value={editValues.phone} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="address" label="Address" value={editValues.address} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="email" label="Email" value={editValues.email} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="gstin" label="GSTIN" value={editValues.gstin} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="state" label="State" value={editValues.state} onchange={handleEditFieldChange} class="slds-m-bottom_small"></lightning-input>
+                    <lightning-button data-id="save-edit" label="Save" variant="brand" disabled={saveEditDisabled} onclick={handleSaveEdit}></lightning-button>
+                    <lightning-button label="Cancel" onclick={handleToggleEdit} class="slds-m-left_x-small"></lightning-button>
+                </div>
+            </template>
+
+            <hr class="slds-m-vertical_medium" />
+
+            <!-- Vehicles -->
+            <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                <h3 class="slds-text-heading_small">Vehicles</h3>
+                <button type="button" class="slds-button slds-text-link" data-id="toggle-add-vehicle" onclick={handleToggleAddVehicle}>+ Vehicle</button>
+            </div>
+            <template if:true={showAddVehicle}>
+                <div class="slds-box slds-box_x-small slds-m-bottom_small">
+                    <lightning-input data-field="registrationNumber" label="Registration Number" value={newVehicle.registrationNumber} onchange={handleVehicleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <c-vehicle-make-model-field data-field="make" label="Make" source="make" value={newVehicle.make} onchange={handleVehicleFieldChange}></c-vehicle-make-model-field>
+                    <c-vehicle-make-model-field data-field="model" label="Model" source="model" make={newVehicle.make} value={newVehicle.model} onchange={handleVehicleFieldChange}></c-vehicle-make-model-field>
+                    <lightning-input data-field="year" type="number" label="Year" value={newVehicle.year} onchange={handleVehicleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="color" label="Color" value={newVehicle.color} onchange={handleVehicleFieldChange} class="slds-m-bottom_small"></lightning-input>
+                    <lightning-button data-id="save-vehicle" label="Save Vehicle" variant="brand" disabled={saveVehicleDisabled} onclick={handleSaveVehicle}></lightning-button>
+                </div>
+            </template>
+            <template if:true={hasVehicles}>
+                <template for:each={decoratedVehicles} for:item="vehicle">
+                    <div key={vehicle.id} class="slds-box slds-box_x-small slds-m-bottom_x-small">
+                        <p class="slds-text-heading_small">{vehicle.registrationNumber}</p>
+                        <p class="slds-text-body_small slds-text-color_weak">{vehicle.label}</p>
+                    </div>
+                </template>
+            </template>
+
+            <hr class="slds-m-vertical_medium" />
+
+            <!-- Jobs -->
+            <h3 class="slds-text-heading_small slds-m-bottom_small">Jobs</h3>
+            <template if:true={hasJobs}>
+                <template for:each={detail.jobs} for:item="job">
+                    <button type="button" key={job.id} class="slds-button slds-button_reset document-row" data-id={job.id} onclick={handleOpenJob}>
+                        <span class="document-row-body">
+                            <span class="slds-text-body_regular">{job.jobNumber}</span>
+                            <span class="slds-text-body_small slds-text-color_weak">{job.vehicleLabel}</span>
+                        </span>
+                        <span class="slds-badge">{job.stageName}</span>
+                    </button>
+                </template>
+            </template>
+            <template if:false={hasJobs}>
+                <p class="slds-text-color_weak slds-m-bottom_medium">No jobs yet.</p>
+            </template>
+
+            <hr class="slds-m-vertical_medium" />
+
+            <!-- Bills -->
+            <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                <h3 class="slds-text-heading_small">Bills</h3>
+                <button type="button" class="slds-button slds-text-link" data-id="new-bill" onclick={handleNewBill}>+ New Bill</button>
+            </div>
+            <template if:true={hasBills}>
+                <template for:each={decoratedBills} for:item="bill">
+                    <button type="button" key={bill.id} class="slds-button slds-button_reset document-row" data-id={bill.id} onclick={handleOpenBill}>
+                        <span class="document-row-body">
+                            <span class="slds-text-body_regular">{bill.documentNumber}</span>
+                            <!-- Record Payment feature disabled (2026-10) — uncomment to restore the Paid/Partial/Unpaid status badge.
+                            <span class={bill.badgeClass}>{bill.status}</span>
+                            -->
+                        </span>
+                        <span class="slds-text-body_regular">₹{bill.totalAmount}</span>
+                    </button>
+                </template>
+            </template>
+
+            <hr class="slds-m-vertical_medium" />
+
+            <!-- Estimates -->
+            <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                <h3 class="slds-text-heading_small">Estimates</h3>
+                <button type="button" class="slds-button slds-text-link" data-id="new-estimate" onclick={handleNewEstimate}>+ New Estimate</button>
+            </div>
+            <template if:true={hasEstimates}>
+                <template for:each={decoratedEstimates} for:item="estimate">
+                    <button type="button" key={estimate.id} class="slds-button slds-button_reset document-row" data-id={estimate.id} onclick={handleOpenEstimate}>
+                        <span class="document-row-body">
+                            <span class="slds-text-body_regular">{estimate.documentNumber}</span>
+                            <span class={estimate.badgeClass}>{estimate.status}</span>
+                        </span>
+                        <span class="slds-text-body_regular">₹{estimate.totalAmount}</span>
+                    </button>
+                </template>
+            </template>
+        </template>
+    </div>
+</template>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>All_Jobs_Kanban</fullName>
+    <filterScope>Everything</filterScope>
+    <label>All Jobs (Kanban)</label>
+    <columns>NAME</columns>
+    <columns>Customer__c</columns>
+    <columns>Vehicle__c</columns>
+    <columns>Job_Status_Stage__c</columns>
+    <columns>Surveyor__c</columns>
+    <columns>LAST_UPDATE</columns>
+    <!-- Tried <kanbanSettings><groupingField>Job_Status_Stage__c</groupingField></kanbanSettings>
+         here — rejected as "invalid at this location in type ListView" at
+         every position tried (start, end, either side of <filters>), with
+         and without other list-view content present. Confirmed this is a
+         genuine platform limitation, not an ordering issue: a plain list
+         view with identical structure deploys cleanly the moment this
+         element is removed. Kanban itself still works — any list view can
+         be switched to Kanban display via the "Display As" toggle in the
+         Lightning Experience list view UI, picking Job_Status_Stage__c as
+         the grouping field there; that one-time UI step just isn't
+         something this metadata type lets you pre-configure via deploy. -->
+</ListView>

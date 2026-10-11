@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Estimate_Date__c</fullName>
+    <label>Estimate Date</label>
+    <type>Date</type>
+    <defaultValue>TODAY()</defaultValue>
+    <description>Editable independently of CreatedDate.</description>
+</CustomField>

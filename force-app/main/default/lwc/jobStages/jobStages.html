@@ -1,0 +1,49 @@
+<template>
+    <div class="slds-p-around_medium page-container">
+        <div class="slds-grid slds-grid_align-spread slds-m-bottom_medium">
+            <lightning-button-icon icon-name="utility:back" alternative-text="Back" onclick={handleBack}></lightning-button-icon>
+            <h1 class="slds-text-heading_medium">Job Stages</h1>
+            <span class="slds-p-around_x-small"></span>
+        </div>
+
+        <template if:true={hasStages}>
+            <template for:each={decoratedStages} for:item="stage">
+                <div key={stage.id} class="slds-grid slds-grid_align-spread stage-row">
+                    <template if:false={stage.isEditing}>
+                        <span class="stage-name">{stage.name}</span>
+                    </template>
+                    <template if:true={stage.isEditing}>
+                        <lightning-input
+                            variant="label-hidden"
+                            label="Stage name"
+                            value={editingName}
+                            onchange={handleEditingNameChange}
+                            class="stage-name-input"
+                        ></lightning-input>
+                        <lightning-button-icon icon-name="utility:check" data-id={stage.id} alternative-text="Confirm rename" onclick={handleConfirmRename}></lightning-button-icon>
+                    </template>
+
+                    <div class="stage-actions">
+                        <lightning-button-icon data-action="edit" data-id={stage.id} icon-name="utility:edit" alternative-text="Rename" onclick={handleStartEdit}></lightning-button-icon>
+                        <lightning-input type="toggle" data-id={stage.id} checked={stage.isActive} onchange={handleToggleActive}></lightning-input>
+                        <lightning-button-icon data-action="up" data-id={stage.id} icon-name="utility:up" alternative-text="Move up" disabled={stage.isFirst} onclick={handleMoveUp}></lightning-button-icon>
+                        <lightning-button-icon data-action="down" data-id={stage.id} icon-name="utility:down" alternative-text="Move down" disabled={stage.isLast} onclick={handleMoveDown}></lightning-button-icon>
+                    </div>
+                </div>
+            </template>
+        </template>
+
+        <div class="slds-m-top_large slds-text-align_center">
+            <lightning-input
+                data-id="new-stage-name"
+                variant="label-hidden"
+                label="New stage name"
+                placeholder="New stage name"
+                value={newStageName}
+                onchange={handleNewStageNameChange}
+                class="slds-m-bottom_small"
+            ></lightning-input>
+            <lightning-button data-id="add-stage" label="Add Stage" variant="brand" icon-name="utility:add" disabled={addStageDisabled} onclick={handleAddStage}></lightning-button>
+        </div>
+    </div>
+</template>

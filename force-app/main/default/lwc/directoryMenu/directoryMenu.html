@@ -1,0 +1,14 @@
+<template>
+    <div class="slds-p-around_medium page-container">
+        <h1 class="slds-text-heading_medium slds-m-bottom_medium">Directory</h1>
+        <template for:each={menuItems} for:item="item">
+            <button type="button" key={item.id} class="slds-button slds-button_reset menu-card" data-id={item.id} onclick={handleNavigate}>
+                <span class="menu-card-icon">
+                    <lightning-icon icon-name={item.icon} size="small"></lightning-icon>
+                </span>
+                <span class="slds-text-heading_small menu-card-title">{item.title}</span>
+                <lightning-icon icon-name="utility:chevronright" size="x-small"></lightning-icon>
+            </button>
+        </template>
+    </div>
+</template>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ReportType xmlns="http://soap.sforce.com/2006/04/metadata">
+    <baseObject>Mechanic__c</baseObject>
+    <category>other</category>
+    <deployed>true</deployed>
+    <description>Each mechanic together with the jobs they've been assigned to, for workload reporting. A standalone custom report type because Job_Mechanic__c, a junction object with two master-detail relationships, gets no auto-generated single-object report type of its own.</description>
+    <join>
+        <outerJoin>false</outerJoin>
+        <relationship>Job_Mechanics__r</relationship>
+    </join>
+    <label>Mechanics with Jobs</label>
+    <sections>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Name</field>
+            <table>Mechanic__c</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Phone__c</field>
+            <table>Mechanic__c</table>
+        </columns>
+        <masterLabel>Mechanics</masterLabel>
+    </sections>
+    <sections>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Job__c</field>
+            <table>Mechanic__c.Job_Mechanics__r</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>Mechanic__c</field>
+            <table>Mechanic__c.Job_Mechanics__r</table>
+        </columns>
+        <columns>
+            <checkedByDefault>true</checkedByDefault>
+            <field>CreatedDate</field>
+            <table>Mechanic__c.Job_Mechanics__r</table>
+        </columns>
+        <masterLabel>Job Mechanics</masterLabel>
+    </sections>
+</ReportType>

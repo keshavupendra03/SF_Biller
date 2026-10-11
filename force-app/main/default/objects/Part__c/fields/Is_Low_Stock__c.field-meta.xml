@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Is_Low_Stock__c</fullName>
+    <description>True when current stock has fallen to or below the reorder threshold — distinct from Is_Oversold__c (negative stock). Drives the Stage 7 low-stock report&apos;s filter. A formula, like Is_Oversold__c, so there is nothing to keep in sync by hand.</description>
+    <formula>Current_Stock__c &lt;= Low_Stock_Threshold__c</formula>
+    <label>Is Low Stock</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>

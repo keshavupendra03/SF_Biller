@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Bill_Date__c</fullName>
+    <label>Bill Date</label>
+    <type>Date</type>
+    <defaultValue>TODAY()</defaultValue>
+    <description>Editable independently of CreatedDate — staff can backdate/correct the printed bill date without it ever changing Invoice_Number__c or Financial_Year__c (those are set once, atomically, at insert and never revisited).</description>
+</CustomField>

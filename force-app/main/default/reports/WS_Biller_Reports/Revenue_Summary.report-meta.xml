@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Report xmlns="http://soap.sforce.com/2006/04/metadata">
+    <columns>
+        <aggregateTypes>Sum</aggregateTypes>
+        <field>Bill__c.Subtotal__c</field>
+    </columns>
+    <columns>
+        <aggregateTypes>Sum</aggregateTypes>
+        <field>Bill__c.GST_Amount__c</field>
+    </columns>
+    <columns>
+        <aggregateTypes>Sum</aggregateTypes>
+        <field>Bill__c.Total_Amount__c</field>
+    </columns>
+    <filter>
+        <criteriaItems>
+            <column>Bill__c.Is_Latest_Version__c</column>
+            <operator>equals</operator>
+            <value>1</value>
+        </criteriaItems>
+    </filter>
+    <groupingsDown>
+        <dateGranularity>Month</dateGranularity>
+        <field>Bill__c.Bill_Date__c</field>
+        <sortOrder>Asc</sortOrder>
+    </groupingsDown>
+    <format>Summary</format>
+    <name>Revenue Summary</name>
+    <reportType>CustomEntity$Bill__c</reportType>
+    <showDetails>true</showDetails>
+</Report>

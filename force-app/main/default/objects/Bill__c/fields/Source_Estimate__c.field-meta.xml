@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Source_Estimate__c</fullName>
+    <label>Source Estimate</label>
+    <type>Lookup</type>
+    <referenceTo>Estimate__c</referenceTo>
+    <relationshipLabel>Bills</relationshipLabel>
+    <relationshipName>Bills_From_Estimate</relationshipName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Which estimate (and specific version of it) this bill was converted from, if any — blank for a bill created standalone.</description>
+</CustomField>

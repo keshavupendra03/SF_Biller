@@ -1,0 +1,25 @@
+.page-container {
+    padding-bottom: 2rem;
+}
+
+.stage-row {
+    align-items: center;
+    padding: 0.75rem 0.5rem;
+    min-height: 44px;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.stage-name {
+    font-size: 1rem;
+}
+
+.stage-name-input {
+    flex: 1;
+    margin-right: 0.5rem;
+}
+
+.stage-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}

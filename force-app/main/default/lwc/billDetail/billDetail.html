@@ -1,0 +1,136 @@
+<template>
+    <div class="slds-p-around_medium page-container">
+        <div class="slds-grid slds-grid_align-spread slds-m-bottom_medium">
+            <lightning-button-icon data-id="back" icon-name="utility:back" alternative-text="Back" onclick={handleBack}></lightning-button-icon>
+            <h1 class="slds-text-heading_medium">Bill Details</h1>
+            <lightning-button-icon data-id="edit" icon-name="utility:edit" alternative-text="Edit" disabled={isLoading} onclick={handleEdit}></lightning-button-icon>
+        </div>
+
+        <template if:true={hasSummary}>
+            <h2 class="slds-text-heading_large">{summary.invoiceNumber}</h2>
+            <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_xx-small">FY {summary.financialYear}</p>
+            <p class="slds-text-body_regular slds-m-bottom_small">Date: {summary.billDate}</p>
+            <!-- Record Payment feature disabled (2026-10) — uncomment to restore.
+            <span class={statusBadgeClass}>{summary.status}</span>
+            -->
+
+            <hr class="slds-m-vertical_medium" />
+
+            <p class="slds-text-body_regular"><strong>Bill To:</strong> {billToLabel}</p>
+            <template if:true={summary.vehicleLabel}>
+                <p class="slds-text-body_regular"><strong>Vehicle:</strong> {summary.vehicleLabel}</p>
+            </template>
+            <template if:true={summary.notes}>
+                <p class="slds-text-body_regular slds-text-color_weak">{summary.notes}</p>
+            </template>
+
+            <hr class="slds-m-vertical_medium" />
+
+            <h3 class="slds-text-heading_small slds-m-bottom_small">Line Items</h3>
+            <template if:true={hasLineItems}>
+                <template for:each={decoratedLineItems} for:item="line">
+                    <div key={line.key} class="line-row">
+                        <p class="slds-text-body_regular">{line.description}</p>
+                        <p class="slds-text-body_small slds-text-color_weak">
+                            {line.quantity} {line.unitLabel} x ₹{line.unitPrice} ({line.taxRatePercent}% tax)
+                            <template if:true={line.hsnSacCode}> HSN/SAC: {line.hsnSacCode}</template>
+                        </p>
+                    </div>
+                </template>
+            </template>
+
+            <div class="totals-block">
+                <div class="slds-grid slds-grid_align-spread">
+                    <span>Subtotal</span><span>₹{summary.subtotal}</span>
+                </div>
+                <template if:true={hasCgstSgstLines}>
+                    <div class="slds-grid slds-grid_align-spread">
+                        <span>CGST</span><span>₹{summary.cgst}</span>
+                    </div>
+                    <div class="slds-grid slds-grid_align-spread">
+                        <span>SGST</span><span>₹{summary.sgst}</span>
+                    </div>
+                </template>
+                <template if:true={hasIgstLines}>
+                    <div class="slds-grid slds-grid_align-spread">
+                        <span>IGST</span><span>₹{summary.igst}</span>
+                    </div>
+                </template>
+                <div class="slds-grid slds-grid_align-spread slds-text-heading_small total-row">
+                    <span>Total</span><span>₹{summary.totalAmount}</span>
+                </div>
+            </div>
+
+            <!-- Record Payment feature disabled (2026-10) — uncomment to restore.
+            <hr class="slds-m-vertical_medium" />
+
+            <h3 class="slds-text-heading_small slds-m-bottom_small">Payments</h3>
+            <template if:true={hasPayments}>
+                <template for:each={summary.payments} for:item="payment">
+                    <div key={payment.id} class="slds-grid slds-grid_align-spread payment-row">
+                        <span>₹{payment.amount} ({payment.method})</span>
+                        <span class="slds-text-body_small slds-text-color_weak">{payment.paidAt}</span>
+                    </div>
+                </template>
+            </template>
+            <template if:false={hasPayments}>
+                <p class="slds-text-color_weak">No payments recorded yet.</p>
+            </template>
+
+            <p class="slds-text-body_regular slds-m-top_small">Paid: ₹{summary.amountPaid}</p>
+            <p class="slds-text-heading_small slds-m-bottom_medium">Due: ₹{summary.amountDue}</p>
+
+            <template if:true={showRecordPayment}>
+                <div class="slds-box slds-box_x-small slds-m-bottom_medium">
+                    <lightning-input
+                        type="number"
+                        step="0.01"
+                        label="Amount"
+                        value={paymentAmount}
+                        onchange={handlePaymentAmountChange}
+                        class="slds-m-bottom_x-small"
+                    ></lightning-input>
+                    <lightning-combobox
+                        label="Method"
+                        value={paymentMethod}
+                        options={paymentMethodOptions}
+                        onchange={handlePaymentMethodChange}
+                        class="slds-m-bottom_small"
+                    ></lightning-combobox>
+                    <lightning-button
+                        data-id="submit-payment"
+                        variant="brand"
+                        label="Record"
+                        disabled={submitPaymentDisabled}
+                        onclick={handleSubmitPayment}
+                    ></lightning-button>
+                </div>
+            </template>
+            -->
+
+            <div class="action-row">
+                <!-- Record Payment feature disabled (2026-10) — uncomment to restore.
+                <lightning-button
+                    data-id="record-payment"
+                    variant="brand"
+                    label="Record Payment"
+                    disabled={isFullyPaid}
+                    onclick={handleToggleRecordPayment}
+                    class="slds-m-right_x-small slds-m-bottom_x-small"
+                ></lightning-button>
+                -->
+                <lightning-button
+                    data-id="print"
+                    icon-name="utility:print"
+                    label="Print"
+                    onclick={handlePrint}
+                    class="slds-m-bottom_x-small"
+                ></lightning-button>
+            </div>
+        </template>
+
+        <template lwc:if={showPreview}>
+            <c-document-preview record-id={billId} heading={summary.invoiceNumber} onclose={handleClosePreview}></c-document-preview>
+        </template>
+    </div>
+</template>
