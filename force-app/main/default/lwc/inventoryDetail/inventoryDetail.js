@@ -1,6 +1,7 @@
 import { LightningElement, wire, track } from 'lwc';
 import { NavigationMixin, CurrentPageReference } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import getPartDetail from '@salesforce/apex/PartController.getPartDetail';
 import updatePart from '@salesforce/apex/PartController.updatePart';
 import adjustStock from '@salesforce/apex/PartController.adjustStock';
@@ -24,6 +25,10 @@ export default class InventoryDetail extends NavigationMixin(LightningElement) {
     showAdjustStock = false;
     adjustQuantity = '';
     isAdjusting = false;
+
+    connectedCallback() {
+        disablePullToRefresh(this);
+    }
 
     @wire(CurrentPageReference)
     wiredPageRef(pageRef) {

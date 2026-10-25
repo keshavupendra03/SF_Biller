@@ -1,6 +1,7 @@
 import { LightningElement, track } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import listCustomers from '@salesforce/apex/CustomerController.listCustomers';
 import createCustomer from '@salesforce/apex/BillController.createCustomer';
 const EMPTY_NEW_CUSTOMER = { name: '', phone: '', address: '', email: '', gstin: '', state: '' };
@@ -16,6 +17,7 @@ export default class CustomerList extends NavigationMixin(LightningElement) {
     isSaving = false;
 
     connectedCallback() {
+        disablePullToRefresh(this);
         this.loadCustomers();
     }
 

@@ -111,6 +111,7 @@ private class JobControllerTest {
         newVehicle.registrationNumber = 'MP09ZZ9999';
         newVehicle.make = 'Hyundai';
         newVehicle.model = 'i20';
+        newVehicle.chassisNumber = 'MALA851ALKM123456';
         request.newVehicle = newVehicle;
 
         Test.startTest();
@@ -119,6 +120,10 @@ private class JobControllerTest {
 
         System.assertEquals(1, [SELECT COUNT() FROM Vehicle__c WHERE Name = 'MP09ZZ9999']);
         System.assertEquals('MP09ZZ9999 — Hyundai i20', card.vehicleLabel);
+        System.assertEquals(
+            'MALA851ALKM123456',
+            [SELECT Chassis_Number__c FROM Vehicle__c WHERE Name = 'MP09ZZ9999'].Chassis_Number__c
+        );
         System.assertEquals(
             1,
             [SELECT COUNT() FROM Vehicle_Make_Model__c WHERE Make__c = 'Hyundai' AND Model__c = 'i20'],

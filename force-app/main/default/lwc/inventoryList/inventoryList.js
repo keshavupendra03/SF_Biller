@@ -1,6 +1,7 @@
 import { LightningElement, track } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import listParts from '@salesforce/apex/PartController.listParts';
 import createPart from '@salesforce/apex/PartController.createPart';
 
@@ -35,6 +36,7 @@ export default class InventoryList extends NavigationMixin(LightningElement) {
     isSaving = false;
 
     connectedCallback() {
+        disablePullToRefresh(this);
         this.loadParts();
     }
 

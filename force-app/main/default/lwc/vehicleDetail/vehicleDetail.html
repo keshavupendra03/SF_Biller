@@ -1,0 +1,42 @@
+<template>
+    <div class="slds-p-around_medium page-container">
+        <div class="slds-grid slds-grid_align-spread slds-m-bottom_medium">
+            <lightning-button-icon data-id="back" icon-name="utility:back" alternative-text="Back" onclick={handleBack}></lightning-button-icon>
+            <h1 class="slds-text-heading_medium">Vehicle</h1>
+            <lightning-button-icon
+                data-id="toggle-edit"
+                icon-name="utility:edit"
+                alternative-text="Edit"
+                disabled={isLoading}
+                onclick={handleToggleEdit}
+            ></lightning-button-icon>
+        </div>
+
+        <template if:true={hasDetail}>
+            <template if:false={isEditing}>
+                <h2 class="slds-text-heading_large">{detail.registrationNumber}</h2>
+                <p class="slds-text-body_regular slds-m-bottom_xx-small">{detail.make} {detail.model}</p>
+                <template if:true={hasYearOrColor}>
+                    <p class="slds-text-body_regular slds-m-bottom_xx-small">{detail.year} {detail.color}</p>
+                </template>
+                <template if:true={hasChassisNumber}>
+                    <p class="slds-text-body_regular slds-m-bottom_xx-small">Chassis Number: {detail.chassisNumber}</p>
+                </template>
+                <p class="slds-text-body_regular slds-text-color_weak slds-m-bottom_medium">Customer: {detail.customerName}</p>
+            </template>
+
+            <template if:true={isEditing}>
+                <div class="slds-box slds-box_x-small slds-m-bottom_medium">
+                    <lightning-input data-field="registrationNumber" label="Registration Number" value={editValues.registrationNumber} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <c-vehicle-make-model-field data-field="make" label="Make" source="make" value={editValues.make} onchange={handleEditFieldChange}></c-vehicle-make-model-field>
+                    <c-vehicle-make-model-field data-field="model" label="Model" source="model" make={editValues.make} value={editValues.model} onchange={handleEditFieldChange}></c-vehicle-make-model-field>
+                    <lightning-input data-field="year" type="number" label="Year" value={editValues.year} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="color" label="Color" value={editValues.color} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="chassisNumber" label="Chassis Number" value={editValues.chassisNumber} onchange={handleEditFieldChange} class="slds-m-bottom_small"></lightning-input>
+                    <lightning-button data-id="save-edit" label="Save" variant="brand" disabled={saveEditDisabled} onclick={handleSaveEdit}></lightning-button>
+                    <lightning-button label="Cancel" onclick={handleToggleEdit} class="slds-m-left_x-small"></lightning-button>
+                </div>
+            </template>
+        </template>
+    </div>
+</template>

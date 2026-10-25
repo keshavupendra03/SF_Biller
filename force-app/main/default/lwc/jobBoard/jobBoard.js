@@ -1,6 +1,7 @@
 import { LightningElement, track } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import getBoardData from '@salesforce/apex/JobController.getBoardData';
 import searchVehicles from '@salesforce/apex/JobController.searchVehicles';
 import getActiveMechanics from '@salesforce/apex/JobController.getActiveMechanics';
@@ -11,7 +12,7 @@ import assignMechanics from '@salesforce/apex/JobController.assignMechanics';
 import searchCustomers from '@salesforce/apex/BillController.searchCustomers';
 import createCustomer from '@salesforce/apex/BillController.createCustomer';
 
-const EMPTY_NEW_VEHICLE = { registrationNumber: '', make: '', model: '', year: '', color: '' };
+const EMPTY_NEW_VEHICLE = { registrationNumber: '', make: '', model: '', year: '', color: '', chassisNumber: '' };
 const EMPTY_NEW_CUSTOMER = { name: '', phone: '', address: '', email: '', gstin: '', state: '' };
 
 export default class JobBoard extends NavigationMixin(LightningElement) {
@@ -54,6 +55,7 @@ export default class JobBoard extends NavigationMixin(LightningElement) {
     expandedMechanicsJobId;
 
     connectedCallback() {
+        disablePullToRefresh(this);
         this.loadBoard();
         getActiveMechanics()
             .then((mechanics) => {
@@ -288,7 +290,8 @@ export default class JobBoard extends NavigationMixin(LightningElement) {
                       make: this.newVehicle.make,
                       model: this.newVehicle.model,
                       year: this.newVehicle.year ? Number(this.newVehicle.year) : null,
-                      color: this.newVehicle.color
+                      color: this.newVehicle.color,
+                      chassisNumber: this.newVehicle.chassisNumber
                   }
                 : null,
             surveyorId: this.selectedSurveyorId || null,

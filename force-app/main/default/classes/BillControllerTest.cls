@@ -622,6 +622,7 @@ private class BillControllerTest {
         newVehicle.registrationNumber = 'MH12CD5678';
         newVehicle.make = 'Maruti';
         newVehicle.model = 'Swift';
+        newVehicle.chassisNumber = 'MA3ERLF1S00123456';
         request.newVehicle = newVehicle;
         BillController.LineItemInput line = new BillController.LineItemInput();
         line.description = 'Service';
@@ -634,9 +635,10 @@ private class BillControllerTest {
         Test.stopTest();
 
         System.assertNotEquals(null, summary.vehicleId);
-        Vehicle__c created = [SELECT Customer__c, Name FROM Vehicle__c WHERE Id = :summary.vehicleId];
+        Vehicle__c created = [SELECT Customer__c, Name, Chassis_Number__c FROM Vehicle__c WHERE Id = :summary.vehicleId];
         System.assertEquals(customerId, created.Customer__c, 'A vehicle created inline must be saved under the bill\'s customer.');
         System.assertEquals('MH12CD5678', created.Name);
+        System.assertEquals('MA3ERLF1S00123456', created.Chassis_Number__c);
         System.assertEquals(
             1,
             [SELECT COUNT() FROM Vehicle_Make_Model__c WHERE Make__c = 'Maruti' AND Model__c = 'Swift'],

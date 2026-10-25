@@ -1,6 +1,7 @@
 import { LightningElement, wire } from 'lwc';
 import { NavigationMixin, CurrentPageReference } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import getJobDetail from '@salesforce/apex/JobController.getJobDetail';
 
 /**
@@ -16,6 +17,10 @@ export default class JobDetail extends NavigationMixin(LightningElement) {
     // The customer screen this job was opened from, if any — Back returns
     // there instead of the Jobs board when it's set.
     fromCustomerId;
+
+    connectedCallback() {
+        disablePullToRefresh(this);
+    }
 
     @wire(CurrentPageReference)
     wiredPageRef(pageRef) {

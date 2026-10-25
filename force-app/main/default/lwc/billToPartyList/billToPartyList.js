@@ -1,5 +1,6 @@
 import { LightningElement, track } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import listBillToParties from '@salesforce/apex/DirectoryController.listBillToParties';
 import createBillToParty from '@salesforce/apex/DirectoryController.createBillToParty';
 
@@ -16,6 +17,7 @@ export default class BillToPartyList extends LightningElement {
     isSaving = false;
 
     connectedCallback() {
+        disablePullToRefresh(this);
         this.loadParties();
     }
 

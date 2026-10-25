@@ -1,5 +1,6 @@
 import { LightningElement, track } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import listMechanics from '@salesforce/apex/DirectoryController.listMechanics';
 import createMechanic from '@salesforce/apex/DirectoryController.createMechanic';
 import setMechanicActive from '@salesforce/apex/DirectoryController.setMechanicActive';
@@ -16,6 +17,7 @@ export default class MechanicList extends LightningElement {
     isSaving = false;
 
     connectedCallback() {
+        disablePullToRefresh(this);
         this.loadPeople();
     }
 

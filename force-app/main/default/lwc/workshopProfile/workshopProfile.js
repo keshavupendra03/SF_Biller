@@ -1,6 +1,7 @@
 import { LightningElement } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import getProfile from '@salesforce/apex/WorkshopProfileController.getProfile';
 import saveProfile from '@salesforce/apex/WorkshopProfileController.saveProfile';
 
@@ -24,6 +25,7 @@ export default class WorkshopProfile extends NavigationMixin(LightningElement) {
     isSaving = false;
 
     connectedCallback() {
+        disablePullToRefresh(this);
         this.loadProfile();
     }
 

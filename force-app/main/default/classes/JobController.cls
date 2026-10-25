@@ -78,6 +78,7 @@ public with sharing class JobController {
         @AuraEnabled public String model { get; set; }
         @AuraEnabled public Integer year { get; set; }
         @AuraEnabled public String color { get; set; }
+        @AuraEnabled public String chassisNumber { get; set; }
     }
 
     public class CreateJobRequest {
@@ -304,7 +305,8 @@ public with sharing class JobController {
                 Make__c = request.newVehicle.make,
                 Model__c = request.newVehicle.model,
                 Year__c = request.newVehicle.year,
-                Color__c = request.newVehicle.color
+                Color__c = request.newVehicle.color,
+                Chassis_Number__c = request.newVehicle.chassisNumber
             );
             insert vehicle;
             VehicleMakeModelService.rememberIfNew(vehicle.Make__c, vehicle.Model__c);

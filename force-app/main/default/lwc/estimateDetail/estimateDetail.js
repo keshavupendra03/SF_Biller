@@ -1,6 +1,7 @@
 import { LightningElement, wire } from 'lwc';
 import { NavigationMixin, CurrentPageReference } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import getEstimateSummary from '@salesforce/apex/EstimateController.getEstimateSummary';
 
 const STATUS_BADGE_CLASS = {
@@ -20,6 +21,10 @@ export default class EstimateDetail extends NavigationMixin(LightningElement) {
     // The customer screen this estimate was opened from, if any — Back
     // returns there instead of the generic Customer list when it's set.
     fromCustomerId;
+
+    connectedCallback() {
+        disablePullToRefresh(this);
+    }
 
     @wire(CurrentPageReference)
     wiredPageRef(pageRef) {

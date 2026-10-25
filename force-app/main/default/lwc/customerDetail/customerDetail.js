@@ -1,11 +1,12 @@
 import { LightningElement, wire, track } from 'lwc';
 import { NavigationMixin, CurrentPageReference } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import getCustomerDetail from '@salesforce/apex/CustomerController.getCustomerDetail';
 import updateCustomer from '@salesforce/apex/CustomerController.updateCustomer';
 import createVehicle from '@salesforce/apex/CustomerController.createVehicle';
 
-const EMPTY_VEHICLE = { registrationNumber: '', make: '', model: '', year: '', color: '' };
+const EMPTY_VEHICLE = { registrationNumber: '', make: '', model: '', year: '', color: '', chassisNumber: '' };
 
 const STATUS_BADGE_CLASS = {
     Paid: 'slds-badge slds-theme_success',
@@ -33,6 +34,10 @@ export default class CustomerDetail extends NavigationMixin(LightningElement) {
     showAddVehicle = false;
     newVehicle = { ...EMPTY_VEHICLE };
     isSavingVehicle = false;
+
+    connectedCallback() {
+        disablePullToRefresh(this);
+    }
 
     @wire(CurrentPageReference)
     wiredPageRef(pageRef) {
@@ -181,7 +186,8 @@ export default class CustomerDetail extends NavigationMixin(LightningElement) {
                 make: this.newVehicle.make,
                 model: this.newVehicle.model,
                 year: this.newVehicle.year ? Number(this.newVehicle.year) : null,
-                color: this.newVehicle.color
+                color: this.newVehicle.color,
+                chassisNumber: this.newVehicle.chassisNumber
             }
         })
             .then(() => {
@@ -206,6 +212,10 @@ export default class CustomerDetail extends NavigationMixin(LightningElement) {
 
     handleOpenJob(event) {
         this.navigateToRecord('Job_Detail', event.currentTarget.dataset.id);
+    }
+
+    handleOpenVehicle(event) {
+        this.navigateToRecord('Vehicle_Detail', event.currentTarget.dataset.id);
     }
 
     handleOpenBill(event) {

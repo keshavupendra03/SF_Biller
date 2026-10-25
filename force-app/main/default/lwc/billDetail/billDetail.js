@@ -1,6 +1,7 @@
 import { LightningElement, wire } from 'lwc';
 import { NavigationMixin, CurrentPageReference } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import getBillSummary from '@salesforce/apex/BillController.getBillSummary';
 // Record Payment feature disabled (2026-10) — uncomment to restore. The
 // Apex side (BillController.recordPayment, Bill__c.Status__c via
@@ -37,6 +38,10 @@ export default class BillDetail extends NavigationMixin(LightningElement) {
     // The customer screen this bill was opened from, if any — Back returns
     // there instead of the generic Billing list when it's set.
     fromCustomerId;
+
+    connectedCallback() {
+        disablePullToRefresh(this);
+    }
 
     @wire(CurrentPageReference)
     wiredPageRef(pageRef) {

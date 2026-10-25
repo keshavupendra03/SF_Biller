@@ -1,6 +1,7 @@
 import { LightningElement, track } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import listBills from '@salesforce/apex/BillController.listBills';
 
 // Record Payment feature disabled (2026-10) — uncomment to restore the
@@ -23,6 +24,7 @@ export default class BillingList extends NavigationMixin(LightningElement) {
     isLoading = true;
 
     connectedCallback() {
+        disablePullToRefresh(this);
         this.loadBills();
     }
 

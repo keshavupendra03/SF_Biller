@@ -1,6 +1,7 @@
 import { LightningElement, track } from 'lwc';
 import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import listStages from '@salesforce/apex/JobStageController.listStages';
 import createStage from '@salesforce/apex/JobStageController.createStage';
 import renameStage from '@salesforce/apex/JobStageController.renameStage';
@@ -18,6 +19,7 @@ export default class JobStages extends NavigationMixin(LightningElement) {
     isSavingNewStage = false;
 
     connectedCallback() {
+        disablePullToRefresh(this);
         this.loadStages();
     }
 

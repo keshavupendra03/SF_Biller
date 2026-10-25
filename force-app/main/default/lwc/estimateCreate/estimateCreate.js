@@ -10,10 +10,11 @@ import createEstimate from '@salesforce/apex/EstimateController.createEstimate';
 import createNewVersion from '@salesforce/apex/EstimateController.createNewVersion';
 import getEstimateSummary from '@salesforce/apex/EstimateController.getEstimateSummary';
 import { calculateLine, calculateBillTotals } from 'c/gstMath';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 
 const EMPTY_BILL_TO_PARTY = { name: '', address: '', contactPhone: '', gstin: '', state: '' };
 const EMPTY_NEW_CUSTOMER = { name: '', phone: '', address: '', email: '', gstin: '', state: '' };
-const EMPTY_VEHICLE = { registrationNumber: '', make: '', model: '', year: '', color: '' };
+const EMPTY_VEHICLE = { registrationNumber: '', make: '', model: '', year: '', color: '', chassisNumber: '' };
 const EMPTY_LINE = { partId: null, description: '', quantity: 1, unitPrice: 0, taxRatePercent: 18, gstType: 'CGST_SGST', hsnSacCode: '', unitLabel: '' };
 
 function todayIso() {
@@ -59,6 +60,10 @@ export default class EstimateCreate extends NavigationMixin(LightningElement) {
     jobId; // carried through to the created estimate when arriving from a job card.
     fromCustomerId; // the customer screen this estimate was opened from, if any — carried through to Estimate_Detail so its own Back works.
     _appliedPageRefKey;
+
+    connectedCallback() {
+        disablePullToRefresh(this);
+    }
 
     @wire(CurrentPageReference)
     wiredPageRef(pageRef) {

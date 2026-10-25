@@ -115,12 +115,14 @@ private class CustomerControllerTest {
         input.registrationNumber = 'MP09ZZ9999';
         input.make = 'Honda';
         input.model = 'City';
+        input.chassisNumber = 'MA3ERLF1S00123456';
 
         Test.startTest();
         CustomerController.VehicleItem item = CustomerController.createVehicle(customerId, input);
         Test.stopTest();
 
         System.assertEquals('MP09ZZ9999', item.registrationNumber);
+        System.assertEquals('MA3ERLF1S00123456', item.chassisNumber);
         System.assertEquals(1, [SELECT COUNT() FROM Vehicle__c WHERE Customer__c = :customerId]);
         System.assertEquals(
             1,

@@ -1782,3 +1782,56 @@ the hard way:
 Verified after: direct `Profile` query confirming `Name`, `UserLicense`,
 and all five checked Setup/admin permissions, run against
 `wsbiller01@gmail.com` (the dev org) only.
+
+**Twenty-fifth (2026-10-25): added a Chassis Number field to `Vehicle__c`,
+and — since the user's request implied one should already exist — built
+the Vehicle Detail screen that didn't exist before this.** Before this
+entry, a vehicle had no detail/edit screen of its own at all: Customer
+Detail's Vehicles section rendered each vehicle as a small, non-clickable
+box (registration number + make/model only), with no way to view or edit
+anything about a vehicle after creating it. Confirmed via a dedicated
+Explore pass over all 23 LWCs (the same pass that later fed the user
+manual, §F's next entry) before assuming otherwise.
+
+- `Vehicle__c.Chassis_Number__c` (Text(30)) — new field.
+- `VehicleController.cls` (new) — `getVehicleDetail(vehicleId)` /
+  `updateVehicle(vehicleId, input)`, mirroring `PartController`'s
+  view-then-edit shape exactly. `updateVehicle` also calls
+  `VehicleMakeModelService.rememberIfNew` on whatever Make/Model the edit
+  lands on, same as every other vehicle-writing path — editing a vehicle's
+  make/model to something new should feed the autocomplete table the same
+  way creating one does.
+- New `c:vehicleDetail` LWC + `Vehicle_Detail` tab/FlexiPage, reachable by
+  tapping a vehicle row on Customer Detail (previously non-interactive,
+  now a `document-row` button like Jobs/Bills/Estimates already were) and
+  wired through `customerDetail`'s existing generic `navigateToRecord`/
+  `c__fromCustomerId` convention — Back returns to the customer it was
+  opened from, falling back to `Customer_List` otherwise, identical to
+  every other Detail screen's Back behavior in this app.
+- `Chassis_Number__c` threaded through every path that creates or edits a
+  vehicle: `CustomerController.VehicleItem`/`NewVehicleInput`,
+  `JobController`'s own separate `NewVehicleInput`, and the inline
+  new-vehicle insert blocks in `BillController.resolveVehicleId` /
+  `EstimateController.resolveVehicleId` (both of which reuse
+  `CustomerController.NewVehicleInput` directly, so extending that one
+  class covers both). On the LWC side: a new "Chassis Number" field added
+  to all four existing "new vehicle" forms (`customerDetail`, `jobBoard`,
+  `billCreate`, `estimateCreate`) — `billCreate`/`estimateCreate` needed
+  no JS change at all, since their submit logic already spreads the whole
+  `newVehicle` object rather than listing fields individually;
+  `customerDetail`/`jobBoard` list fields explicitly and needed one line
+  added to each.
+- Permission set: `fieldPermissions` for `Vehicle__c.Chassis_Number__c`,
+  `classAccesses` for `VehicleController`/`VehicleControllerTest`,
+  `tabSettings` for `Vehicle_Detail` — all three gaps this project has
+  twice now found the hard way (§F, Twentieth/Twenty-second) checked and
+  closed in the same pass as adding the feature, not as an afterthought.
+- Same Jest-stub gotcha hit again while writing `vehicleDetail`'s tests
+  (already logged earlier in this section, under a different component):
+  `lightning-button-icon[alternative-text="Back"]` doesn't resolve against
+  the Jest stub, since `alternative-text` isn't reflected as a real DOM
+  attribute there — fixed by adding `data-id="back"` and querying that
+  instead, same fix as always.
+
+Verified after: 193/193 Apex tests, 25/25 Jest suites (132/132 tests), both
+at 100%, deployed and tested against the dev org (`wsbiller01@gmail.com`).

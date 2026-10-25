@@ -45,16 +45,19 @@
                     <c-vehicle-make-model-field data-field="make" label="Make" source="make" value={newVehicle.make} onchange={handleVehicleFieldChange}></c-vehicle-make-model-field>
                     <c-vehicle-make-model-field data-field="model" label="Model" source="model" make={newVehicle.make} value={newVehicle.model} onchange={handleVehicleFieldChange}></c-vehicle-make-model-field>
                     <lightning-input data-field="year" type="number" label="Year" value={newVehicle.year} onchange={handleVehicleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
-                    <lightning-input data-field="color" label="Color" value={newVehicle.color} onchange={handleVehicleFieldChange} class="slds-m-bottom_small"></lightning-input>
+                    <lightning-input data-field="color" label="Color" value={newVehicle.color} onchange={handleVehicleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="chassisNumber" label="Chassis Number" value={newVehicle.chassisNumber} onchange={handleVehicleFieldChange} class="slds-m-bottom_small"></lightning-input>
                     <lightning-button data-id="save-vehicle" label="Save Vehicle" variant="brand" disabled={saveVehicleDisabled} onclick={handleSaveVehicle}></lightning-button>
                 </div>
             </template>
             <template if:true={hasVehicles}>
                 <template for:each={decoratedVehicles} for:item="vehicle">
-                    <div key={vehicle.id} class="slds-box slds-box_x-small slds-m-bottom_x-small">
-                        <p class="slds-text-heading_small">{vehicle.registrationNumber}</p>
-                        <p class="slds-text-body_small slds-text-color_weak">{vehicle.label}</p>
-                    </div>
+                    <button type="button" key={vehicle.id} class="slds-button slds-button_reset document-row" data-id={vehicle.id} onclick={handleOpenVehicle}>
+                        <span class="document-row-body">
+                            <span class="slds-text-body_regular">{vehicle.registrationNumber}</span>
+                            <span class="slds-text-body_small slds-text-color_weak">{vehicle.label}</span>
+                        </span>
+                    </button>
                 </template>
             </template>
 

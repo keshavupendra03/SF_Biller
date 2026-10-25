@@ -443,7 +443,8 @@ public with sharing class BillController {
                 Make__c = newVehicle.make,
                 Model__c = newVehicle.model,
                 Year__c = newVehicle.year,
-                Color__c = newVehicle.color
+                Color__c = newVehicle.color,
+                Chassis_Number__c = newVehicle.chassisNumber
             );
             insert vehicle;
             VehicleMakeModelService.rememberIfNew(vehicle.Make__c, vehicle.Model__c);

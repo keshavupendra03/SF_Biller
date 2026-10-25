@@ -24,6 +24,7 @@ public with sharing class CustomerController {
         @AuraEnabled public String model { get; set; }
         @AuraEnabled public Integer year { get; set; }
         @AuraEnabled public String color { get; set; }
+        @AuraEnabled public String chassisNumber { get; set; }
     }
 
     public class DocumentItem {
@@ -72,6 +73,7 @@ public with sharing class CustomerController {
         @AuraEnabled public String model { get; set; }
         @AuraEnabled public Integer year { get; set; }
         @AuraEnabled public String color { get; set; }
+        @AuraEnabled public String chassisNumber { get; set; }
     }
 
     @AuraEnabled
@@ -131,7 +133,7 @@ public with sharing class CustomerController {
 
         detail.vehicles = new List<VehicleItem>();
         for (Vehicle__c v : [
-            SELECT Name, Make__c, Model__c, Year__c, Color__c
+            SELECT Name, Make__c, Model__c, Year__c, Color__c, Chassis_Number__c
             FROM Vehicle__c
             WHERE Customer__c = :customerId
             ORDER BY Name
@@ -143,6 +145,7 @@ public with sharing class CustomerController {
             item.model = v.Model__c;
             item.year = v.Year__c == null ? null : v.Year__c.intValue();
             item.color = v.Color__c;
+            item.chassisNumber = v.Chassis_Number__c;
             detail.vehicles.add(item);
         }
 
@@ -209,7 +212,7 @@ public with sharing class CustomerController {
             return results;
         }
         for (Vehicle__c v : [
-            SELECT Name, Make__c, Model__c, Year__c, Color__c
+            SELECT Name, Make__c, Model__c, Year__c, Color__c, Chassis_Number__c
             FROM Vehicle__c
             WHERE Customer__c = :customerId
             ORDER BY CreatedDate DESC
@@ -221,6 +224,7 @@ public with sharing class CustomerController {
             item.model = v.Model__c;
             item.year = v.Year__c == null ? null : v.Year__c.intValue();
             item.color = v.Color__c;
+            item.chassisNumber = v.Chassis_Number__c;
             results.add(item);
         }
         return results;
@@ -253,7 +257,8 @@ public with sharing class CustomerController {
             Make__c = input.make,
             Model__c = input.model,
             Year__c = input.year,
-            Color__c = input.color
+            Color__c = input.color,
+            Chassis_Number__c = input.chassisNumber
         );
         insert vehicle;
         VehicleMakeModelService.rememberIfNew(vehicle.Make__c, vehicle.Model__c);
@@ -265,6 +270,7 @@ public with sharing class CustomerController {
         item.model = vehicle.Model__c;
         item.year = input.year;
         item.color = vehicle.Color__c;
+        item.chassisNumber = vehicle.Chassis_Number__c;
         return item;
     }
 }

@@ -11,6 +11,7 @@ import createNewVersion from '@salesforce/apex/BillController.createNewVersion';
 import getBillSummary from '@salesforce/apex/BillController.getBillSummary';
 import getEstimateSummary from '@salesforce/apex/EstimateController.getEstimateSummary';
 import { calculateLine, calculateBillTotals } from 'c/gstMath';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 
 // Record Payment feature disabled (2026-10) — uncomment to restore the
 // "Record a payment now" toggle on this screen. Apex
@@ -25,7 +26,7 @@ import { calculateLine, calculateBillTotals } from 'c/gstMath';
 
 const EMPTY_BILL_TO_PARTY = { name: '', address: '', contactPhone: '', gstin: '', state: '' };
 const EMPTY_NEW_CUSTOMER = { name: '', phone: '', address: '', email: '', gstin: '', state: '' };
-const EMPTY_VEHICLE = { registrationNumber: '', make: '', model: '', year: '', color: '' };
+const EMPTY_VEHICLE = { registrationNumber: '', make: '', model: '', year: '', color: '', chassisNumber: '' };
 const EMPTY_LINE = { partId: null, description: '', quantity: 1, unitPrice: 0, taxRatePercent: 18, gstType: 'CGST_SGST', hsnSacCode: '', unitLabel: '' };
 
 function todayIso() {
@@ -79,6 +80,10 @@ export default class BillCreate extends NavigationMixin(LightningElement) {
     jobId; // carried through to the created bill when arriving from a job card.
     fromCustomerId; // the customer screen this bill was opened from, if any — carried through to Bill_Detail so its own Back works.
     _appliedPageRefKey;
+
+    connectedCallback() {
+        disablePullToRefresh(this);
+    }
 
     @wire(CurrentPageReference)
     wiredPageRef(pageRef) {

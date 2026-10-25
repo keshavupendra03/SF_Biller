@@ -1,5 +1,6 @@
 import { LightningElement, track } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import listSurveyors from '@salesforce/apex/DirectoryController.listSurveyors';
 import createSurveyor from '@salesforce/apex/DirectoryController.createSurveyor';
 import setSurveyorActive from '@salesforce/apex/DirectoryController.setSurveyorActive';
@@ -16,6 +17,7 @@ export default class SurveyorList extends LightningElement {
     isSaving = false;
 
     connectedCallback() {
+        disablePullToRefresh(this);
         this.loadPeople();
     }
 
