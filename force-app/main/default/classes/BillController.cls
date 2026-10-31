@@ -115,6 +115,7 @@ public with sharing class BillController {
         @AuraEnabled public String billToPartyName { get; set; }
         @AuraEnabled public Id vehicleId { get; set; }
         @AuraEnabled public String vehicleLabel { get; set; }
+        @AuraEnabled public String vehicleChassisNumber { get; set; }
         @AuraEnabled public String notes { get; set; }
         @AuraEnabled public Decimal subtotal { get; set; }
         @AuraEnabled public Decimal cgst { get; set; }
@@ -502,7 +503,8 @@ public with sharing class BillController {
             SELECT Invoice_Number__c, Financial_Year__c, Status__c, Bill_Date__c,
                    Version_Number__c, Is_Latest_Version__c, Source_Estimate__c, Job__c,
                    Customer__c, Customer__r.Name, Bill_To_Party__c, Bill_To_Party__r.Name,
-                   Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c, Notes__c,
+                   Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c,
+                   Vehicle__r.Chassis_Number__c, Notes__c,
                    Subtotal__c, GST_Amount__c, Total_Amount__c
             FROM Bill__c
             WHERE Id = :billId
@@ -551,6 +553,7 @@ public with sharing class BillController {
         summary.billToPartyName = bill.Bill_To_Party__r != null ? bill.Bill_To_Party__r.Name : null;
         summary.vehicleId = bill.Vehicle__c;
         summary.vehicleLabel = vehicleLabel(bill.Vehicle__c, bill.Vehicle__r);
+        summary.vehicleChassisNumber = bill.Vehicle__c != null ? bill.Vehicle__r.Chassis_Number__c : null;
         summary.notes = bill.Notes__c;
         summary.subtotal = bill.Subtotal__c;
         summary.cgst = breakdown.cgst;

@@ -156,7 +156,10 @@ private class InvoicePdfControllerTest {
     static void billWithVehicle_populatesVehicleRegNumberAndMakeModel() {
         Customer__c customer = new Customer__c(Name = 'Ramesh Kumar', Phone__c = '9000011111');
         insert customer;
-        Vehicle__c vehicle = new Vehicle__c(Name = 'MH12AB1234', Customer__c = customer.Id, Make__c = 'Honda', Model__c = 'City');
+        Vehicle__c vehicle = new Vehicle__c(
+            Name = 'MH12AB1234', Customer__c = customer.Id, Make__c = 'Honda', Model__c = 'City',
+            Chassis_Number__c = 'MA3ERLF1S00123456'
+        );
         insert vehicle;
         Bill__c bill = new Bill__c(Customer__c = customer.Id, Vehicle__c = vehicle.Id);
         insert bill;
@@ -170,13 +173,17 @@ private class InvoicePdfControllerTest {
 
         System.assertEquals('MH12AB1234', controller.vehicleRegNumber);
         System.assertEquals('Honda City', controller.vehicleMakeModel);
+        System.assertEquals('MA3ERLF1S00123456', controller.vehicleChassisNumber);
     }
 
     @isTest
     static void estimateWithVehicle_populatesVehicleRegNumberAndMakeModel() {
         Customer__c customer = new Customer__c(Name = 'Deepak', Phone__c = '9333344444');
         insert customer;
-        Vehicle__c vehicle = new Vehicle__c(Name = 'MP09ZZ9999', Customer__c = customer.Id, Make__c = 'Maruti', Model__c = 'Swift');
+        Vehicle__c vehicle = new Vehicle__c(
+            Name = 'MP09ZZ9999', Customer__c = customer.Id, Make__c = 'Maruti', Model__c = 'Swift',
+            Chassis_Number__c = 'MALA851ALKM123456'
+        );
         insert vehicle;
         Estimate__c estimate = new Estimate__c(Customer__c = customer.Id, Vehicle__c = vehicle.Id);
         insert estimate;
@@ -190,13 +197,17 @@ private class InvoicePdfControllerTest {
 
         System.assertEquals('MP09ZZ9999', controller.vehicleRegNumber);
         System.assertEquals('Maruti Swift', controller.vehicleMakeModel);
+        System.assertEquals('MALA851ALKM123456', controller.vehicleChassisNumber);
     }
 
     @isTest
     static void billWithNoOwnVehicleButJobVehicle_fallsBackToTheJobsVehicle() {
         Customer__c customer = new Customer__c(Name = 'Ramesh Kumar', Phone__c = '9000011111');
         insert customer;
-        Vehicle__c vehicle = new Vehicle__c(Name = 'MP09AB1234', Customer__c = customer.Id, Make__c = 'Hyundai', Model__c = 'i20');
+        Vehicle__c vehicle = new Vehicle__c(
+            Name = 'MP09AB1234', Customer__c = customer.Id, Make__c = 'Hyundai', Model__c = 'i20',
+            Chassis_Number__c = 'MALA851ALKM123456'
+        );
         insert vehicle;
         Job_Status_Stage__c stage = new Job_Status_Stage__c(Name = 'Received', Sort_Order__c = 1);
         insert stage;
@@ -214,6 +225,7 @@ private class InvoicePdfControllerTest {
 
         System.assertEquals('MP09AB1234', controller.vehicleRegNumber, 'Older bills with no Vehicle__c of their own must still show the vehicle carried on their Job.');
         System.assertEquals('Hyundai i20', controller.vehicleMakeModel);
+        System.assertEquals('MALA851ALKM123456', controller.vehicleChassisNumber, 'Chassis number must also fall back to the Job\'s vehicle, same as reg number and make/model.');
     }
 
     @isTest

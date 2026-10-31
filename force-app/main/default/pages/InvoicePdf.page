@@ -90,7 +90,10 @@
                 <apex:outputText value="Vehicle No.: {0}" rendered="{!NOT(ISBLANK(vehicleRegNumber))}">
                     <apex:param value="{!vehicleRegNumber}"/>
                 </apex:outputText><br/>
-                <apex:outputText value="{!vehicleMakeModel}" rendered="{!NOT(ISBLANK(vehicleMakeModel))}"/>
+                <apex:outputText value="{!vehicleMakeModel}" rendered="{!NOT(ISBLANK(vehicleMakeModel))}"/><br/>
+                <apex:outputText value="Chassis No.: {0}" rendered="{!NOT(ISBLANK(vehicleChassisNumber))}">
+                    <apex:param value="{!vehicleChassisNumber}"/>
+                </apex:outputText>
             </td>
         </tr>
     </table>

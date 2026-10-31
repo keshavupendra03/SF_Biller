@@ -158,7 +158,10 @@ private class EstimateControllerTest {
     @isTest
     static void createEstimate_withExistingVehicle_linksItAndReturnsLabel() {
         Id customerId = insertCustomer();
-        Vehicle__c vehicle = new Vehicle__c(Name = 'MH12AB1234', Customer__c = customerId, Make__c = 'Honda', Model__c = 'City');
+        Vehicle__c vehicle = new Vehicle__c(
+            Name = 'MH12AB1234', Customer__c = customerId, Make__c = 'Honda', Model__c = 'City',
+            Chassis_Number__c = 'MA3ERLF1S00123456'
+        );
         insert vehicle;
 
         EstimateController.CreateEstimateRequest request = new EstimateController.CreateEstimateRequest();
@@ -172,6 +175,7 @@ private class EstimateControllerTest {
 
         System.assertEquals(vehicle.Id, summary.vehicleId);
         System.assertEquals('MH12AB1234 — Honda City', summary.vehicleLabel);
+        System.assertEquals('MA3ERLF1S00123456', summary.vehicleChassisNumber);
     }
 
     @isTest

@@ -39,6 +39,7 @@ public with sharing class EstimateController {
         @AuraEnabled public String billToPartyName { get; set; }
         @AuraEnabled public Id vehicleId { get; set; }
         @AuraEnabled public String vehicleLabel { get; set; }
+        @AuraEnabled public String vehicleChassisNumber { get; set; }
         @AuraEnabled public String notes { get; set; }
         @AuraEnabled public Decimal subtotal { get; set; }
         @AuraEnabled public Decimal cgst { get; set; }
@@ -234,7 +235,8 @@ public with sharing class EstimateController {
         Estimate__c estimate = [
             SELECT Name, Version_Number__c, Is_Latest_Version__c, Status__c, Estimate_Date__c, Job__c,
                    Customer__c, Customer__r.Name, Bill_To_Party__c, Bill_To_Party__r.Name,
-                   Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c, Notes__c,
+                   Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c,
+                   Vehicle__r.Chassis_Number__c, Notes__c,
                    Subtotal__c, Total_Amount__c
             FROM Estimate__c
             WHERE Id = :estimateId
@@ -278,6 +280,7 @@ public with sharing class EstimateController {
         summary.billToPartyName = estimate.Bill_To_Party__r != null ? estimate.Bill_To_Party__r.Name : null;
         summary.vehicleId = estimate.Vehicle__c;
         summary.vehicleLabel = vehicleLabel(estimate.Vehicle__c, estimate.Vehicle__r);
+        summary.vehicleChassisNumber = estimate.Vehicle__c != null ? estimate.Vehicle__r.Chassis_Number__c : null;
         summary.notes = estimate.Notes__c;
         summary.subtotal = estimate.Subtotal__c;
         summary.cgst = breakdown.cgst;

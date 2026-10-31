@@ -80,6 +80,28 @@ describe('c-estimate-detail', () => {
         expect(element.shadowRoot.textContent).toContain('MH12AB1234 — Honda City');
     });
 
+    it('shows the chassis number when the vehicle has one', async () => {
+        getEstimateSummary.mockResolvedValue({
+            ...SUMMARY,
+            vehicleId: 'a06xx0000000001',
+            vehicleLabel: 'MH12AB1234 — Honda City',
+            vehicleChassisNumber: 'MA3ERLF1S00123456'
+        });
+        const element = createDetail('a02xx0000000001');
+        await flushPromises();
+
+        expect(element.shadowRoot.textContent).toContain('Chassis No.:');
+        expect(element.shadowRoot.textContent).toContain('MA3ERLF1S00123456');
+    });
+
+    it('omits the chassis number line when the vehicle has none', async () => {
+        getEstimateSummary.mockResolvedValue({ ...SUMMARY, vehicleId: 'a06xx0000000001', vehicleLabel: 'MH12AB1234 — Honda City' });
+        const element = createDetail('a02xx0000000001');
+        await flushPromises();
+
+        expect(element.shadowRoot.textContent).not.toContain('Chassis No.:');
+    });
+
     it('offers Create Bill for a Draft estimate but not a Converted one', async () => {
         getEstimateSummary.mockResolvedValue(SUMMARY);
         const element = createDetail('a02xx0000000001');

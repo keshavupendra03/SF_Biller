@@ -17,6 +17,9 @@
             <template if:true={summary.vehicleLabel}>
                 <p class="slds-text-body_regular"><strong>Vehicle:</strong> {summary.vehicleLabel}</p>
             </template>
+            <template if:true={summary.vehicleChassisNumber}>
+                <p class="slds-text-body_regular"><strong>Chassis No.:</strong> {summary.vehicleChassisNumber}</p>
+            </template>
             <template if:true={summary.notes}>
                 <p class="slds-text-body_regular slds-text-color_weak">{summary.notes}</p>
             </template>

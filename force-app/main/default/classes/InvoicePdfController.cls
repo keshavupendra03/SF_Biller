@@ -51,6 +51,7 @@ public with sharing class InvoicePdfController {
     public String documentDate { get; private set; }
     public String vehicleRegNumber { get; private set; }
     public String vehicleMakeModel { get; private set; }
+    public String vehicleChassisNumber { get; private set; }
     public String notes { get; private set; }
 
     public List<LineRow> lines { get; private set; }
@@ -146,8 +147,9 @@ public with sharing class InvoicePdfController {
                    Bill_To_Party__r.Contact_Phone__c, Bill_To_Party__r.GSTIN__c,
                    Bill_To_Party__r.State__c,
                    Job__c, Job__r.Vehicle__r.Name, Job__r.Vehicle__r.Make__c,
-                   Job__r.Vehicle__r.Model__c,
-                   Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c
+                   Job__r.Vehicle__r.Model__c, Job__r.Vehicle__r.Chassis_Number__c,
+                   Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c,
+                   Vehicle__r.Chassis_Number__c
             FROM Bill__c
             WHERE Id = :billId
             LIMIT 1
@@ -172,11 +174,13 @@ public with sharing class InvoicePdfController {
         if (bill.Vehicle__c != null) {
             vehicleRegNumber = bill.Vehicle__r.Name;
             vehicleMakeModel = trimJoin(new List<String>{ bill.Vehicle__r.Make__c, bill.Vehicle__r.Model__c });
+            vehicleChassisNumber = bill.Vehicle__r.Chassis_Number__c;
         } else if (bill.Job__c != null && bill.Job__r.Vehicle__c != null) {
             vehicleRegNumber = bill.Job__r.Vehicle__r.Name;
             vehicleMakeModel = trimJoin(
                 new List<String>{ bill.Job__r.Vehicle__r.Make__c, bill.Job__r.Vehicle__r.Model__c }
             );
+            vehicleChassisNumber = bill.Job__r.Vehicle__r.Chassis_Number__c;
         }
 
         List<Payment__c> payments = [SELECT Amount__c, Method__c FROM Payment__c WHERE Bill__c = :billId];
@@ -212,8 +216,9 @@ public with sharing class InvoicePdfController {
                    Bill_To_Party__r.Contact_Phone__c, Bill_To_Party__r.GSTIN__c,
                    Bill_To_Party__r.State__c,
                    Job__c, Job__r.Vehicle__r.Name, Job__r.Vehicle__r.Make__c,
-                   Job__r.Vehicle__r.Model__c,
-                   Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c
+                   Job__r.Vehicle__r.Model__c, Job__r.Vehicle__r.Chassis_Number__c,
+                   Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c,
+                   Vehicle__r.Chassis_Number__c
             FROM Estimate__c
             WHERE Id = :estimateId
             LIMIT 1
@@ -234,8 +239,10 @@ public with sharing class InvoicePdfController {
         if (estimate.Vehicle__c != null) {
             vehicleRegNumber = estimate.Vehicle__r.Name;
             vehicleMakeModel = trimJoin(new List<String>{ estimate.Vehicle__r.Make__c, estimate.Vehicle__r.Model__c });
+            vehicleChassisNumber = estimate.Vehicle__r.Chassis_Number__c;
         } else if (estimate.Job__c != null && estimate.Job__r.Vehicle__c != null) {
             vehicleRegNumber = estimate.Job__r.Vehicle__r.Name;
+            vehicleChassisNumber = estimate.Job__r.Vehicle__r.Chassis_Number__c;
             vehicleMakeModel = trimJoin(
                 new List<String>{ estimate.Job__r.Vehicle__r.Make__c, estimate.Job__r.Vehicle__r.Model__c }
             );
