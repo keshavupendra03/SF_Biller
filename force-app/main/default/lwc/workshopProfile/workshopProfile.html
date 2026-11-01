@@ -22,6 +22,16 @@
 
         <lightning-textarea data-field="termsAndConditions" label="Terms and Conditions" value={values.termsAndConditions} onchange={handleFieldChange} class="slds-m-bottom_medium"></lightning-textarea>
 
+        <lightning-textarea
+            data-field="jobSlipTerms"
+            label="Job Slip Terms and Conditions"
+            field-level-help="Printed on every job slip, one term per line. Leave blank to print the standard terms."
+            placeholder="One term per line"
+            value={values.jobSlipTerms}
+            onchange={handleFieldChange}
+            class="slds-m-bottom_medium"
+        ></lightning-textarea>
+
         <lightning-button data-id="save" label="Save Profile" variant="brand" disabled={saveDisabled} onclick={handleSave}></lightning-button>
     </div>
 </template>

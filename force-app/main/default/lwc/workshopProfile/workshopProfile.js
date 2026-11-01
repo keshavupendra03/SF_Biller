@@ -16,7 +16,8 @@ const EMPTY_PROFILE = {
     bankName: '',
     bankAccountNo: '',
     bankIfsc: '',
-    termsAndConditions: ''
+    termsAndConditions: '',
+    jobSlipTerms: ''
 };
 
 export default class WorkshopProfile extends NavigationMixin(LightningElement) {

@@ -278,7 +278,9 @@ public with sharing class InvoicePdfController {
         } else if (customer != null) {
             billToName = customer.Name;
             billToAddress = customer.Address__c;
-            billToContact = customer.Phone__c;
+            // Quick Bill's shared walk-in customer carries a placeholder
+            // phone only because Phone__c is required — don't print it.
+            billToContact = customer.Phone__c == QuickBillController.WALK_IN_PHONE ? null : customer.Phone__c;
             billToGstin = customer.GSTIN__c;
             billToState = customer.State__c;
             buyersName = null;

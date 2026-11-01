@@ -1,0 +1,265 @@
+<template>
+    <div class="page-container">
+        <div class="slds-p-around_medium slds-p-bottom_none">
+            <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-m-bottom_medium">
+                <lightning-button-icon data-id="back" icon-name="utility:back" alternative-text="Back" onclick={handleBack}></lightning-button-icon>
+                <div class="slds-text-align_center">
+                    <h1 class="slds-text-heading_medium">Job Slip</h1>
+                    <p class="slds-text-body_small slds-text-color_weak">{headerSubtitle}</p>
+                </div>
+                <template lwc:if={isSaved}>
+                    <lightning-button-icon data-id="print" icon-name="utility:print" alternative-text="Print" onclick={handlePrint}></lightning-button-icon>
+                </template>
+                <template lwc:else>
+                    <span class="header-spacer"></span>
+                </template>
+            </div>
+        </div>
+
+        <template lwc:if={isLoading}>
+            <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
+        </template>
+
+        <template lwc:if={hasForm}>
+            <div class="slds-p-horizontal_medium">
+                <!-- Customer -->
+                <lightning-card title={customer.name} icon-name="standard:person_account" class="section">
+                    <div class="slds-p-horizontal_medium slds-text-body_regular">
+                        <template lwc:if={customer.phone}><p><lightning-icon icon-name="utility:call" size="xx-small" class="slds-m-right_x-small"></lightning-icon>{customer.phone}</p></template>
+                        <template lwc:if={customer.email}><p class="slds-m-top_xx-small"><lightning-icon icon-name="utility:email" size="xx-small" class="slds-m-right_x-small"></lightning-icon>{customer.email}</p></template>
+                        <template lwc:if={customer.address}><p class="slds-m-top_xx-small slds-text-color_weak">{customer.address}</p></template>
+                    </div>
+                </lightning-card>
+
+                <!-- Vehicle -->
+                <lightning-card title="Vehicle" icon-name="custom:custom31" class="section">
+                    <div class="slds-p-horizontal_medium">
+                        <template lwc:if={hasVehicles}>
+                            <lightning-combobox
+                                data-id="vehicle"
+                                label="Vehicle"
+                                options={vehicleOptions}
+                                value={selectedVehicleValue}
+                                onchange={handleVehicleChange}
+                                required
+                            ></lightning-combobox>
+                            <template lwc:if={selectedVehicleModel}>
+                                <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">Model: {selectedVehicleModel}</p>
+                            </template>
+                        </template>
+                        <template lwc:if={isNewVehicle}>
+                            <div class="new-vehicle slds-m-top_small">
+                                <lightning-input data-field="registrationNumber" label="Registration Number" value={newVehicle.registrationNumber} onchange={handleNewVehicleChange} required></lightning-input>
+                                <c-vehicle-make-model-field data-field="make" label="Make" source="make" value={newVehicle.make} onchange={handleNewVehicleChange}></c-vehicle-make-model-field>
+                                <c-vehicle-make-model-field data-field="model" label="Model" source="model" make={newVehicle.make} value={newVehicle.model} onchange={handleNewVehicleChange}></c-vehicle-make-model-field>
+                            </div>
+                        </template>
+                        <div class="slds-grid slds-wrap slds-gutters_x-small slds-m-top_x-small">
+                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                                <lightning-input data-field="chassisNumber" label="Chassis No." value={slip.chassisNumber} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-3">
+                                <lightning-input data-field="engineNumber" label="Engine No." value={slip.engineNumber} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-3">
+                                <lightning-input data-field="dateOfSale" type="date" label="Date of Sale" value={slip.dateOfSale} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                        </div>
+                        <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">These are saved on the vehicle, so the next slip fills them in for you.</p>
+                    </div>
+                </lightning-card>
+
+                <!-- Visit -->
+                <lightning-card title="Visit" icon-name="standard:event" class="section">
+                    <div class="slds-p-horizontal_medium">
+                        <div class="slds-grid slds-wrap slds-gutters_x-small">
+                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                <lightning-input data-field="slipDate" type="date" label="Date" value={slip.slipDate} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                <lightning-input data-field="timeIn" type="time" label="Time In" value={slip.timeIn} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                <lightning-input data-field="currentKm" type="number" label="Current Kms" min="0" value={slip.currentKm} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                            <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+                                <lightning-input data-field="visitReason" label="Visit Due To" placeholder="Service, Accident…" value={slip.visitReason} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                        </div>
+
+                        <p class="slds-form-element__label slds-m-top_small">Type of Service</p>
+                        <div class="chip-row">
+                            <template for:each={serviceTypeChips} for:item="chip">
+                                <lightning-button
+                                    key={chip.value}
+                                    data-id="service-type"
+                                    data-value={chip.value}
+                                    label={chip.label}
+                                    variant={chip.variant}
+                                    onclick={handleServiceType}
+                                    class="chip"
+                                ></lightning-button>
+                            </template>
+                        </div>
+                    </div>
+                </lightning-card>
+
+                <!-- Demanded repairs -->
+                <lightning-card title="Customer Complaints &amp; Estimate" icon-name="standard:work_order_item" class="section">
+                    <div class="slds-p-horizontal_medium">
+                        <template for:each={numberedLines} for:item="line">
+                            <div key={line.key} class="repair-line" data-id="repair-line">
+                                <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-m-bottom_xx-small">
+                                    <span class="slds-badge">#{line.number}</span>
+                                    <template lwc:if={line.canRemove}>
+                                        <lightning-button-icon
+                                            data-id="remove-line"
+                                            data-key={line.key}
+                                            icon-name="utility:delete"
+                                            variant="bare"
+                                            alternative-text="Remove line"
+                                            onclick={handleRemoveLine}
+                                        ></lightning-button-icon>
+                                    </template>
+                                </div>
+                                <lightning-textarea
+                                    data-key={line.key}
+                                    data-field="customerRequest"
+                                    label="Customer says / demands"
+                                    placeholder="e.g. Noise from front left wheel"
+                                    max-length="255"
+                                    value={line.customerRequest}
+                                    onchange={handleLineChange}
+                                ></lightning-textarea>
+                                <lightning-textarea
+                                    data-key={line.key}
+                                    data-field="observation"
+                                    label="Our observation / repair"
+                                    placeholder="e.g. Wheel bearing worn — replace"
+                                    max-length="255"
+                                    value={line.observation}
+                                    onchange={handleLineChange}
+                                ></lightning-textarea>
+                                <div class="slds-grid slds-gutters_x-small">
+                                    <div class="slds-col slds-size_1-of-2">
+                                        <lightning-input data-key={line.key} data-field="labourEstimate" type="number" step="1" min="0" label="Labour (₹)" value={line.labourEstimate} onchange={handleLineChange}></lightning-input>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-2">
+                                        <lightning-input data-key={line.key} data-field="sparesEstimate" type="number" step="1" min="0" label="Spares (₹)" value={line.sparesEstimate} onchange={handleLineChange}></lightning-input>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                        <lightning-button data-id="add-line" label="Add another complaint" icon-name="utility:add" onclick={handleAddLine} class="slds-m-top_x-small"></lightning-button>
+
+                        <template lwc:if={hasEstimateTotal}>
+                            <div class="estimate-summary slds-m-top_small">
+                                <div class="slds-grid slds-grid_align-spread"><span>Labour</span><lightning-formatted-number value={labourTotal} format-style="currency" currency-code="INR" maximum-fraction-digits="0"></lightning-formatted-number></div>
+                                <div class="slds-grid slds-grid_align-spread"><span>Spares</span><lightning-formatted-number value={sparesTotal} format-style="currency" currency-code="INR" maximum-fraction-digits="0"></lightning-formatted-number></div>
+                                <div class="slds-grid slds-grid_align-spread slds-text-title_bold estimate-total"><span>Estimated total</span><lightning-formatted-number value={estimateTotal} format-style="currency" currency-code="INR" maximum-fraction-digits="0"></lightning-formatted-number></div>
+                            </div>
+                        </template>
+                    </div>
+                </lightning-card>
+
+                <!-- Vehicle check-in -->
+                <lightning-card title="Vehicle Check-in" icon-name="standard:task" class="section">
+                    <div class="slds-p-horizontal_medium">
+                        <lightning-radio-group
+                            data-id="fuel"
+                            type="button"
+                            label="Fuel Level"
+                            options={fuelOptions}
+                            value={slip.fuelLevel}
+                            onchange={handleFuelChange}
+                            class="fuel-group"
+                        ></lightning-radio-group>
+
+                        <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-end slds-m-top_medium slds-m-bottom_x-small">
+                            <span class="slds-form-element__label">Accessories present ({presentCount}/13)</span>
+                            <button type="button" class="slds-button slds-text-link" data-id="toggle-all" onclick={handleToggleAll}>{toggleAllLabel}</button>
+                        </div>
+                        <div class="accessory-grid">
+                            <template for:each={accessoryItems} for:item="item">
+                                <lightning-input
+                                    key={item.key}
+                                    data-key={item.key}
+                                    type="checkbox"
+                                    label={item.label}
+                                    checked={item.checked}
+                                    onchange={handleAccessoryChange}
+                                ></lightning-input>
+                            </template>
+                        </div>
+
+                        <lightning-textarea data-field="dentsScratches" label="Dents / Scratches" placeholder="e.g. Scratch on rear bumper, dent on left door" max-length="255" value={slip.dentsScratches} onchange={handleFieldChange} class="slds-m-top_small"></lightning-textarea>
+
+                        <div class="slds-grid slds-gutters_x-small">
+                            <div class="slds-col slds-size_1-of-2">
+                                <lightning-input data-field="batteryMake" label="Battery Make" value={slip.batteryMake} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                            <div class="slds-col slds-size_1-of-2">
+                                <lightning-input data-field="batteryNumber" label="Battery No." value={slip.batteryNumber} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                        </div>
+
+                        <lightning-input data-field="tyreMake" label="Tyre Make" placeholder="e.g. CEAT, 4 + 1 spare" value={slip.tyreMake} onchange={handleFieldChange} class="slds-m-top_x-small"></lightning-input>
+                        <div class="slds-grid slds-wrap slds-gutters_x-small">
+                            <div class="slds-col slds-size_1-of-2">
+                                <lightning-input data-field="tyreFrontLeft" label="Front Left (FL)" value={slip.tyreFrontLeft} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                            <div class="slds-col slds-size_1-of-2">
+                                <lightning-input data-field="tyreFrontRight" label="Front Right (FR)" value={slip.tyreFrontRight} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                            <div class="slds-col slds-size_1-of-2">
+                                <lightning-input data-field="tyreRearLeft" label="Rear Left (RL)" value={slip.tyreRearLeft} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                            <div class="slds-col slds-size_1-of-2">
+                                <lightning-input data-field="tyreRearRight" label="Rear Right (RR)" value={slip.tyreRearRight} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                        </div>
+                    </div>
+                </lightning-card>
+
+                <!-- Delivery -->
+                <lightning-card title="Delivery &amp; Service Advisor" icon-name="standard:shipment" class="section">
+                    <div class="slds-p-horizontal_medium">
+                        <div class="slds-grid slds-wrap slds-gutters_x-small">
+                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                <lightning-input data-field="promisedDelivery" label="Promised Delivery Date &amp; Time" placeholder="e.g. 05/11 by 6 PM, or 30–35 days" value={slip.promisedDelivery} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                            <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                <lightning-input data-field="totalCostEstimate" label="Total Cost Estimate" placeholder={totalCostPlaceholder} value={slip.totalCostEstimate} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                            <div class="slds-col slds-size_1-of-2">
+                                <lightning-input data-field="serviceAdvisorName" label="Service Advisor" value={slip.serviceAdvisorName} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                            <div class="slds-col slds-size_1-of-2">
+                                <lightning-input data-field="serviceAdvisorMobile" type="tel" label="Advisor Mobile" value={slip.serviceAdvisorMobile} onchange={handleFieldChange}></lightning-input>
+                            </div>
+                        </div>
+                    </div>
+                </lightning-card>
+            </div>
+
+            <!-- Sticky action bar -->
+            <div class="action-bar">
+                <template lwc:if={saveHint}>
+                    <p class="slds-text-body_small slds-text-color_error slds-m-bottom_x-small">{saveHint}</p>
+                </template>
+                <div class="slds-grid slds-gutters_x-small">
+                    <div class="slds-col slds-size_1-of-2">
+                        <lightning-button data-id="save" label="Save" disabled={saveDisabled} onclick={handleSave} stretch></lightning-button>
+                    </div>
+                    <div class="slds-col slds-size_1-of-2">
+                        <lightning-button data-id="save-print" label="Save &amp; Print" variant="brand" icon-name="utility:print" disabled={saveDisabled} onclick={handleSaveAndPrint} stretch></lightning-button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <template lwc:if={showPreview}>
+            <c-document-preview record-id={jobSlipId} page-name="JobSlipPdf" heading={slip.slipNumber} onclose={handleClosePreview}></c-document-preview>
+        </template>
+    </div>
+</template>

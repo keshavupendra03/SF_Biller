@@ -1,0 +1,65 @@
+.page-container {
+    position: relative;
+    min-height: 100%;
+}
+
+.header-spacer {
+    display: inline-block;
+    width: 2rem;
+}
+
+.section {
+    display: block;
+    margin-bottom: 0.75rem;
+}
+
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.repair-line {
+    border: 1px solid #e5e5e5;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem 0.75rem;
+    margin-bottom: 0.75rem;
+    background-color: #fafaf9;
+}
+
+.estimate-summary {
+    border-top: 1px solid #e5e5e5;
+    padding-top: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.estimate-total {
+    border-top: 1px dashed #c9c9c9;
+    padding-top: 0.25rem;
+}
+
+/* Two columns on a phone, three on anything wider — big enough to tap. */
+.accessory-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 0.75rem;
+}
+
+@media (min-width: 48em) {
+    .accessory-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+.action-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    padding: 0.75rem 1rem;
+    background-color: #fff;
+    border-top: 1px solid #e5e5e5;
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.06);
+}

@@ -51,6 +51,11 @@ actual metadata, don't assume):
 autocomplete-suggestion table for the vehicle Make/Model fields. `Vehicle__c`
 itself has no lookup to it.
 
+`Job_Slip__c` + `Job_Slip_Line__c` were added 2026-11-01 (§F, Twenty-sixth) —
+the workshop's paper vehicle-intake slip, stored and printable.
+`Vehicle__c.Engine_Number__c`/`Date_Of_Sale__c` and
+`Workshop_Profile__c.Job_Slip_Terms__c` were added with them.
+
 **Fields/objects that existed only for the old mobile-sync split should be
 identified and either removed or left unused, not ported forward as-is**:
 `External_Id__c`, any `pending_number_assignment`/placeholder-style field on
@@ -1835,3 +1840,120 @@ manual, §F's next entry) before assuming otherwise.
 
 Verified after: 193/193 Apex tests, 25/25 Jest suites (132/132 tests), both
 at 100%, deployed and tested against the dev org (`wsbiller01@gmail.com`).
+
+**Twenty-sixth (2026-11-01): Job Slip — the workshop's paper intake slip
+(modelled on the user's photographed "JOB SLIP" form), printable blank or
+filled, and enterable on screen in either order.** Use case from the user:
+print a blank slip from Customer Detail, fill it by hand and type it in
+later — or fill it on screen first and print it for the customer's
+signature. Audited `objects/` first: nothing intake-shaped existed
+(`Job__c` has only customer/vehicle/stage/surveyor/notes), so all of the
+following is new:
+
+- `Job_Slip__c` (AutoNumber `JS-{0000}`, `startingNumber` 1 — "Sr. No." on
+  the slip): `Customer__c` (required lookup), `Vehicle__c` (lookup,
+  SetNull), date, `Time_In__c` (Time), km, visit reason, `Service_Type__c` /
+  `Fuel_Level__c` (restricted picklists), 13 accessory checkboxes,
+  dents/scratches, battery make/no., tyre make + FR/FL/RR/RL, service
+  advisor name/mobile, promised delivery (Text, not Datetime — the filled
+  paper example said "30–35 days"), total cost estimate (Text, same reason:
+  "2000–8000"). Kept separate from `Job__c` deliberately — a slip can exist
+  before (or without) a job on the Jobs board, and a blank print needs no
+  record at all.
+- `Job_Slip_Line__c` (master-detail) — the S.No. table: customer
+  verbatim, observation, labour/spares estimate, sort order.
+- `Vehicle__c.Engine_Number__c` / `Date_Of_Sale__c` — vehicle facts, not
+  visit facts, so `JobSlipController.saveJobSlip` writes them (and chassis
+  no.) back to the vehicle; the next slip and every blank print starts
+  with them filled. Also editable on Vehicle Detail.
+- `Workshop_Profile__c.Job_Slip_Terms__c` — one term per line, edited on
+  Workshop Profile; blank prints `JobSlipPdfController.DEFAULT_TERMS`. No
+  Hindi default: Visualforce's PDF renderer doesn't shape Devanagari
+  reliably, so it's left to the workshop to type their own if wanted.
+- `JobSlipPdf.page` + `JobSlipPdfController` — one A4 page. `?id=` decides
+  the mode: a `Job_Slip__c` prints filled; a `Vehicle__c`/`Customer__c`
+  prints blank with just those details prefilled. The repairs table always
+  pads to 15 rows. Car top-view diagram is a static resource PNG
+  (`JobSlipCarDiagram`, generated with Pillow).
+- `DocumentPdfService` routes `Job_Slip__c`/`Vehicle__c`/`Customer__c` ids to
+  `JobSlipPdf` (bills/estimates still go to `InvoicePdf`); `documentPreview`
+  gained `@api pageName` for the iframe. The nightly file sweep now also
+  covers `Job_Slip__c`; blank prints (filed on the Customer/Vehicle) rely
+  on the per-file five-minute cleanup only — sweeping every file on
+  recently created customers isn't something that batch should do.
+- UI: `c:jobSlipEditor` on a new `Job_Slip` tab (card sections, chip
+  picker for service type, button-group fuel gauge, 2-column accessory
+  checklist with "Mark all present", repeatable complaint rows with live
+  estimate totals, sticky Save / Save & Print bar). Customer Detail got a
+  Job Slips section with Print Blank (asks which vehicle first) and
+  + New Slip.
+
+Platform issues hit while building it:
+- **A border on the outermost `<table>` doesn't render under
+  `renderAs="pdf"`** (border-collapse table at width 100%); the same border
+  on a wrapping `<div>` does. Wrap the page in a bordered div.
+- **AutoNumber name fields start at 0** unless `<startingNumber>` is set in
+  the object's `<nameField>` — the first slip printed "JS-0000". Set to 1.
+- **`BillEstimateFileCleanupBatchTest`/`SchedulerTest` were
+  time-of-day flaky (pre-existing, surfaced by this run):** they backdated
+  files with `Datetime.now().addDays(-1)`, but the batch's "yesterday"
+  window is bounded by Date values, which SOQL compares at GMT midnight.
+  In the evening in the dev org user's US time zone, GMT is already the
+  next day, so "24 hours ago" fell in *today's* window and the assertion
+  failed (3 failures at ~8:40 PM Pacific). Fixed by backdating to noon GMT
+  on yesterday's date instead.
+- Checking the PDF layout: `PageReference.getContentAsPDF()` from
+  anonymous Apex, base64 in a debug line, decoded locally. It renders in a
+  separate request, so it can't see uncommitted DML — a filled sample had
+  to be inserted, rendered, then deleted.
+
+Verified after: 216/216 Apex tests, 27/27 Jest suites (155/155 tests), deployed
+to the dev org (`wsbiller01@gmail.com`) only; nightly cleanup job
+re-registered.
+
+**Twenty-seventh (2026-11-01): Quick Bill — bill a counter sale of spare
+parts, or any car customer, from one screen with no customer/vehicle set
+up first.** User request: staff were creating bills without going through
+Customers/vehicles at all, and selling parts over the counter. No schema
+change: `Bill__c.Customer__c` and `Customer__c.Phone__c` stay required.
+`QuickBillController` resolves both instead of relaxing them:
+
+- **Walk-in** mode bills one shared `Walk-in Customer` record (phone
+  `0000000000`, found-or-created on first use). `InvoicePdfController`
+  doesn't print that placeholder phone, and `findCustomerByPhone` never
+  matches it. Two first-ever walk-in sales at exactly the same moment
+  could each create the record; harmless (both are valid customers), so
+  no locking for it.
+- **Customer** mode treats the phone number as the identity:
+  `findCustomerByPhone` runs as staff type (debounced) and matches the
+  number as typed, digits-only, last 10 digits, `+91…` or `0…`. A match
+  shows an "existing customer" banner, locks the name, and offers that
+  customer's vehicles as chips. On save, blank address/GSTIN/state on an
+  existing customer are filled in from what was typed; saved values are
+  never overwritten. With no match, a new customer is created.
+- Vehicle is optional; a typed registration number reuses that customer's
+  vehicle with the same number (SOQL `=` is case-insensitive), else
+  `BillController.createBill`'s own inline-vehicle path creates it.
+- The bill itself goes through `BillController.createBill`, so invoice
+  numbering, stock deduction and manual-line → `Part__c` creation are
+  identical to New Bill.
+- UI: `c:quickBill` on a new `Quick_Bill` tab, placed right after Billing
+  in the app nav (on the phone's bottom bar this moves Inventory into the
+  overflow menu; reorder `WS_Biller.app-meta.xml` if they'd rather not),
+  plus a "Quick Bill" button on Billing List. The screen has a
+  Customer/Walk-in switch, a part search showing price and stock (tapping
+  a part already on the bill adds one more), a barcode scan button
+  (`lightning/mobileCapabilities` `getBarcodeScanner`; shown only where
+  `isAvailable()`, i.e. the Mobile App), inline item rows (− qty +, price,
+  GST % picker, "not enough stock" warning, edit icon → the existing
+  `lineItemEditor` for HSN/unit/IGST), custom items for anything not in
+  inventory, live GST totals, bill date/notes tucked behind "Bill date &
+  notes", a sticky footer with item count, total and Create Bill (it says
+  what's still missing), and a success screen with Print / Download PDF,
+  View Bill and New Quick Bill. New Quick Bill keeps the Walk-in/Customer
+  choice for back-to-back counter sales.
+- Jest: this project's `lightning/navigation` stub has no
+  `getNavigateCalledWith`, so mock `NavigationMixin` in the test the way
+  every other suite here does. `lightning/mobileCapabilities` needs a
+  virtual `jest.mock` too.
+

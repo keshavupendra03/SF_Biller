@@ -56,4 +56,18 @@ private class WorkshopProfileControllerTest {
         }
         System.assertEquals(true, threw);
     }
+
+    @isTest
+    static void saveProfile_roundTripsJobSlipTerms() {
+        WorkshopProfileController.ProfileData input = new WorkshopProfileController.ProfileData();
+        input.name = 'Keshav Car WS';
+        input.jobSlipTerms = 'Vehicles are kept at owner risk.';
+
+        Test.startTest();
+        WorkshopProfileController.saveProfile(input);
+        WorkshopProfileController.ProfileData loaded = WorkshopProfileController.getProfile();
+        Test.stopTest();
+
+        System.assertEquals('Vehicles are kept at owner risk.', loaded.jobSlipTerms);
+    }
 }

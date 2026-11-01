@@ -22,6 +22,14 @@
                 <template if:true={hasChassisNumber}>
                     <p class="slds-text-body_regular slds-m-bottom_xx-small">Chassis Number: {detail.chassisNumber}</p>
                 </template>
+                <template if:true={detail.engineNumber}>
+                    <p class="slds-text-body_regular slds-m-bottom_xx-small">Engine Number: {detail.engineNumber}</p>
+                </template>
+                <template if:true={detail.dateOfSale}>
+                    <p class="slds-text-body_regular slds-m-bottom_xx-small">
+                        Date of Sale: <lightning-formatted-date-time value={detail.dateOfSale} day="2-digit" month="short" year="numeric" time-zone="UTC"></lightning-formatted-date-time>
+                    </p>
+                </template>
                 <p class="slds-text-body_regular slds-text-color_weak slds-m-bottom_medium">Customer: {detail.customerName}</p>
             </template>
 
@@ -32,7 +40,9 @@
                     <c-vehicle-make-model-field data-field="model" label="Model" source="model" make={editValues.make} value={editValues.model} onchange={handleEditFieldChange}></c-vehicle-make-model-field>
                     <lightning-input data-field="year" type="number" label="Year" value={editValues.year} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
                     <lightning-input data-field="color" label="Color" value={editValues.color} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
-                    <lightning-input data-field="chassisNumber" label="Chassis Number" value={editValues.chassisNumber} onchange={handleEditFieldChange} class="slds-m-bottom_small"></lightning-input>
+                    <lightning-input data-field="chassisNumber" label="Chassis Number" value={editValues.chassisNumber} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="engineNumber" label="Engine Number" value={editValues.engineNumber} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-input data-field="dateOfSale" type="date" label="Date of Sale" value={editValues.dateOfSale} onchange={handleEditFieldChange} class="slds-m-bottom_small"></lightning-input>
                     <lightning-button data-id="save-edit" label="Save" variant="brand" disabled={saveEditDisabled} onclick={handleSaveEdit}></lightning-button>
                     <lightning-button label="Cancel" onclick={handleToggleEdit} class="slds-m-left_x-small"></lightning-button>
                 </div>

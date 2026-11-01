@@ -1,6 +1,7 @@
 /**
- * Backs the documentPreview LWC. The preview itself is InvoicePdf.page in
- * ?format=html mode inside an iframe; this class produces the PDF.
+ * Backs the documentPreview LWC. The preview itself is InvoicePdf.page (or
+ * JobSlipPdf.page for job slips) in ?format=html mode inside an iframe;
+ * this class produces the PDF.
  *
  * Two ways out, because the Salesforce Mobile App has no supported way for
  * an LWC to save a file to the phone (blob/data downloads silently do
@@ -115,7 +116,7 @@ public with sharing class DocumentPdfService {
     }
 
     private static Blob renderPdf(Id recordId) {
-        PageReference page = Page.InvoicePdf;
+        PageReference page = isJobSlip(recordId) ? Page.JobSlipPdf : Page.InvoicePdf;
         page.getParameters().put('id', recordId);
         // getContentAsPDF() isn't allowed in test context.
         return Test.isRunningTest() ? Blob.valueOf('test-pdf') : page.getContentAsPDF();
@@ -143,11 +144,37 @@ public with sharing class DocumentPdfService {
         return [SELECT ContentDocumentId FROM ContentVersion WHERE Id = :version.Id].ContentDocumentId;
     }
 
+    // A job slip PDF is rendered from the saved Job_Slip__c, or — for a
+    // blank slip to fill by hand — from the Vehicle__c/Customer__c it's
+    // printed for (JobSlipPdfController prefills only those details).
+    private static Boolean isJobSlip(Id recordId) {
+        SObjectType type = recordId.getSObjectType();
+        return type == Job_Slip__c.SObjectType || type == Vehicle__c.SObjectType || type == Customer__c.SObjectType;
+    }
+
     private static DocumentInfo loadInfo(Id recordId) {
         if (recordId == null) {
             throw new DocumentPdfServiceException('A bill or estimate is required.');
         }
         DocumentInfo info = new DocumentInfo();
+        if (recordId.getSObjectType() == Job_Slip__c.SObjectType) {
+            Job_Slip__c slip = [SELECT Name FROM Job_Slip__c WHERE Id = :recordId];
+            info.documentNumber = slip.Name;
+            info.title = 'Job Slip ' + slip.Name;
+            return info;
+        }
+        if (recordId.getSObjectType() == Vehicle__c.SObjectType) {
+            Vehicle__c vehicle = [SELECT Name FROM Vehicle__c WHERE Id = :recordId];
+            info.documentNumber = 'Job Slip ' + vehicle.Name;
+            info.title = 'Blank Job Slip ' + sanitize(vehicle.Name);
+            return info;
+        }
+        if (recordId.getSObjectType() == Customer__c.SObjectType) {
+            Customer__c customer = [SELECT Name FROM Customer__c WHERE Id = :recordId];
+            info.documentNumber = 'Job Slip ' + customer.Name;
+            info.title = 'Blank Job Slip ' + sanitize(customer.Name);
+            return info;
+        }
         if (recordId.getSObjectType() == Bill__c.SObjectType) {
             Bill__c bill = [SELECT Invoice_Number__c, Version_Number__c FROM Bill__c WHERE Id = :recordId];
             info.documentNumber = bill.Invoice_Number__c;
@@ -160,7 +187,7 @@ public with sharing class DocumentPdfService {
             info.title = sanitize(estimate.Name) + versionSuffix(estimate.Version_Number__c);
             return info;
         }
-        throw new DocumentPdfServiceException('PDFs are only available for bills and estimates.');
+        throw new DocumentPdfServiceException('PDFs are only available for bills, estimates and job slips.');
     }
 
     private static String versionSuffix(Decimal versionNumber) {

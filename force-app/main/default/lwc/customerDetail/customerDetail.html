@@ -63,6 +63,31 @@
 
             <hr class="slds-m-vertical_medium" />
 
+            <!-- Job Slips -->
+            <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                <h3 class="slds-text-heading_small">Job Slips</h3>
+                <div>
+                    <button type="button" class="slds-button slds-text-link slds-m-right_medium" data-id="print-blank-slip" onclick={handlePrintBlankSlip}>Print Blank</button>
+                    <button type="button" class="slds-button slds-text-link" data-id="new-job-slip" onclick={handleNewJobSlip}>+ New Slip</button>
+                </div>
+            </div>
+            <template if:true={hasJobSlips}>
+                <template for:each={detail.jobSlips} for:item="slip">
+                    <button type="button" key={slip.id} class="slds-button slds-button_reset document-row" data-id={slip.id} onclick={handleOpenJobSlip}>
+                        <span class="document-row-body">
+                            <span class="slds-text-body_regular">{slip.slipNumber}</span>
+                            <span class="slds-text-body_small slds-text-color_weak">{slip.vehicleLabel}<template if:true={slip.visitReason}> • {slip.visitReason}</template></span>
+                        </span>
+                        <lightning-formatted-date-time value={slip.slipDate} day="2-digit" month="short" year="numeric" time-zone="UTC" class="slds-text-body_small"></lightning-formatted-date-time>
+                    </button>
+                </template>
+            </template>
+            <template if:false={hasJobSlips}>
+                <p class="slds-text-color_weak slds-m-bottom_medium">No job slips yet. Print a blank slip to fill by hand, or fill one here and print it for the customer's signature.</p>
+            </template>
+
+            <hr class="slds-m-vertical_medium" />
+
             <!-- Jobs -->
             <h3 class="slds-text-heading_small slds-m-bottom_small">Jobs</h3>
             <template if:true={hasJobs}>
@@ -119,6 +144,43 @@
                     </button>
                 </template>
             </template>
+        </template>
+
+        <template if:true={showBlankSlipChooser}>
+            <section role="dialog" tabindex="-1" aria-modal="true" aria-label="Print blank job slip" class="slds-modal slds-fade-in-open">
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                        <h2 class="slds-text-heading_medium">Print blank job slip</h2>
+                        <p class="slds-m-top_x-small slds-text-color_weak">Which vehicle is it for? Its details are printed on the slip; everything else is left blank to fill by hand.</p>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <template for:each={decoratedVehicles} for:item="vehicle">
+                            <button type="button" key={vehicle.id} class="slds-button slds-button_reset document-row" data-id="blank-slip-vehicle" data-vehicle-id={vehicle.id} onclick={handleChooseBlankSlipVehicle}>
+                                <span class="document-row-body">
+                                    <span class="slds-text-body_regular">{vehicle.registrationNumber}</span>
+                                    <span class="slds-text-body_small slds-text-color_weak">{vehicle.label}</span>
+                                </span>
+                                <lightning-icon icon-name="utility:print" size="x-small"></lightning-icon>
+                            </button>
+                        </template>
+                        <button type="button" class="slds-button slds-button_reset document-row" data-id="blank-slip-no-vehicle" onclick={handleChooseBlankSlipVehicle}>
+                            <span class="document-row-body">
+                                <span class="slds-text-body_regular">Another vehicle</span>
+                                <span class="slds-text-body_small slds-text-color_weak">Leave the vehicle details blank</span>
+                            </span>
+                            <lightning-icon icon-name="utility:print" size="x-small"></lightning-icon>
+                        </button>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button data-id="cancel-blank-slip" label="Cancel" onclick={handleCancelBlankSlip}></lightning-button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open" role="presentation"></div>
+        </template>
+
+        <template if:true={blankSlipRecordId}>
+            <c-document-preview record-id={blankSlipRecordId} page-name="JobSlipPdf" heading="Blank Job Slip" onclose={handleCloseBlankSlip}></c-document-preview>
         </template>
     </div>
 </template>

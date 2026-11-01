@@ -83,7 +83,9 @@ export default class VehicleDetail extends NavigationMixin(LightningElement) {
                 model: this.detail.model,
                 year: this.detail.year,
                 color: this.detail.color,
-                chassisNumber: this.detail.chassisNumber
+                chassisNumber: this.detail.chassisNumber,
+                engineNumber: this.detail.engineNumber,
+                dateOfSale: this.detail.dateOfSale
             };
         }
     }
@@ -114,7 +116,9 @@ export default class VehicleDetail extends NavigationMixin(LightningElement) {
                 model: this.editValues.model,
                 year: this.editValues.year ? Number(this.editValues.year) : null,
                 color: this.editValues.color,
-                chassisNumber: this.editValues.chassisNumber
+                chassisNumber: this.editValues.chassisNumber,
+                engineNumber: this.editValues.engineNumber,
+                dateOfSale: this.editValues.dateOfSale || null
             }
         })
             .then(() => {

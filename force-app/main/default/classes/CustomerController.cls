@@ -43,6 +43,14 @@ public with sharing class CustomerController {
         @AuraEnabled public Date createdDate { get; set; }
     }
 
+    public class JobSlipItem {
+        @AuraEnabled public Id id { get; set; }
+        @AuraEnabled public String slipNumber { get; set; }
+        @AuraEnabled public Date slipDate { get; set; }
+        @AuraEnabled public String vehicleLabel { get; set; }
+        @AuraEnabled public String visitReason { get; set; }
+    }
+
     public class CustomerDetail {
         @AuraEnabled public Id id { get; set; }
         @AuraEnabled public String name { get; set; }
@@ -54,6 +62,7 @@ public with sharing class CustomerController {
         @AuraEnabled public Decimal lifetimeSpend { get; set; }
         @AuraEnabled public List<VehicleItem> vehicles { get; set; }
         @AuraEnabled public List<JobItem> jobs { get; set; }
+        @AuraEnabled public List<JobSlipItem> jobSlips { get; set; }
         @AuraEnabled public List<DocumentItem> bills { get; set; }
         @AuraEnabled public List<DocumentItem> estimates { get; set; }
     }
@@ -163,6 +172,22 @@ public with sharing class CustomerController {
             item.vehicleLabel = job.Vehicle__c != null ? job.Vehicle__r.Name : null;
             item.createdDate = job.CreatedDate.date();
             detail.jobs.add(item);
+        }
+
+        detail.jobSlips = new List<JobSlipItem>();
+        for (Job_Slip__c slip : [
+            SELECT Name, Slip_Date__c, Visit_Reason__c, Vehicle__r.Name
+            FROM Job_Slip__c
+            WHERE Customer__c = :customerId
+            ORDER BY Slip_Date__c DESC, CreatedDate DESC
+        ]) {
+            JobSlipItem item = new JobSlipItem();
+            item.id = slip.Id;
+            item.slipNumber = slip.Name;
+            item.slipDate = slip.Slip_Date__c;
+            item.vehicleLabel = slip.Vehicle__c != null ? slip.Vehicle__r.Name : null;
+            item.visitReason = slip.Visit_Reason__c;
+            detail.jobSlips.add(item);
         }
 
         detail.bills = new List<DocumentItem>();

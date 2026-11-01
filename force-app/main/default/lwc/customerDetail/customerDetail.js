@@ -35,6 +35,11 @@ export default class CustomerDetail extends NavigationMixin(LightningElement) {
     newVehicle = { ...EMPTY_VEHICLE };
     isSavingVehicle = false;
 
+    showBlankSlipChooser = false;
+    // The Vehicle__c (or, with no vehicle picked, Customer__c) a blank job
+    // slip is being previewed for — JobSlipPdf prefills just those details.
+    blankSlipRecordId;
+
     connectedCallback() {
         disablePullToRefresh(this);
     }
@@ -52,6 +57,8 @@ export default class CustomerDetail extends NavigationMixin(LightningElement) {
             this.editValues = {};
             this.showAddVehicle = false;
             this.newVehicle = { ...EMPTY_VEHICLE };
+            this.showBlankSlipChooser = false;
+            this.blankSlipRecordId = undefined;
             this.loadDetail();
         }
     }
@@ -78,6 +85,10 @@ export default class CustomerDetail extends NavigationMixin(LightningElement) {
 
     get hasJobs() {
         return this.hasDetail && this.detail.jobs.length > 0;
+    }
+
+    get hasJobSlips() {
+        return this.hasDetail && (this.detail.jobSlips || []).length > 0;
     }
 
     get hasBills() {
@@ -208,6 +219,40 @@ export default class CustomerDetail extends NavigationMixin(LightningElement) {
 
     handleNewEstimate() {
         this.navigateWithCustomer('New_Estimate');
+    }
+
+    handleNewJobSlip() {
+        this[NavigationMixin.Navigate]({
+            type: 'standard__navItemPage',
+            attributes: { apiName: 'Job_Slip' },
+            state: { c__customerId: this.customerId }
+        });
+    }
+
+    handleOpenJobSlip(event) {
+        this.navigateToRecord('Job_Slip', event.currentTarget.dataset.id);
+    }
+
+    // With no vehicles there's nothing to choose — straight to the preview.
+    handlePrintBlankSlip() {
+        if (this.hasVehicles) {
+            this.showBlankSlipChooser = true;
+        } else {
+            this.blankSlipRecordId = this.customerId;
+        }
+    }
+
+    handleChooseBlankSlipVehicle(event) {
+        this.showBlankSlipChooser = false;
+        this.blankSlipRecordId = event.currentTarget.dataset.vehicleId || this.customerId;
+    }
+
+    handleCancelBlankSlip() {
+        this.showBlankSlipChooser = false;
+    }
+
+    handleCloseBlankSlip() {
+        this.blankSlipRecordId = undefined;
     }
 
     handleOpenJob(event) {

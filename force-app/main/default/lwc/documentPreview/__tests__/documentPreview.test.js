@@ -43,6 +43,15 @@ describe('c-document-preview (desktop)', () => {
         expect(frame.getAttribute('src')).toBe('/apex/InvoicePdf?id=a01xx0000000001&format=html');
     });
 
+    it('frames the page named by pageName instead, for job slips', () => {
+        const element = createElement('c-document-preview', { is: DocumentPreview });
+        element.recordId = 'a0Jxx0000000001';
+        element.pageName = 'JobSlipPdf';
+        document.body.appendChild(element);
+        const frame = element.shadowRoot.querySelector('[data-id="preview-frame"]');
+        expect(frame.getAttribute('src')).toBe('/apex/JobSlipPdf?id=a0Jxx0000000001&format=html');
+    });
+
     it('Close fires a close event', () => {
         const element = createPreview();
         const handler = jest.fn();

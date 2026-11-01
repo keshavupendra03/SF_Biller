@@ -172,4 +172,24 @@ private class CustomerControllerTest {
 
         System.assertEquals(0, results.size());
     }
+
+    @isTest
+    static void getCustomerDetail_listsJobSlipsNewestFirst() {
+        Id customerId = insertCustomer();
+        Vehicle__c vehicle = new Vehicle__c(Name = 'MP70ZD3946', Customer__c = customerId);
+        insert vehicle;
+        insert new List<Job_Slip__c>{
+            new Job_Slip__c(Customer__c = customerId, Vehicle__c = vehicle.Id, Slip_Date__c = Date.today().addDays(-10), Visit_Reason__c = 'Service'),
+            new Job_Slip__c(Customer__c = customerId, Vehicle__c = vehicle.Id, Slip_Date__c = Date.today(), Visit_Reason__c = 'Accident')
+        };
+
+        Test.startTest();
+        CustomerController.CustomerDetail detail = CustomerController.getCustomerDetail(customerId);
+        Test.stopTest();
+
+        System.assertEquals(2, detail.jobSlips.size());
+        System.assertEquals('Accident', detail.jobSlips[0].visitReason);
+        System.assertEquals('MP70ZD3946', detail.jobSlips[0].vehicleLabel);
+        System.assert(detail.jobSlips[0].slipNumber.startsWith('JS-'));
+    }
 }

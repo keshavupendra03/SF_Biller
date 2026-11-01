@@ -103,11 +103,53 @@ private class DocumentPdfServiceTest {
     }
 
     @isTest
-    static void getPdfDownload_unsupportedRecord_throws() {
+    static void getPdfDownload_forJobSlip_usesSlipNumber() {
         Id customerId = insertCustomer();
+        Job_Slip__c slip = new Job_Slip__c(Customer__c = customerId);
+        insert slip;
+        String slipNumber = [SELECT Name FROM Job_Slip__c WHERE Id = :slip.Id].Name;
+
+        Test.startTest();
+        DocumentPdfService.PdfDownload download = DocumentPdfService.getPdfDownload(slip.Id);
+        Test.stopTest();
+
+        System.assertEquals('Job Slip ' + slipNumber + '.pdf', download.fileName);
+    }
+
+    @isTest
+    static void getPdfDownload_forBlankSlip_namesFileAfterVehicleOrCustomer() {
+        Id customerId = insertCustomer();
+        Vehicle__c vehicle = new Vehicle__c(Name = 'MP09AB1234', Customer__c = customerId);
+        insert vehicle;
+
+        Test.startTest();
+        DocumentPdfService.PdfDownload forVehicle = DocumentPdfService.getPdfDownload(vehicle.Id);
+        DocumentPdfService.PdfDownload forCustomer = DocumentPdfService.getPdfDownload(customerId);
+        Test.stopTest();
+
+        System.assertEquals('Blank Job Slip MP09AB1234.pdf', forVehicle.fileName);
+        System.assertEquals('Blank Job Slip Ramesh Kumar.pdf', forCustomer.fileName);
+    }
+
+    @isTest
+    static void getPublicLink_forJobSlip_attachesFileToTheSlip() {
+        Job_Slip__c slip = new Job_Slip__c(Customer__c = insertCustomer());
+        insert slip;
+
+        Test.startTest();
+        DocumentPdfService.PublicLink link = DocumentPdfService.getPublicLink(slip.Id);
+        Test.stopTest();
+
+        System.assertNotEquals(null, link.downloadUrl);
+        System.assertEquals(1, [SELECT COUNT() FROM ContentDocumentLink WHERE LinkedEntityId = :slip.Id]);
+    }
+
+    @isTest
+    static void getPdfDownload_unsupportedRecord_throws() {
+        Id profileId = [SELECT Id FROM Workshop_Profile__c LIMIT 1].Id;
         Boolean threw = false;
         try {
-            DocumentPdfService.getPdfDownload(customerId);
+            DocumentPdfService.getPdfDownload(profileId);
         } catch (DocumentPdfService.DocumentPdfServiceException e) {
             threw = true;
         }

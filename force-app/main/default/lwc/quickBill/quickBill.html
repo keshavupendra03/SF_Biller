@@ -1,0 +1,281 @@
+<template>
+    <div class="page-container">
+        <div class="slds-p-around_medium slds-p-bottom_none">
+            <div class="slds-m-bottom_medium">
+                <h1 class="slds-text-heading_medium">Quick Bill</h1>
+                <p class="slds-text-body_small slds-text-color_weak">Bill a parts sale or any customer in one step.</p>
+            </div>
+        </div>
+
+        <!-- ================= Success ================= -->
+        <template lwc:if={isCreated}>
+            <div class="slds-p-horizontal_medium">
+                <div class="success-card slds-text-align_center">
+                    <lightning-icon icon-name="action:approval" size="large" alternative-text="Bill created"></lightning-icon>
+                    <p class="slds-text-heading_small slds-m-top_small">Bill created</p>
+                    <p class="slds-text-heading_large slds-m-top_xx-small" data-id="created-number">{createdBill.invoiceNumber}</p>
+                    <p class="slds-text-body_regular slds-text-color_weak slds-m-top_xx-small">{createdBill.customerName}</p>
+                    <p class="success-total slds-m-top_small">₹{createdBill.formattedTotal}</p>
+
+                    <div class="success-actions slds-m-top_large">
+                        <lightning-button data-id="print" variant="brand" label="Print / Download PDF" icon-name="utility:print" onclick={handlePrint} stretch></lightning-button>
+                        <lightning-button data-id="view-bill" label="View Bill" icon-name="utility:preview" onclick={handleViewBill} stretch></lightning-button>
+                        <lightning-button data-id="new-bill" label="New Quick Bill" icon-name="utility:add" onclick={handleNewBill} stretch></lightning-button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- ================= Form ================= -->
+        <template lwc:if={isEditing}>
+            <div class="slds-p-horizontal_medium">
+                <!-- Bill to -->
+                <lightning-card title="Bill To" icon-name="standard:person_account" class="section">
+                    <div class="slds-p-horizontal_medium">
+                        <lightning-radio-group
+                            data-id="mode"
+                            type="button"
+                            label="Who is this bill for?"
+                            variant="label-hidden"
+                            options={modeOptions}
+                            value={mode}
+                            onchange={handleModeChange}
+                            class="mode-switch"
+                        ></lightning-radio-group>
+
+                        <template lwc:if={isWalkIn}>
+                            <div class="walkin-note slds-m-top_small">
+                                <lightning-icon icon-name="utility:info" size="x-small" class="slds-m-right_x-small"></lightning-icon>
+                                <span>No customer details needed. The bill is issued to "Walk-in Customer".</span>
+                            </div>
+                        </template>
+
+                        <template lwc:if={isCustomerMode}>
+                            <div class="slds-grid slds-wrap slds-gutters_x-small slds-m-top_x-small">
+                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                    <lightning-input
+                                        data-field="phone"
+                                        type="tel"
+                                        label="Phone"
+                                        placeholder="10-digit mobile number"
+                                        value={customer.phone}
+                                        onchange={handleCustomerFieldChange}
+                                        required
+                                    ></lightning-input>
+                                </div>
+                                <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2">
+                                    <lightning-input
+                                        data-field="name"
+                                        label="Customer Name"
+                                        value={customer.name}
+                                        disabled={nameDisabled}
+                                        onchange={handleCustomerFieldChange}
+                                        required
+                                    ></lightning-input>
+                                </div>
+                            </div>
+
+                            <template lwc:if={isLookingUp}>
+                                <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">Checking for an existing customer…</p>
+                            </template>
+                            <template lwc:if={hasMatch}>
+                                <div class="match-banner slds-m-top_x-small" data-id="match-banner">
+                                    <lightning-icon icon-name="utility:success" size="x-small" variant="success" class="slds-m-right_x-small"></lightning-icon>
+                                    <span>Existing customer. This bill is added to <strong>{match.name}</strong>'s history.</span>
+                                </div>
+                            </template>
+
+                            <button type="button" class="slds-button slds-text-link slds-m-top_x-small" data-id="toggle-more-customer" onclick={handleToggleMoreCustomer}>{moreCustomerLabel}</button>
+                            <template lwc:if={showMoreCustomer}>
+                                <lightning-textarea data-field="address" label="Address" value={customer.address} onchange={handleCustomerFieldChange}></lightning-textarea>
+                                <div class="slds-grid slds-gutters_x-small">
+                                    <div class="slds-col slds-size_1-of-2">
+                                        <lightning-input data-field="gstin" label="GSTIN" value={customer.gstin} onchange={handleCustomerFieldChange}></lightning-input>
+                                    </div>
+                                    <div class="slds-col slds-size_1-of-2">
+                                        <lightning-input data-field="state" label="State" placeholder="23-Madhya Pradesh" value={customer.state} onchange={handleCustomerFieldChange}></lightning-input>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Vehicle (optional) -->
+                            <div class="vehicle-block slds-m-top_medium">
+                                <p class="slds-form-element__label">Vehicle <span class="slds-text-color_weak">(optional)</span></p>
+                                <template lwc:if={hasMatchVehicles}>
+                                    <div class="chip-row">
+                                        <template for:each={vehicleChips} for:item="chip">
+                                            <lightning-button
+                                                key={chip.value}
+                                                data-id="vehicle-chip"
+                                                data-value={chip.value}
+                                                label={chip.label}
+                                                variant={chip.variant}
+                                                onclick={handleVehicleChip}
+                                            ></lightning-button>
+                                        </template>
+                                    </div>
+                                </template>
+                                <template lwc:if={showVehicleFields}>
+                                    <div class="slds-grid slds-wrap slds-gutters_x-small">
+                                        <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                                            <lightning-input data-field="registrationNumber" label="Registration No." placeholder="MP09AB1234" value={newVehicle.registrationNumber} onchange={handleVehicleFieldChange}></lightning-input>
+                                        </div>
+                                        <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-3">
+                                            <c-vehicle-make-model-field data-field="make" label="Make" source="make" value={newVehicle.make} onchange={handleVehicleFieldChange}></c-vehicle-make-model-field>
+                                        </div>
+                                        <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-3">
+                                            <c-vehicle-make-model-field data-field="model" label="Model" source="model" make={newVehicle.make} value={newVehicle.model} onchange={handleVehicleFieldChange}></c-vehicle-make-model-field>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </lightning-card>
+
+                <!-- Items -->
+                <lightning-card title="Items" icon-name="standard:product_item" class="section">
+                    <div class="slds-p-horizontal_medium">
+                        <div class="search-row">
+                            <lightning-input
+                                data-id="part-search"
+                                type="search"
+                                label="Search parts"
+                                variant="label-hidden"
+                                placeholder="Search parts by name, SKU or barcode"
+                                value={partSearchTerm}
+                                is-loading={isSearchingParts}
+                                onchange={handlePartSearchChange}
+                                class="search-input"
+                            ></lightning-input>
+                            <template lwc:if={canScan}>
+                                <lightning-button-icon data-id="scan" icon-name="utility:scan" variant="border-filled" size="large" alternative-text="Scan barcode" onclick={handleScan}></lightning-button-icon>
+                            </template>
+                        </div>
+
+                        <template lwc:if={hasPartResults}>
+                            <ul class="part-results slds-m-top_xx-small">
+                                <template for:each={decoratedPartResults} for:item="part">
+                                    <li key={part.id}>
+                                        <button type="button" class="slds-button slds-button_reset part-result" data-id={part.id} onclick={handleSelectPart}>
+                                            <span class="part-result-body">
+                                                <span class="slds-text-body_regular">{part.name}</span>
+                                                <span class="slds-text-body_small slds-text-color_weak">{part.meta}</span>
+                                            </span>
+                                            <span class="part-result-side">
+                                                <span class="slds-text-body_regular">₹{part.formattedPrice}</span>
+                                                <template lwc:if={part.stockLabel}><span class={part.stockClass}>{part.stockLabel}</span></template>
+                                            </span>
+                                        </button>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                        <template lwc:if={showNoPartResults}>
+                            <p class="slds-text-body_small slds-text-color_weak slds-m-top_x-small">No parts match. Add it as a custom item below.</p>
+                        </template>
+
+                        <template for:each={decoratedItems} for:item="item">
+                            <div key={item.key} class="item-row" data-id="item-row">
+                                <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-start">
+                                    <div class="item-name">
+                                        <template lwc:if={item.isCustom}>
+                                            <lightning-input
+                                                data-key={item.key}
+                                                data-field="description"
+                                                label="Item name"
+                                                variant="label-hidden"
+                                                placeholder="Item or service name"
+                                                value={item.description}
+                                                onchange={handleItemFieldChange}
+                                            ></lightning-input>
+                                        </template>
+                                        <template lwc:else>
+                                            <p class="slds-text-body_regular slds-truncate">{item.description}</p>
+                                            <p class="slds-text-body_small slds-text-color_weak">
+                                                {item.stockLabel}
+                                                <template lwc:if={item.isShort}><span class="slds-text-color_error"> · not enough stock</span></template>
+                                            </p>
+                                        </template>
+                                    </div>
+                                    <div class="item-actions">
+                                        <lightning-button-icon data-id="edit-item" data-key={item.key} icon-name="utility:edit" variant="bare" alternative-text="More details" onclick={handleEditItem}></lightning-button-icon>
+                                        <lightning-button-icon data-id="remove-item" data-key={item.key} icon-name="utility:delete" variant="bare" alternative-text="Remove item" onclick={handleRemoveItem}></lightning-button-icon>
+                                    </div>
+                                </div>
+                                <div class="item-controls">
+                                    <div class="stepper">
+                                        <lightning-button-icon data-id="decrease" data-key={item.key} icon-name="utility:dash" variant="border-filled" alternative-text="One less" disabled={item.decreaseDisabled} onclick={handleDecrease}></lightning-button-icon>
+                                        <lightning-input data-key={item.key} data-field="quantity" type="number" label="Qty" variant="label-hidden" min="1" step="any" value={item.quantity} onchange={handleItemFieldChange} class="qty-input"></lightning-input>
+                                        <lightning-button-icon data-id="increase" data-key={item.key} icon-name="utility:add" variant="border-filled" alternative-text="One more" onclick={handleIncrease}></lightning-button-icon>
+                                    </div>
+                                    <lightning-input data-key={item.key} data-field="unitPrice" type="number" label="Price (₹)" min="0" step="0.01" value={item.unitPrice} onchange={handleItemFieldChange} class="price-input"></lightning-input>
+                                    <lightning-combobox data-key={item.key} data-field="taxRatePercent" label="GST" options={gstRateOptions} value={item.taxRateValue} onchange={handleItemFieldChange} class="gst-input"></lightning-combobox>
+                                </div>
+                                <p class="item-total">₹{item.formattedLineTotal}</p>
+                            </div>
+                        </template>
+
+                        <template lwc:if={showEmptyItems}>
+                            <div class="empty-items">
+                                <lightning-icon icon-name="utility:cart" size="small"></lightning-icon>
+                                <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">Search a part above to add it, or add a custom item for anything not in inventory.</p>
+                            </div>
+                        </template>
+
+                        <lightning-button data-id="add-custom" label="Add custom item" icon-name="utility:add" onclick={handleAddCustomItem} class="slds-m-top_small"></lightning-button>
+                    </div>
+                </lightning-card>
+
+                <!-- Totals -->
+                <template lwc:if={hasItems}>
+                    <div class="totals slds-m-bottom_small">
+                        <div class="slds-grid slds-grid_align-spread"><span>Subtotal</span><span>₹{formattedSubtotal}</span></div>
+                        <template lwc:if={hasCgstSgst}>
+                            <div class="slds-grid slds-grid_align-spread"><span>CGST</span><span>₹{formattedCgst}</span></div>
+                            <div class="slds-grid slds-grid_align-spread"><span>SGST</span><span>₹{formattedSgst}</span></div>
+                        </template>
+                        <template lwc:if={hasIgst}>
+                            <div class="slds-grid slds-grid_align-spread"><span>IGST</span><span>₹{formattedIgst}</span></div>
+                        </template>
+                        <div class="slds-grid slds-grid_align-spread totals-grand"><span>Total</span><span data-id="grand-total">₹{formattedTotal}</span></div>
+                    </div>
+                </template>
+
+                <!-- More options -->
+                <button type="button" class="slds-button more-options" data-id="toggle-more-options" onclick={handleToggleMoreOptions}>
+                    <lightning-icon icon-name={moreOptionsIcon} size="xx-small" class="slds-m-right_x-small"></lightning-icon>
+                    {moreOptionsLabel}
+                </button>
+                <template lwc:if={showMoreOptions}>
+                    <div class="slds-m-bottom_medium">
+                        <lightning-input data-id="bill-date" type="date" label="Bill Date" value={billDate} onchange={handleBillDateChange}></lightning-input>
+                        <lightning-textarea data-id="notes" label="Notes (printed on the bill)" value={notes} onchange={handleNotesChange}></lightning-textarea>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Sticky footer -->
+            <div class="action-bar">
+                <template lwc:if={missingReason}>
+                    <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small" data-id="missing-reason">{missingReason}</p>
+                </template>
+                <div class="slds-grid slds-grid_vertical-align-center slds-grid_align-spread">
+                    <div>
+                        <p class="slds-text-body_small slds-text-color_weak">{itemCountLabel}</p>
+                        <p class="footer-total">₹{formattedTotal}</p>
+                    </div>
+                    <lightning-button data-id="create" variant="brand" label={createLabel} icon-name="utility:check" disabled={createDisabled} onclick={handleCreate}></lightning-button>
+                </div>
+            </div>
+        </template>
+
+        <template lwc:if={editingItem}>
+            <c-line-item-editor record={editingItem} onsave={handleItemEditorSave} oncancel={handleItemEditorCancel}></c-line-item-editor>
+        </template>
+
+        <template lwc:if={showPreview}>
+            <c-document-preview record-id={createdBill.billId} heading={createdBill.invoiceNumber} onclose={handleClosePreview}></c-document-preview>
+        </template>
+    </div>
+</template>

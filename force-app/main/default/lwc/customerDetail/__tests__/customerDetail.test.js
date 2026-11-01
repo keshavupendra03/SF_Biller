@@ -8,6 +8,8 @@ import createVehicle from '@salesforce/apex/CustomerController.createVehicle';
 jest.mock('@salesforce/apex/CustomerController.getCustomerDetail', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/CustomerController.updateCustomer', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/CustomerController.createVehicle', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/DocumentPdfService.getPdfDownload', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/DocumentPdfService.getPublicLink', () => ({ default: jest.fn() }), { virtual: true });
 
 const mockNavigate = jest.fn();
 jest.mock('lightning/navigation', () => {
@@ -175,6 +177,85 @@ describe('c-customer-detail', () => {
         expect(updateCustomer).toHaveBeenCalledWith({
             customerId: 'cust1',
             input: expect.objectContaining({ name: 'Ramesh Kumar Updated' })
+        });
+    });
+
+    describe('job slips', () => {
+        const WITH_SLIPS = {
+            ...DETAIL,
+            jobSlips: [{ id: 'slip1', slipNumber: 'JS-0007', slipDate: '2026-10-30', vehicleLabel: 'MP09AB1234', visitReason: 'Accident' }]
+        };
+
+        async function renderDetail(detail) {
+            getCustomerDetail.mockResolvedValue(detail);
+            const element = createElement('c-customer-detail', { is: CustomerDetail });
+            document.body.appendChild(element);
+            CurrentPageReference.emit(createPageRef('cust1'));
+            await flushPromises();
+            return element;
+        }
+
+        it('lists the customer job slips and opens one on the Job Slip screen', async () => {
+            const element = await renderDetail(WITH_SLIPS);
+            expect(element.shadowRoot.textContent).toContain('JS-0007');
+            expect(element.shadowRoot.textContent).toContain('Accident');
+
+            element.shadowRoot.querySelector('[data-id="slip1"]').click();
+
+            expect(mockNavigate).toHaveBeenCalledWith({
+                type: 'standard__navItemPage',
+                attributes: { apiName: 'Job_Slip' },
+                state: { c__recordId: 'slip1', c__fromCustomerId: 'cust1' }
+            });
+        });
+
+        it('shows a hint when there are no job slips yet', async () => {
+            const element = await renderDetail({ ...DETAIL, jobSlips: [] });
+            expect(element.shadowRoot.textContent).toContain('No job slips yet.');
+        });
+
+        it('+ New Slip opens a new slip for this customer', async () => {
+            const element = await renderDetail(WITH_SLIPS);
+            element.shadowRoot.querySelector('[data-id="new-job-slip"]').click();
+
+            expect(mockNavigate).toHaveBeenCalledWith({
+                type: 'standard__navItemPage',
+                attributes: { apiName: 'Job_Slip' },
+                state: { c__customerId: 'cust1' }
+            });
+        });
+
+        it('Print Blank asks which vehicle, then previews the blank slip for it', async () => {
+            const element = await renderDetail(WITH_SLIPS);
+            element.shadowRoot.querySelector('[data-id="print-blank-slip"]').click();
+            await flushPromises();
+            expect(element.shadowRoot.querySelector('c-document-preview')).toBeNull();
+
+            element.shadowRoot.querySelector('[data-id="blank-slip-vehicle"]').click();
+            await flushPromises();
+
+            expect(element.shadowRoot.querySelector('[data-id="blank-slip-vehicle"]')).toBeNull();
+            const preview = element.shadowRoot.querySelector('c-document-preview');
+            expect(preview.recordId).toBe('veh1');
+            expect(preview.pageName).toBe('JobSlipPdf');
+        });
+
+        it('Print Blank with "Another vehicle" previews a slip with just the customer details', async () => {
+            const element = await renderDetail(WITH_SLIPS);
+            element.shadowRoot.querySelector('[data-id="print-blank-slip"]').click();
+            await flushPromises();
+            element.shadowRoot.querySelector('[data-id="blank-slip-no-vehicle"]').click();
+            await flushPromises();
+
+            expect(element.shadowRoot.querySelector('c-document-preview').recordId).toBe('cust1');
+        });
+
+        it('Print Blank goes straight to the preview when the customer has no vehicles', async () => {
+            const element = await renderDetail({ ...WITH_SLIPS, vehicles: [] });
+            element.shadowRoot.querySelector('[data-id="print-blank-slip"]').click();
+            await flushPromises();
+
+            expect(element.shadowRoot.querySelector('c-document-preview').recordId).toBe('cust1');
         });
     });
 });

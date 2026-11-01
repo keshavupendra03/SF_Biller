@@ -53,7 +53,11 @@ private class BillEstimateFileCleanupBatchTest {
         Id oldEstimateFile = insertFileFor(estimate.Id, 'Old Estimate File');
         Id oldUnrelatedFile = insertFileFor(customerId, 'Old Customer File');
 
-        Datetime yesterday = Datetime.now().addDays(-1);
+        // Noon GMT on yesterday's date — always inside the batch's
+        // "yesterday" window. Datetime.now().addDays(-1) isn't: in the
+        // evening in a US time zone GMT has already rolled over to the
+        // next day, so "24 hours ago" lands in today's window instead.
+        Datetime yesterday = Datetime.newInstanceGmt(Date.today().addDays(-1), Time.newInstance(12, 0, 0, 0));
         Test.setCreatedDate(oldBillFile, yesterday);
         Test.setCreatedDate(oldEstimateFile, yesterday);
         Test.setCreatedDate(oldUnrelatedFile, yesterday);
@@ -67,5 +71,19 @@ private class BillEstimateFileCleanupBatchTest {
         System.assertEquals(0, [SELECT COUNT() FROM ContentDocument WHERE Id = :oldEstimateFile], 'Yesterday\'s estimate file must be deleted.');
         System.assertEquals(1, [SELECT COUNT() FROM ContentDocument WHERE Id = :todayBillFile], 'A file created today must survive the yesterday-only sweep.');
         System.assertEquals(1, [SELECT COUNT() FROM ContentDocument WHERE Id = :oldUnrelatedFile], 'A file not linked to a Bill/Estimate must never be touched by this batch.');
+    }
+
+    @isTest
+    static void noArgSweep_alsoDeletesYesterdaysJobSlipFiles() {
+        Job_Slip__c slip = new Job_Slip__c(Customer__c = insertCustomer());
+        insert slip;
+        Id oldSlipFile = insertFileFor(slip.Id, 'Old Job Slip File');
+        Test.setCreatedDate(oldSlipFile, Datetime.newInstanceGmt(Date.today().addDays(-1), Time.newInstance(12, 0, 0, 0)));
+
+        Test.startTest();
+        Database.executeBatch(new BillEstimateFileCleanupBatch());
+        Test.stopTest();
+
+        System.assertEquals(0, [SELECT COUNT() FROM ContentDocument WHERE Id = :oldSlipFile], 'Yesterday\'s job slip file must be deleted.');
     }
 }

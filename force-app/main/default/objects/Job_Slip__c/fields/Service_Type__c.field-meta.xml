@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Service_Type__c</fullName>
+    <label>Type of Service</label>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>1st Free Service</fullName>
+                <default>false</default>
+                <label>1st Free Service</label>
+            </value>
+            <value>
+                <fullName>2nd Free Service</fullName>
+                <default>false</default>
+                <label>2nd Free Service</label>
+            </value>
+            <value>
+                <fullName>3rd Free Service</fullName>
+                <default>false</default>
+                <label>3rd Free Service</label>
+            </value>
+            <value>
+                <fullName>4th Free Service</fullName>
+                <default>false</default>
+                <label>4th Free Service</label>
+            </value>
+            <value>
+                <fullName>Paid Service</fullName>
+                <default>false</default>
+                <label>Paid Service</label>
+            </value>
+            <value>
+                <fullName>Accidental Repair</fullName>
+                <default>false</default>
+                <label>Accidental Repair</label>
+            </value>
+            <value>
+                <fullName>Running Repair</fullName>
+                <default>false</default>
+                <label>Running Repair</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

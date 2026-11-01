@@ -7,6 +7,10 @@ import getPublicLink from '@salesforce/apex/DocumentPdfService.getPublicLink';
 export default class DocumentPreview extends LightningElement {
     @api recordId;
     @api heading = 'Preview';
+    // The Visualforce page that renders this document — InvoicePdf for
+    // bills/estimates, JobSlipPdf for job slips. DocumentPdfService picks
+    // the same page server-side from the record type when making the PDF.
+    @api pageName = 'InvoicePdf';
 
     isFrameLoading = true;
     isDownloading = false;
@@ -26,7 +30,7 @@ export default class DocumentPreview extends LightningElement {
     }
 
     get previewUrl() {
-        return `/apex/InvoicePdf?id=${this.recordId}&format=html`;
+        return `/apex/${this.pageName}?id=${this.recordId}&format=html`;
     }
 
     get isPhone() {

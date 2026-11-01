@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>Job Slip Line</label>
+    <pluralLabel>Job Slip Lines</pluralLabel>
+    <nameField>
+        <label>Line Number</label>
+        <type>AutoNumber</type>
+        <displayFormat>JSL-{00000}</displayFormat>
+    </nameField>
+    <deploymentStatus>Deployed</deploymentStatus>
+    <sharingModel>ControlledByParent</sharingModel>
+    <enableActivities>false</enableActivities>
+    <enableReports>true</enableReports>
+</CustomObject>

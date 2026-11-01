@@ -4,6 +4,19 @@ import listBills from '@salesforce/apex/BillController.listBills';
 
 jest.mock('@salesforce/apex/BillController.listBills', () => ({ default: jest.fn() }), { virtual: true });
 
+const mockNavigate = jest.fn();
+jest.mock('lightning/navigation', () => {
+    const Navigate = Symbol('Navigate');
+    const NavigationMixin = (Base) =>
+        class extends Base {
+            [Navigate](pageRef) {
+                mockNavigate(pageRef);
+            }
+        };
+    NavigationMixin.Navigate = Navigate;
+    return { NavigationMixin };
+});
+
 function flushPromises() {
     return new Promise((resolve) => setTimeout(resolve, 0));
 }
@@ -56,5 +69,16 @@ describe('c-billing-list', () => {
         await flushPromises();
 
         expect(listBills).toHaveBeenCalledWith({ filter: 'All', searchTerm: 'INV/2026-27/0001' });
+    });
+
+    it('Quick Bill opens the Quick Bill tab', async () => {
+        listBills.mockResolvedValue([]);
+        const element = createElement('c-billing-list', { is: BillingList });
+        document.body.appendChild(element);
+        await flushPromises();
+
+        element.shadowRoot.querySelector('[data-id="quick-bill"]').click();
+
+        expect(mockNavigate).toHaveBeenCalledWith({ type: 'standard__navItemPage', attributes: { apiName: 'Quick_Bill' } });
     });
 });

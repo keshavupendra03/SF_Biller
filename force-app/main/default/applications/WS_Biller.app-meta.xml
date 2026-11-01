@@ -9,6 +9,7 @@
     <tabs>Jobs_Board</tabs>
     <tabs>Customer_List</tabs>
     <tabs>Billing_List</tabs>
+    <tabs>Quick_Bill</tabs>
     <tabs>Inventory_List</tabs>
     <tabs>More_Menu</tabs>
     <tabs>Customer_Detail</tabs>
@@ -17,6 +18,7 @@
     <tabs>Estimate_Detail</tabs>
     <tabs>Job_Detail</tabs>
     <tabs>Vehicle_Detail</tabs>
+    <tabs>Job_Slip</tabs>
     <tabs>New_Estimate</tabs>
     <tabs>New_Bill</tabs>
     <tabs>Directory_Menu</tabs>

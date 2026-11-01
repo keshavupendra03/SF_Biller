@@ -20,7 +20,11 @@ private class BillEstimateFileCleanupSchedulerTest {
         );
         insert version;
         Id contentDocumentId = [SELECT ContentDocumentId FROM ContentVersion WHERE Id = :version.Id].ContentDocumentId;
-        Test.setCreatedDate(contentDocumentId, Datetime.now().addDays(-1));
+        // Noon GMT on yesterday's date — always inside the batch's
+        // "yesterday" window. Datetime.now().addDays(-1) isn't: in the
+        // evening in a US time zone GMT has already rolled over to the
+        // next day, so "24 hours ago" lands in today's window instead.
+        Test.setCreatedDate(contentDocumentId, Datetime.newInstanceGmt(Date.today().addDays(-1), Time.newInstance(12, 0, 0, 0)));
 
         // System.schedule's own cron firing isn't simulated by
         // Test.stopTest() the way future/queueable/batch jobs are, so the

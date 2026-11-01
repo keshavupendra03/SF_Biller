@@ -100,6 +100,13 @@ export default class BillingList extends NavigationMixin(LightningElement) {
         });
     }
 
+    handleQuickBill() {
+        this[NavigationMixin.Navigate]({
+            type: 'standard__navItemPage',
+            attributes: { apiName: 'Quick_Bill' }
+        });
+    }
+
     showToast(title, message, variant) {
         this.dispatchEvent(new ShowToastEvent({ title, message, variant }));
     }

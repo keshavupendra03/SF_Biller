@@ -59,15 +59,19 @@ private class VehicleControllerTest {
         input.year = 2023;
         input.color = 'Red';
         input.chassisNumber = 'MALA851ALKM123456';
+        input.engineNumber = 'G12BN123456';
+        input.dateOfSale = Date.newInstance(2025, 10, 22);
 
         Test.startTest();
         VehicleController.updateVehicle(vehicle.Id, input);
         Test.stopTest();
 
         Vehicle__c updated = [
-            SELECT Name, Make__c, Model__c, Year__c, Color__c, Chassis_Number__c
+            SELECT Name, Make__c, Model__c, Year__c, Color__c, Chassis_Number__c, Engine_Number__c, Date_Of_Sale__c
             FROM Vehicle__c WHERE Id = :vehicle.Id
         ];
+        System.assertEquals('G12BN123456', updated.Engine_Number__c);
+        System.assertEquals(Date.newInstance(2025, 10, 22), updated.Date_Of_Sale__c);
         System.assertEquals('MP09ZZ9999', updated.Name);
         System.assertEquals('Hyundai', updated.Make__c);
         System.assertEquals('i20', updated.Model__c);

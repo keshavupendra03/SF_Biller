@@ -15,6 +15,8 @@ public with sharing class VehicleController {
         @AuraEnabled public Integer year { get; set; }
         @AuraEnabled public String color { get; set; }
         @AuraEnabled public String chassisNumber { get; set; }
+        @AuraEnabled public String engineNumber { get; set; }
+        @AuraEnabled public Date dateOfSale { get; set; }
         @AuraEnabled public Id customerId { get; set; }
         @AuraEnabled public String customerName { get; set; }
     }
@@ -26,6 +28,8 @@ public with sharing class VehicleController {
         @AuraEnabled public Integer year { get; set; }
         @AuraEnabled public String color { get; set; }
         @AuraEnabled public String chassisNumber { get; set; }
+        @AuraEnabled public String engineNumber { get; set; }
+        @AuraEnabled public Date dateOfSale { get; set; }
     }
 
     @AuraEnabled
@@ -35,7 +39,7 @@ public with sharing class VehicleController {
         }
         Vehicle__c v = [
             SELECT Name, Make__c, Model__c, Year__c, Color__c, Chassis_Number__c,
-                   Customer__c, Customer__r.Name
+                   Engine_Number__c, Date_Of_Sale__c, Customer__c, Customer__r.Name
             FROM Vehicle__c
             WHERE Id = :vehicleId
         ];
@@ -48,6 +52,8 @@ public with sharing class VehicleController {
         detail.year = v.Year__c == null ? null : v.Year__c.intValue();
         detail.color = v.Color__c;
         detail.chassisNumber = v.Chassis_Number__c;
+        detail.engineNumber = v.Engine_Number__c;
+        detail.dateOfSale = v.Date_Of_Sale__c;
         detail.customerId = v.Customer__c;
         detail.customerName = v.Customer__r.Name;
         return detail;
@@ -65,7 +71,9 @@ public with sharing class VehicleController {
             Model__c = input.model,
             Year__c = input.year,
             Color__c = input.color,
-            Chassis_Number__c = input.chassisNumber
+            Chassis_Number__c = input.chassisNumber,
+            Engine_Number__c = input.engineNumber,
+            Date_Of_Sale__c = input.dateOfSale
         );
         VehicleMakeModelService.rememberIfNew(input.make, input.model);
     }

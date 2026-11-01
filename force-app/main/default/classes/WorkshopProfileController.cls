@@ -22,6 +22,7 @@ public with sharing class WorkshopProfileController {
         @AuraEnabled public String bankAccountNo { get; set; }
         @AuraEnabled public String bankIfsc { get; set; }
         @AuraEnabled public String termsAndConditions { get; set; }
+        @AuraEnabled public String jobSlipTerms { get; set; }
     }
 
     @AuraEnabled
@@ -29,7 +30,7 @@ public with sharing class WorkshopProfileController {
         List<Workshop_Profile__c> records = [
             SELECT Name, Address__c, Phone__c, Email__c, GSTIN__c, State__c,
                    Bank_Account_Holder__c, Bank_Name__c, Bank_Account_No__c, Bank_IFSC__c,
-                   Terms_And_Conditions__c
+                   Terms_And_Conditions__c, Job_Slip_Terms__c
             FROM Workshop_Profile__c
             LIMIT 1
         ];
@@ -61,13 +62,14 @@ public with sharing class WorkshopProfileController {
         profile.Bank_Account_No__c = input.bankAccountNo;
         profile.Bank_IFSC__c = input.bankIfsc;
         profile.Terms_And_Conditions__c = input.termsAndConditions;
+        profile.Job_Slip_Terms__c = input.jobSlipTerms;
 
         upsert profile;
 
         return toProfileData([
             SELECT Name, Address__c, Phone__c, Email__c, GSTIN__c, State__c,
                    Bank_Account_Holder__c, Bank_Name__c, Bank_Account_No__c, Bank_IFSC__c,
-                   Terms_And_Conditions__c
+                   Terms_And_Conditions__c, Job_Slip_Terms__c
             FROM Workshop_Profile__c
             WHERE Id = :profile.Id
         ]);
@@ -87,6 +89,7 @@ public with sharing class WorkshopProfileController {
         data.bankAccountNo = p.Bank_Account_No__c;
         data.bankIfsc = p.Bank_IFSC__c;
         data.termsAndConditions = p.Terms_And_Conditions__c;
+        data.jobSlipTerms = p.Job_Slip_Terms__c;
         return data;
     }
 }
