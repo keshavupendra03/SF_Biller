@@ -86,21 +86,6 @@
                                 <lightning-input data-field="visitReason" label="Visit Due To" placeholder="Service, Accident…" value={slip.visitReason} onchange={handleFieldChange}></lightning-input>
                             </div>
                         </div>
-
-                        <p class="slds-form-element__label slds-m-top_small">Type of Service</p>
-                        <div class="chip-row">
-                            <template for:each={serviceTypeChips} for:item="chip">
-                                <lightning-button
-                                    key={chip.value}
-                                    data-id="service-type"
-                                    data-value={chip.value}
-                                    label={chip.label}
-                                    variant={chip.variant}
-                                    onclick={handleServiceType}
-                                    class="chip"
-                                ></lightning-button>
-                            </template>
-                        </div>
                     </div>
                 </lightning-card>
 

@@ -57,7 +57,6 @@ public with sharing class JobSlipController {
         @AuraEnabled public String timeIn { get; set; }
         @AuraEnabled public Integer currentKm { get; set; }
         @AuraEnabled public String visitReason { get; set; }
-        @AuraEnabled public String serviceType { get; set; }
         @AuraEnabled public String fuelLevel { get; set; }
         // Keys from ACCESSORY_KEYS for every accessory present in the vehicle.
         @AuraEnabled public List<String> accessories { get; set; }
@@ -172,7 +171,6 @@ public with sharing class JobSlipController {
             Time_In__c = parseTime(input.timeIn),
             Current_Km__c = input.currentKm,
             Visit_Reason__c = input.visitReason,
-            Service_Type__c = blankToNull(input.serviceType),
             Fuel_Level__c = blankToNull(input.fuelLevel),
             Dents_Scratches__c = input.dentsScratches,
             Battery_Make__c = input.batteryMake,
@@ -252,7 +250,7 @@ public with sharing class JobSlipController {
     public static Job_Slip__c loadSlip(Id jobSlipId) {
         return [
             SELECT Id, Name, Customer__c, Vehicle__c, Slip_Date__c, Time_In__c, Current_Km__c,
-                   Visit_Reason__c, Service_Type__c, Fuel_Level__c,
+                   Visit_Reason__c, Fuel_Level__c,
                    Service_Booklet__c, Spare_Wheel__c, Jack_And_Handle__c, Tool_Kit__c, Mats__c,
                    Mud_Flaps__c, Stereo__c, Clock__c, Cassette_CD__c, Side_Bidding__c,
                    Wheel_Cover_Cap__c, Remote__c, Key_Ring__c,
@@ -280,7 +278,6 @@ public with sharing class JobSlipController {
             : String.valueOf(s.Time_In__c.hour()).leftPad(2, '0') + ':' + String.valueOf(s.Time_In__c.minute()).leftPad(2, '0');
         data.currentKm = s.Current_Km__c == null ? null : s.Current_Km__c.intValue();
         data.visitReason = s.Visit_Reason__c;
-        data.serviceType = s.Service_Type__c;
         data.fuelLevel = s.Fuel_Level__c;
         data.accessories = new List<String>();
         for (String key : ACCESSORY_KEYS) {

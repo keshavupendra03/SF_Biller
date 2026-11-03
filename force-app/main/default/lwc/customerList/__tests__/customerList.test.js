@@ -2,9 +2,13 @@ import { createElement } from 'lwc';
 import CustomerList from 'c/customerList';
 import listCustomers from '@salesforce/apex/CustomerController.listCustomers';
 import createCustomer from '@salesforce/apex/BillController.createCustomer';
+import getProfile from '@salesforce/apex/WorkshopProfileController.getProfile';
 
 jest.mock('@salesforce/apex/CustomerController.listCustomers', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/BillController.createCustomer', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/WorkshopProfileController.getProfile', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/DocumentPdfService.getPdfDownload', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/DocumentPdfService.getPublicLink', () => ({ default: jest.fn() }), { virtual: true });
 
 function flushPromises() {
     return new Promise((resolve) => setTimeout(resolve, 0));
@@ -73,5 +77,41 @@ describe('c-customer-list', () => {
 
         expect(createCustomer).toHaveBeenCalledTimes(1);
         expect(listCustomers).toHaveBeenCalledTimes(2);
+    });
+
+    it('Print Job Slip previews a completely blank slip, and Close dismisses it', async () => {
+        listCustomers.mockResolvedValue([]);
+        getProfile.mockResolvedValue({ id: 'profile1', name: 'Speedy Motors' });
+        const element = createElement('c-customer-list', { is: CustomerList });
+        document.body.appendChild(element);
+        await flushPromises();
+        expect(element.shadowRoot.querySelector('c-document-preview')).toBeNull();
+
+        element.shadowRoot.querySelector('[data-id="print-job-slip"]').click();
+        await flushPromises();
+
+        const preview = element.shadowRoot.querySelector('c-document-preview');
+        expect(preview.recordId).toBe('profile1');
+        expect(preview.pageName).toBe('JobSlipPdf');
+
+        preview.dispatchEvent(new CustomEvent('close'));
+        await flushPromises();
+        expect(element.shadowRoot.querySelector('c-document-preview')).toBeNull();
+    });
+
+    it('Print Job Slip asks for workshop details when there is no profile yet', async () => {
+        listCustomers.mockResolvedValue([]);
+        getProfile.mockResolvedValue(null);
+        const element = createElement('c-customer-list', { is: CustomerList });
+        document.body.appendChild(element);
+        const toastHandler = jest.fn();
+        element.addEventListener('lightning__showtoast', toastHandler);
+        await flushPromises();
+
+        element.shadowRoot.querySelector('[data-id="print-job-slip"]').click();
+        await flushPromises();
+
+        expect(element.shadowRoot.querySelector('c-document-preview')).toBeNull();
+        expect(toastHandler.mock.calls[0][0].detail.title).toBe('Workshop profile needed');
     });
 });

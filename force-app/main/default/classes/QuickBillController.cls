@@ -15,6 +15,11 @@
  * The bill itself goes through BillController.createBill, so invoice
  * numbering, stock deduction and manual-line part creation behave
  * exactly as on the New Bill screen.
+ *
+ * GST is off unless the request says includeGst. Lines still arrive with
+ * the rate typed on screen: a part created from a typed line must remember
+ * that rate for later bills, so parts are resolved first and only the
+ * bill's own lines drop to 0%.
  */
 public with sharing class QuickBillController {
 
@@ -46,6 +51,7 @@ public with sharing class QuickBillController {
         @AuraEnabled public CustomerController.NewVehicleInput newVehicle { get; set; }
         @AuraEnabled public Date billDate { get; set; }
         @AuraEnabled public String notes { get; set; }
+        @AuraEnabled public Boolean includeGst { get; set; }
         @AuraEnabled public List<BillController.LineItemInput> lineItems { get; set; }
     }
 
@@ -78,6 +84,13 @@ public with sharing class QuickBillController {
         }
         Boolean walkIn = request.isWalkIn == true;
         Id customerId = walkIn ? walkInCustomerId() : resolveCustomer(request);
+
+        PartUpsertService.fillManualPartIds(request.lineItems);
+        if (request.includeGst != true) {
+            for (BillController.LineItemInput line : request.lineItems) {
+                line.taxRatePercent = 0;
+            }
+        }
 
         BillController.CreateBillRequest bill = new BillController.CreateBillRequest();
         bill.customerId = customerId;

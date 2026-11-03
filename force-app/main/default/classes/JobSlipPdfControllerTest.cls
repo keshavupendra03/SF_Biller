@@ -30,7 +30,7 @@ private class JobSlipPdfControllerTest {
         Job_Slip__c slip = new Job_Slip__c(
             Customer__c = customer.Id, Vehicle__c = vehicle.Id, Slip_Date__c = Date.newInstance(2026, 10, 30),
             Time_In__c = Time.newInstance(14, 5, 0, 0), Current_Km__c = 17773, Visit_Reason__c = 'Accident',
-            Service_Type__c = 'Accidental Repair', Fuel_Level__c = '3/4', Mats__c = true
+            Fuel_Level__c = '3/4', Mats__c = true
         );
         insert slip;
         insert new List<Job_Slip_Line__c>{
@@ -58,14 +58,6 @@ private class JobSlipPdfControllerTest {
         System.assertNotEquals(null, controller.labourTotal);
         System.assert(controller.totalCostEstimate.startsWith('Rs. '), 'With no typed total, the slip falls back to the sum of the line estimates.');
 
-        Integer selectedServiceTypes = 0;
-        for (JobSlipPdfController.Choice c : controller.serviceTypes) {
-            if (c.selected) {
-                selectedServiceTypes++;
-                System.assertEquals('Acc. Rep.', c.label);
-            }
-        }
-        System.assertEquals(1, selectedServiceTypes);
         System.assertEquals(true, controller.fuelLevels[3].selected);
 
         Map<String, String> accessoryValues = new Map<String, String>();
@@ -112,7 +104,7 @@ private class JobSlipPdfControllerTest {
         System.assertEquals(JobSlipPdfController.TABLE_ROWS, controller.lines.size());
         System.assertEquals(13, controller.accessories.size());
         System.assertEquals('', controller.accessories[0].value);
-        for (JobSlipPdfController.Choice c : controller.serviceTypes) {
+        for (JobSlipPdfController.Choice c : controller.fuelLevels) {
             System.assertEquals(false, c.selected);
         }
         System.assertEquals(new List<String>{ 'First term', 'Second term' }, controller.terms);
@@ -132,19 +124,42 @@ private class JobSlipPdfControllerTest {
     }
 
     @isTest
+    static void completelyBlankSlip_hasOnlyTheWorkshopHeader() {
+        Test.startTest();
+        JobSlipPdfController controller = render([SELECT Id FROM Workshop_Profile__c].Id);
+        Test.stopTest();
+
+        System.assertEquals(true, controller.recordFound);
+        System.assertEquals(true, controller.isBlank);
+        System.assertEquals('Sanghi Motors', controller.workshopName);
+        System.assertEquals(null, controller.customerName);
+        System.assertEquals(null, controller.registrationNumber);
+        System.assertEquals(null, controller.slipDate, 'The date is left to be written by hand, unlike a slip printed for a customer.');
+        System.assertEquals(null, controller.serviceAdvisorName);
+        System.assertEquals(JobSlipPdfController.TABLE_ROWS, controller.lines.size());
+        System.assertEquals(13, controller.accessories.size());
+        System.assertEquals('', controller.accessories[0].value);
+        System.assertEquals(5, controller.fuelLevels.size());
+        System.assert(!controller.terms.isEmpty());
+    }
+
+    @isTest
     static void missingOrUnsupportedId_rendersNotFound() {
+        Part__c part = new Part__c(Name = 'Brake Pad Set');
+        insert part;
+
         Test.startTest();
         JobSlipPdfController none = render(null);
         PageReference junk = Page.JobSlipPdf;
         junk.getParameters().put('id', 'not-an-id');
         Test.setCurrentPage(junk);
         JobSlipPdfController garbage = new JobSlipPdfController();
-        JobSlipPdfController profile = render([SELECT Id FROM Workshop_Profile__c].Id);
+        JobSlipPdfController unsupported = render(part.Id);
         Test.stopTest();
 
         System.assertEquals(false, none.recordFound);
         System.assertEquals(false, garbage.recordFound);
-        System.assertEquals(false, profile.recordFound);
+        System.assertEquals(false, unsupported.recordFound);
     }
 
     @isTest

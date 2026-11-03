@@ -7,6 +7,8 @@
  *  - Vehicle__c / Customer__c: a blank slip with only the customer (and
  *    vehicle) details prefilled, for staff to fill by hand and type into
  *    the Job Slip screen later.
+ *  - Workshop_Profile__c: a completely blank slip (Customers screen's Print
+ *    Job Slip) — just the workshop header, to keep a stack on the counter.
  * The repairs table always pads out to the paper form's 15 rows so a
  * printed slip still has room for handwritten additions.
  */
@@ -23,15 +25,6 @@ public with sharing class JobSlipPdfController {
         + 'Replaced parts can be collected at delivery unless they are claimed under warranty or insurance.\n'
         + 'Full payment is due at the time of delivery. Vehicles not collected within 7 days of completion may attract parking charges.';
 
-    private static final List<String> SERVICE_TYPES = new List<String>{
-        '1st Free Service', '2nd Free Service', '3rd Free Service', '4th Free Service',
-        'Paid Service', 'Accidental Repair', 'Running Repair'
-    };
-    private static final Map<String, String> SERVICE_TYPE_SHORT = new Map<String, String>{
-        '1st Free Service' => '1st FS', '2nd Free Service' => '2nd FS', '3rd Free Service' => '3rd FS',
-        '4th Free Service' => '4th FS', 'Paid Service' => 'Paid Service',
-        'Accidental Repair' => 'Acc. Rep.', 'Running Repair' => 'Running Rep.'
-    };
     private static final List<String> FUEL_LEVELS = new List<String>{ 'E', '1/4', '1/2', '3/4', 'F' };
     private static final Map<String, String> FUEL_LABELS = new Map<String, String>{
         'E' => 'E', '1/4' => '¼', '1/2' => '½', '3/4' => '¾', 'F' => 'F'
@@ -90,7 +83,6 @@ public with sharing class JobSlipPdfController {
     public String currentKm { get; private set; }
     public String visitReason { get; private set; }
 
-    public List<Choice> serviceTypes { get; private set; }
     public List<Choice> fuelLevels { get; private set; }
     public List<Accessory> accessories { get; private set; }
     public String dentsScratches { get; private set; }
@@ -143,9 +135,11 @@ public with sharing class JobSlipPdfController {
             loadCustomer(recordId);
             slipDate = formatDate(Date.today());
             recordFound = true;
+        } else if (type == Workshop_Profile__c.SObjectType) {
+            recordFound = true;
         }
-        if (serviceTypes == null) {
-            buildChoices(null, null);
+        if (fuelLevels == null) {
+            buildFuelLevels(null);
         }
         if (isBlank) {
             for (String key : JobSlipController.ACCESSORY_KEYS) {
@@ -261,14 +255,10 @@ public with sharing class JobSlipPdfController {
             ? s.Total_Cost_Estimate__c
             : (anyAmount ? 'Rs. ' + formatAmount(labour + spares) : null);
         padLines();
-        buildChoices(s.Service_Type__c, s.Fuel_Level__c);
+        buildFuelLevels(s.Fuel_Level__c);
     }
 
-    private void buildChoices(String serviceType, String fuelLevel) {
-        serviceTypes = new List<Choice>();
-        for (String value : SERVICE_TYPES) {
-            serviceTypes.add(choice(SERVICE_TYPE_SHORT.get(value), value == serviceType));
-        }
+    private void buildFuelLevels(String fuelLevel) {
         fuelLevels = new List<Choice>();
         for (String value : FUEL_LEVELS) {
             fuelLevels.add(choice(FUEL_LABELS.get(value), value == fuelLevel));

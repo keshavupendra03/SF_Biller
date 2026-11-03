@@ -135,95 +135,97 @@
 
                 <!-- Items -->
                 <lightning-card title="Items" icon-name="standard:product_item" class="section">
+                    <lightning-input
+                        slot="actions"
+                        data-id="include-gst"
+                        type="toggle"
+                        label="Include GST"
+                        message-toggle-active="On"
+                        message-toggle-inactive="Off"
+                        checked={includeGst}
+                        onchange={handleToggleGst}
+                    ></lightning-input>
                     <div class="slds-p-horizontal_medium">
-                        <div class="search-row">
-                            <lightning-input
-                                data-id="part-search"
-                                type="search"
-                                label="Search parts"
-                                variant="label-hidden"
-                                placeholder="Search parts by name, SKU or barcode"
-                                value={partSearchTerm}
-                                is-loading={isSearchingParts}
-                                onchange={handlePartSearchChange}
-                                class="search-input"
-                            ></lightning-input>
-                            <template lwc:if={canScan}>
-                                <lightning-button-icon data-id="scan" icon-name="utility:scan" variant="border-filled" size="large" alternative-text="Scan barcode" onclick={handleScan}></lightning-button-icon>
+                        <template lwc:if={canScan}>
+                            <lightning-button data-id="scan" label="Scan barcode" icon-name="utility:scan" onclick={handleScan} class="slds-m-bottom_x-small"></lightning-button>
+                        </template>
+
+                        <!-- Plain slds-input boxes: focus()/select() are needed to move
+                             between cells, which lightning-input doesn't fully expose.
+                             Row buttons are tabindex="-1" so Tab goes item, qty, price,
+                             GST, next item. -->
+                        <div class="item-grid" onkeydown={handleGridKeydown}>
+                            <div class="item-line item-header" aria-hidden="true">
+                                <span>Item</span>
+                                <span class="cell-number">Qty</span>
+                                <span class="cell-number">Price (₹)</span>
+                                <span class="cell-number">GST %</span>
+                                <span class="cell-amount">Amount</span>
+                                <span></span>
+                            </div>
+                            <template for:each={decoratedItems} for:item="item">
+                                <div key={item.key} class="item-row" data-id="item-row">
+                                    <div class="item-line">
+                                        <input
+                                            type="text"
+                                            class="slds-input item-input"
+                                            data-key={item.key}
+                                            data-field="description"
+                                            aria-label={item.nameLabel}
+                                            placeholder="Item name"
+                                            autocomplete="off"
+                                            value={item.description}
+                                            oninput={handleNameInput}
+                                            onkeydown={handleNameKeydown}
+                                            onblur={handleNameBlur}
+                                        />
+                                        <input type="number" class="slds-input item-input cell-number" data-key={item.key} data-field="quantity" aria-label={item.quantityLabel} min="0" step="any" value={item.quantity} oninput={handleCellInput} />
+                                        <input type="number" class="slds-input item-input cell-number" data-key={item.key} data-field="unitPrice" aria-label={item.priceLabel} min="0" step="any" value={item.unitPrice} oninput={handleCellInput} />
+                                        <input type="number" class="slds-input item-input cell-number" data-key={item.key} data-field="taxRatePercent" aria-label={item.gstLabel} min="0" max="100" step="any" value={item.taxRatePercent} disabled={gstDisabled} oninput={handleCellInput} />
+                                        <span class="cell-amount" data-id="line-amount">{item.formattedAmount}</span>
+                                        <span class="item-actions">
+                                            <template lwc:if={item.isFilled}>
+                                                <button type="button" tabindex="-1" class="slds-button slds-button_icon" data-id="edit-item" data-key={item.key} title="HSN, unit and IGST" onclick={handleEditItem}>
+                                                    <lightning-icon icon-name="utility:edit" size="xx-small" alternative-text="HSN, unit and IGST"></lightning-icon>
+                                                </button>
+                                                <button type="button" tabindex="-1" class="slds-button slds-button_icon" data-id="remove-item" data-key={item.key} title="Remove item" onclick={handleRemoveItem}>
+                                                    <lightning-icon icon-name="utility:delete" size="xx-small" alternative-text="Remove item"></lightning-icon>
+                                                </button>
+                                            </template>
+                                        </span>
+                                    </div>
+                                    <template lwc:if={item.stockNote}>
+                                        <p class="slds-text-body_small slds-text-color_error" data-id="stock-note">{item.stockNote}</p>
+                                    </template>
+                                    <template lwc:if={item.showSuggestions}>
+                                        <ul class="suggestions" role="listbox" aria-label="Matching parts" data-id="suggestions">
+                                            <template for:each={item.suggestions} for:item="part">
+                                                <li key={part.id} role="presentation">
+                                                    <button
+                                                        type="button"
+                                                        tabindex="-1"
+                                                        role="option"
+                                                        aria-selected={part.ariaSelected}
+                                                        class={part.optionClass}
+                                                        data-id="suggestion"
+                                                        data-key={item.key}
+                                                        data-part-id={part.id}
+                                                        onmousedown={handleSuggestionMouseDown}
+                                                    >
+                                                        <span class="suggestion-name">{part.name}</span>
+                                                        <span class="suggestion-side">
+                                                            <span>₹{part.formattedPrice}</span>
+                                                            <template lwc:if={part.stockLabel}><span class={part.stockClass}>{part.stockLabel}</span></template>
+                                                        </span>
+                                                    </button>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </template>
+                                </div>
                             </template>
                         </div>
-
-                        <template lwc:if={hasPartResults}>
-                            <ul class="part-results slds-m-top_xx-small">
-                                <template for:each={decoratedPartResults} for:item="part">
-                                    <li key={part.id}>
-                                        <button type="button" class="slds-button slds-button_reset part-result" data-id={part.id} onclick={handleSelectPart}>
-                                            <span class="part-result-body">
-                                                <span class="slds-text-body_regular">{part.name}</span>
-                                                <span class="slds-text-body_small slds-text-color_weak">{part.meta}</span>
-                                            </span>
-                                            <span class="part-result-side">
-                                                <span class="slds-text-body_regular">₹{part.formattedPrice}</span>
-                                                <template lwc:if={part.stockLabel}><span class={part.stockClass}>{part.stockLabel}</span></template>
-                                            </span>
-                                        </button>
-                                    </li>
-                                </template>
-                            </ul>
-                        </template>
-                        <template lwc:if={showNoPartResults}>
-                            <p class="slds-text-body_small slds-text-color_weak slds-m-top_x-small">No parts match. Add it as a custom item below.</p>
-                        </template>
-
-                        <template for:each={decoratedItems} for:item="item">
-                            <div key={item.key} class="item-row" data-id="item-row">
-                                <div class="slds-grid slds-grid_align-spread slds-grid_vertical-align-start">
-                                    <div class="item-name">
-                                        <template lwc:if={item.isCustom}>
-                                            <lightning-input
-                                                data-key={item.key}
-                                                data-field="description"
-                                                label="Item name"
-                                                variant="label-hidden"
-                                                placeholder="Item or service name"
-                                                value={item.description}
-                                                onchange={handleItemFieldChange}
-                                            ></lightning-input>
-                                        </template>
-                                        <template lwc:else>
-                                            <p class="slds-text-body_regular slds-truncate">{item.description}</p>
-                                            <p class="slds-text-body_small slds-text-color_weak">
-                                                {item.stockLabel}
-                                                <template lwc:if={item.isShort}><span class="slds-text-color_error"> · not enough stock</span></template>
-                                            </p>
-                                        </template>
-                                    </div>
-                                    <div class="item-actions">
-                                        <lightning-button-icon data-id="edit-item" data-key={item.key} icon-name="utility:edit" variant="bare" alternative-text="More details" onclick={handleEditItem}></lightning-button-icon>
-                                        <lightning-button-icon data-id="remove-item" data-key={item.key} icon-name="utility:delete" variant="bare" alternative-text="Remove item" onclick={handleRemoveItem}></lightning-button-icon>
-                                    </div>
-                                </div>
-                                <div class="item-controls">
-                                    <div class="stepper">
-                                        <lightning-button-icon data-id="decrease" data-key={item.key} icon-name="utility:dash" variant="border-filled" alternative-text="One less" disabled={item.decreaseDisabled} onclick={handleDecrease}></lightning-button-icon>
-                                        <lightning-input data-key={item.key} data-field="quantity" type="number" label="Qty" variant="label-hidden" min="1" step="any" value={item.quantity} onchange={handleItemFieldChange} class="qty-input"></lightning-input>
-                                        <lightning-button-icon data-id="increase" data-key={item.key} icon-name="utility:add" variant="border-filled" alternative-text="One more" onclick={handleIncrease}></lightning-button-icon>
-                                    </div>
-                                    <lightning-input data-key={item.key} data-field="unitPrice" type="number" label="Price (₹)" min="0" step="0.01" value={item.unitPrice} onchange={handleItemFieldChange} class="price-input"></lightning-input>
-                                    <lightning-combobox data-key={item.key} data-field="taxRatePercent" label="GST" options={gstRateOptions} value={item.taxRateValue} onchange={handleItemFieldChange} class="gst-input"></lightning-combobox>
-                                </div>
-                                <p class="item-total">₹{item.formattedLineTotal}</p>
-                            </div>
-                        </template>
-
-                        <template lwc:if={showEmptyItems}>
-                            <div class="empty-items">
-                                <lightning-icon icon-name="utility:cart" size="small"></lightning-icon>
-                                <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small">Search a part above to add it, or add a custom item for anything not in inventory.</p>
-                            </div>
-                        </template>
-
-                        <lightning-button data-id="add-custom" label="Add custom item" icon-name="utility:add" onclick={handleAddCustomItem} class="slds-m-top_small"></lightning-button>
+                        <p class="keyboard-hint slds-text-body_small slds-text-color_weak">Tab moves along the line. As you type a name, ↑ ↓ and Enter pick a part. Ctrl+Enter creates the bill.</p>
                     </div>
                 </lightning-card>
 
@@ -237,6 +239,9 @@
                         </template>
                         <template lwc:if={hasIgst}>
                             <div class="slds-grid slds-grid_align-spread"><span>IGST</span><span>₹{formattedIgst}</span></div>
+                        </template>
+                        <template lwc:if={isGstExcluded}>
+                            <p class="slds-text-body_small slds-text-color_weak" data-id="gst-excluded">GST not included</p>
                         </template>
                         <div class="slds-grid slds-grid_align-spread totals-grand"><span>Total</span><span data-id="grand-total">₹{formattedTotal}</span></div>
                     </div>

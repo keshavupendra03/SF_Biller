@@ -26,6 +26,7 @@ private class QuickBillControllerTest {
     static void walkIn_billsTheSharedWalkInCustomer_andReusesIt() {
         QuickBillController.QuickBillRequest r = request();
         r.isWalkIn = true;
+        r.includeGst = true;
 
         Test.startTest();
         BillController.BillSummary first = QuickBillController.createQuickBill(r);
@@ -213,5 +214,45 @@ private class QuickBillControllerTest {
 
         System.assertEquals(QuickBillController.WALK_IN_NAME, controller.billToName);
         System.assertEquals(null, controller.billToContact);
+    }
+
+    @isTest
+    static void gstOff_billsAtZeroPercent_butANewPartKeepsTheTypedRate() {
+        Part__c existing = new Part__c(Name = 'Brake Pad Set', Price__c = 1200, Tax_Rate_Percent__c = 28, Current_Stock__c = 5);
+        insert existing;
+        QuickBillController.QuickBillRequest r = request();
+        r.isWalkIn = true;
+        BillController.LineItemInput partLine = line('Brake Pad Set', 1, 1200);
+        partLine.partId = existing.Id;
+        partLine.taxRatePercent = 28;
+        r.lineItems.add(partLine);
+
+        Test.startTest();
+        BillController.BillSummary summary = QuickBillController.createQuickBill(r);
+        Test.stopTest();
+
+        System.assertEquals(2200, summary.totalAmount, 'With GST off the total is just quantity x price.');
+        System.assertEquals(0, summary.cgst + summary.sgst + summary.igst);
+        for (Bill_Line_Item__c item : [SELECT Tax_Rate_Percent__c FROM Bill_Line_Item__c WHERE Bill__c = :summary.billId]) {
+            System.assertEquals(0, item.Tax_Rate_Percent__c);
+        }
+        System.assertEquals(18, [SELECT Tax_Rate_Percent__c FROM Part__c WHERE Name = 'Engine Oil 1L'].Tax_Rate_Percent__c,
+            'A part created from a typed line must keep the typed rate for later bills.');
+        System.assertEquals(28, [SELECT Tax_Rate_Percent__c FROM Part__c WHERE Id = :existing.Id].Tax_Rate_Percent__c,
+            'An existing part keeps its own rate.');
+    }
+
+    @isTest
+    static void gstOn_usesEachLinesOwnRate() {
+        QuickBillController.QuickBillRequest r = request();
+        r.isWalkIn = true;
+        r.includeGst = true;
+        r.lineItems[0].taxRatePercent = 5;
+
+        Test.startTest();
+        BillController.BillSummary summary = QuickBillController.createQuickBill(r);
+        Test.stopTest();
+
+        System.assertEquals(1050, summary.totalAmount);
     }
 }

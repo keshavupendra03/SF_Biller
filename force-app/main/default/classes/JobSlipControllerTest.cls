@@ -33,7 +33,6 @@ private class JobSlipControllerTest {
         input.timeIn = '10:16:00.000';
         input.currentKm = 17773;
         input.visitReason = 'Accident';
-        input.serviceType = 'Accidental Repair';
         input.fuelLevel = '1/2';
         input.accessories = new List<String>{ 'spareWheel', 'jackAndHandle', 'mats' };
         input.batteryMake = 'Amaron';
@@ -103,7 +102,7 @@ private class JobSlipControllerTest {
         Test.stopTest();
 
         Job_Slip__c saved = [
-            SELECT Name, Customer__c, Vehicle__c, Time_In__c, Current_Km__c, Service_Type__c, Fuel_Level__c,
+            SELECT Name, Customer__c, Vehicle__c, Time_In__c, Current_Km__c, Fuel_Level__c,
                    Spare_Wheel__c, Jack_And_Handle__c, Mats__c, Tool_Kit__c, Battery_Make__c
             FROM Job_Slip__c WHERE Id = :slipId
         ];
@@ -111,7 +110,6 @@ private class JobSlipControllerTest {
         System.assertEquals(customerId, saved.Customer__c);
         System.assertEquals(Time.newInstance(10, 16, 0, 0), saved.Time_In__c);
         System.assertEquals(17773, saved.Current_Km__c);
-        System.assertEquals('Accidental Repair', saved.Service_Type__c);
         System.assertEquals('1/2', saved.Fuel_Level__c);
         System.assertEquals(true, saved.Spare_Wheel__c);
         System.assertEquals(true, saved.Mats__c);

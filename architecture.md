@@ -1957,3 +1957,59 @@ change: `Bill__c.Customer__c` and `Customer__c.Phone__c` stay required.
   every other suite here does. `lightning/mobileCapabilities` needs a
   virtual `jest.mock` too.
 
+**Twenty-eighth (2026-11-02): removed Type of Service from the Job Slip, and
+added a completely blank slip to the Customers screen.** User request.
+
+- The Type of Service section is gone from `c:jobSlipEditor` and
+  `JobSlipPdf.page`, and `JobSlipController`/`JobSlipPdfController` no longer
+  read or write it. **`Job_Slip__c.Service_Type__c` was deliberately left in
+  the schema, unused** (and in the permission set): the removal asked for was
+  of the screen and the PDF, and deleting a field takes any saved values with
+  it. Delete the field later, with a destructive deploy, if it's definitely
+  not coming back.
+- Customers screen: "Print Job Slip" next to the + button opens
+  `documentPreview` on a slip with nothing filled in, not even the date.
+  `DocumentPdfService` needs a record id for both the render and the File
+  behind the mobile download link, and this slip belongs to no customer, so
+  it's rendered from the singleton `Workshop_Profile__c` (the only thing it
+  prints from). With no profile yet, the screen shows a toast asking for one
+  rather than printing a slip with no header. Files saved on the profile rely
+  on the five-minute cleanup only, same as other blank slips. Because every
+  blank print shares one File there, a second print inside those five minutes
+  adds a version to it, and the first print's cleanup can then remove that
+  File early, so a download started at that moment may need a retry.
+
+**Twenty-ninth (2026-11-03): Quick Bill items became a keyboard-first one-line
+grid, and GST became opt-in per bill.** User request.
+
+- Each item is one line: name, qty, price, GST %, (amount on desktop). Tab
+  goes name, qty, price, GST, next name. Typing a price into the last line
+  adds the next line, so there's no add-line button, no separate part search
+  box and no qty stepper any more. Row buttons and suggestions are
+  `tabindex="-1"` to stay out of the Tab order.
+- These cells are plain `<input class="slds-input">`, not `lightning-input`:
+  the grid needs `focus()` + `select()` on a cell and compact sizing, and
+  `lightning-input` doesn't expose `select()`. This is the one deliberate
+  exception to the `lightning-*` preference (CLAUDE.md), styled with SLDS.
+  Cell values stay strings until the bill is built, so a half-typed `1.` isn't
+  rewritten under the cursor.
+- Part lookup moved into the name box: suggestions as you type, up/down +
+  Enter or Tab to pick (focus then goes to qty), Esc to close. A full name,
+  SKU or barcode typed and tabbed past links to that part, which also covers
+  USB barcode scanners (code + Enter). Picking a part already on the bill adds
+  one to that line. Editing a linked name unlinks it, so its stock isn't
+  deducted. Ctrl+Enter creates the bill, so finishing doesn't mean tabbing
+  through the empty last line.
+- **GST toggle, off by default on every new bill.** While off, the GST box
+  shows its rate but is disabled, so Tab skips it. The switch is enforced in
+  `QuickBillController` (`includeGst`), not just on screen. Order matters
+  there: `PartUpsertService.fillManualPartIds` runs *before* the bill's lines
+  are zeroed, otherwise every item typed on a GST-off bill would create a
+  `Part__c` at 0% and that part would then bill at 0% with GST on later.
+- A GST-off bill still prints through the unchanged `InvoicePdf`: titled "Tax
+  Invoice", with 0.00 (0.0%) in the GST column and CGST/SGST rows of Rs. 0.00.
+- Pre-existing, not changed: `PartUpsertService` matches names with a
+  case-sensitive map over a case-insensitive SOQL `IN`, so a differently-cased
+  name can create a duplicate part. The grid's case-insensitive exact-match
+  link avoids this for parts it finds in time.
+

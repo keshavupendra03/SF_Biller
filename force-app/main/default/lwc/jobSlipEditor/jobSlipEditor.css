@@ -13,13 +13,6 @@
     margin-bottom: 0.75rem;
 }
 
-.chip-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 0.25rem;
-}
-
 .repair-line {
     border: 1px solid #e5e5e5;
     border-radius: 0.5rem;

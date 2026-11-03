@@ -2,9 +2,9 @@
  * Deletes the PDF Files (ContentDocument, and with it its ContentVersion
  * and any ContentDistribution) generated for Bill__c/Estimate__c/
  * Job_Slip__c records. (Blank job slips are saved on the Customer__c/
- * Vehicle__c they're printed for; those rely on the five-minute cleanup
- * alone, since sweeping every file on recently created customers isn't
- * something this batch should do.)
+ * Vehicle__c/Workshop_Profile__c they're printed for; those rely on the
+ * five-minute cleanup alone, since sweeping every file on recently created
+ * customers isn't something this batch should do.)
  * These are disposable scratch artifacts now — downloading happens
  * immediately client-side and nothing is shared via a stored link
  * anymore (architecture.md §F), so there's no reason to keep them.

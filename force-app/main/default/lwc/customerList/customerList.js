@@ -4,6 +4,7 @@ import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import listCustomers from '@salesforce/apex/CustomerController.listCustomers';
 import createCustomer from '@salesforce/apex/BillController.createCustomer';
+import getProfile from '@salesforce/apex/WorkshopProfileController.getProfile';
 const EMPTY_NEW_CUSTOMER = { name: '', phone: '', address: '', email: '', gstin: '', state: '' };
 
 export default class CustomerList extends NavigationMixin(LightningElement) {
@@ -15,6 +16,11 @@ export default class CustomerList extends NavigationMixin(LightningElement) {
     showCreateForm = false;
     newCustomer = { ...EMPTY_NEW_CUSTOMER };
     isSaving = false;
+
+    // Set => the blank job slip preview is open. A completely blank slip is
+    // rendered from the Workshop Profile, since it belongs to no customer.
+    blankSlipRecordId;
+    isOpeningJobSlip = false;
 
     connectedCallback() {
         disablePullToRefresh(this);
@@ -98,6 +104,26 @@ export default class CustomerList extends NavigationMixin(LightningElement) {
             .finally(() => {
                 this.isSaving = false;
             });
+    }
+
+    handlePrintJobSlip() {
+        this.isOpeningJobSlip = true;
+        getProfile()
+            .then((profile) => {
+                if (profile) {
+                    this.blankSlipRecordId = profile.id;
+                } else {
+                    this.showToast('Workshop profile needed', 'Add your workshop details under Settings first. They are printed at the top of the job slip.', 'warning');
+                }
+            })
+            .catch((error) => this.showError(error))
+            .finally(() => {
+                this.isOpeningJobSlip = false;
+            });
+    }
+
+    handleCloseJobSlip() {
+        this.blankSlipRecordId = undefined;
     }
 
     showToast(title, message, variant) {

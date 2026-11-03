@@ -132,6 +132,20 @@ private class DocumentPdfServiceTest {
     }
 
     @isTest
+    static void completelyBlankSlip_rendersFromTheWorkshopProfile() {
+        Id profileId = [SELECT Id FROM Workshop_Profile__c LIMIT 1].Id;
+
+        Test.startTest();
+        DocumentPdfService.PdfDownload download = DocumentPdfService.getPdfDownload(profileId);
+        DocumentPdfService.PublicLink link = DocumentPdfService.getPublicLink(profileId);
+        Test.stopTest();
+
+        System.assertEquals('Blank Job Slip.pdf', download.fileName);
+        System.assertEquals('Blank Job Slip', link.documentNumber);
+        System.assertNotEquals(null, link.downloadUrl);
+    }
+
+    @isTest
     static void getPublicLink_forJobSlip_attachesFileToTheSlip() {
         Job_Slip__c slip = new Job_Slip__c(Customer__c = insertCustomer());
         insert slip;
@@ -146,10 +160,11 @@ private class DocumentPdfServiceTest {
 
     @isTest
     static void getPdfDownload_unsupportedRecord_throws() {
-        Id profileId = [SELECT Id FROM Workshop_Profile__c LIMIT 1].Id;
+        Part__c part = new Part__c(Name = 'Brake Pad Set');
+        insert part;
         Boolean threw = false;
         try {
-            DocumentPdfService.getPdfDownload(profileId);
+            DocumentPdfService.getPdfDownload(part.Id);
         } catch (DocumentPdfService.DocumentPdfServiceException e) {
             threw = true;
         }

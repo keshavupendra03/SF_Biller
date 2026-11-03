@@ -57,7 +57,7 @@ const SAVED_FORM = {
     vehicles: VEHICLES,
     slip: {
         id: 'slip1', slipNumber: 'JS-0007', customerId: 'cust1', vehicleId: 'veh1', slipDate: '2026-10-30', timeIn: '10:16',
-        fuelLevel: '1/2', serviceType: 'Accidental Repair', accessories: ['mats', 'toolKit'],
+        fuelLevel: '1/2', accessories: ['mats', 'toolKit'],
         lines: [{ id: 'line1', customerRequest: 'Bumper damaged', observation: 'Replace', labourEstimate: 1500, sparesEstimate: 6500 }]
     }
 };
@@ -106,7 +106,6 @@ describe('c-job-slip-editor', () => {
         setValue(element, '[data-field="visitReason"]', 'Accident');
         setValue(element, '[data-field="currentKm"]', '17773');
         element.shadowRoot.querySelector('[data-id="fuel"]').dispatchEvent(new CustomEvent('change', { detail: { value: '1/2' } }));
-        element.shadowRoot.querySelector('[data-id="service-type"][data-value="Accidental Repair"]').click();
         for (const key of ['mats', 'spareWheel']) {
             const box = element.shadowRoot.querySelector(`lightning-input[data-key="${key}"]`);
             box.checked = true;
@@ -127,7 +126,6 @@ describe('c-job-slip-editor', () => {
             visitReason: 'Accident',
             currentKm: 17773,
             fuelLevel: '1/2',
-            serviceType: 'Accidental Repair',
             accessories: ['spareWheel', 'mats']
         }));
         expect(input.lines).toEqual([
@@ -143,16 +141,13 @@ describe('c-job-slip-editor', () => {
         expect(element.shadowRoot.querySelector('c-document-preview')).toBeNull();
     });
 
-    it('tapping the selected service type again clears it', async () => {
-        getJobSlipForm.mockResolvedValue(newForm({ serviceType: 'Paid Service' }));
+    it('has no Type of Service section', async () => {
+        getJobSlipForm.mockResolvedValue(newForm());
         const element = createEditor({ c__customerId: 'cust1' });
         await flushPromises();
 
-        const chip = element.shadowRoot.querySelector('[data-id="service-type"][data-value="Paid Service"]');
-        expect(chip.variant).toBe('brand');
-        chip.click();
-        await flushPromises();
-        expect(chip.variant).toBe('neutral');
+        expect(element.shadowRoot.textContent).not.toContain('Type of Service');
+        expect(element.shadowRoot.querySelector('[data-id="service-type"]')).toBeNull();
     });
 
     it('Mark all present ticks every accessory, then Clear all unticks them', async () => {

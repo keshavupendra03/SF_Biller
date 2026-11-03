@@ -22,16 +22,6 @@ const ACCESSORIES = [
     { key: 'keyRing', label: 'Key Ring' }
 ];
 
-const SERVICE_TYPES = [
-    { value: '1st Free Service', label: '1st Free' },
-    { value: '2nd Free Service', label: '2nd Free' },
-    { value: '3rd Free Service', label: '3rd Free' },
-    { value: '4th Free Service', label: '4th Free' },
-    { value: 'Paid Service', label: 'Paid Service' },
-    { value: 'Accidental Repair', label: 'Accident Repair' },
-    { value: 'Running Repair', label: 'Running Repair' }
-];
-
 const FUEL_OPTIONS = [
     { label: 'E', value: 'E' },
     { label: '¼', value: '1/4' },
@@ -159,13 +149,6 @@ export default class JobSlipEditor extends NavigationMixin(LightningElement) {
         return vehicle && !this.isNewVehicle ? [vehicle.make, vehicle.model].filter((p) => p).join(' ') : '';
     }
 
-    get serviceTypeChips() {
-        return SERVICE_TYPES.map((type) => ({
-            ...type,
-            variant: type.value === this.slip.serviceType ? 'brand' : 'neutral'
-        }));
-    }
-
     get fuelOptions() {
         return FUEL_OPTIONS;
     }
@@ -256,11 +239,6 @@ export default class JobSlipEditor extends NavigationMixin(LightningElement) {
     handleNewVehicleChange(event) {
         const field = event.target.dataset.field;
         this.newVehicle = { ...this.newVehicle, [field]: event.detail.value !== undefined ? event.detail.value : event.target.value };
-    }
-
-    handleServiceType(event) {
-        const value = event.target.dataset.value;
-        this.slip = { ...this.slip, serviceType: this.slip.serviceType === value ? null : value };
     }
 
     handleFuelChange(event) {

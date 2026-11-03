@@ -19,8 +19,6 @@
     .grid td.label { width: 21%; background-color: #f2f2f2; font-size: 8.5px; }
     .addr { height: 34px; }
     .section-title { font-weight: bold; font-size: 8.5px; text-transform: uppercase; background-color: #f2f2f2; border: 1px solid #555; padding: 3px 4px; }
-    .choices td { border: 1px solid #555; text-align: center; font-size: 8.5px; padding: 4px 2px; }
-    .choices td.on { background-color: #111; color: #fff; font-weight: bold; }
     .repairs { table-layout: fixed; }
     .repairs th { border: 1px solid #555; background-color: #f2f2f2; font-size: 8px; padding: 3px 2px; text-align: center; }
     .repairs td { border: 1px solid #555; height: 31px; padding: 2px 3px; font-size: 8.5px; word-wrap: break-word; }
@@ -98,15 +96,6 @@
                         </tr>
                         <tr>
                             <td class="label">Visit Due To</td><td colspan="3">{!visitReason}</td>
-                        </tr>
-                    </table>
-
-                    <div class="section-title" style="margin-top: 5px; border-bottom: none;">Type of Service</div>
-                    <table class="choices">
-                        <tr>
-                            <apex:repeat value="{!serviceTypes}" var="opt">
-                                <td class="{!IF(opt.selected, 'on', '')}">{!opt.label}</td>
-                            </apex:repeat>
                         </tr>
                     </table>
 

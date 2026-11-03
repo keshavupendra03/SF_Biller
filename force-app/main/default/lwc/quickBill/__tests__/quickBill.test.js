@@ -36,11 +36,11 @@ jest.mock('lightning/navigation', () => {
 
 const BRAKE_PAD = {
     id: 'part1', name: 'Brake Pad Set', sku: 'BP-01', barcode: '8901234567890', price: 1200,
-    taxRatePercent: 18, gstType: 'CGST_SGST', hsnCode: '8708', unitLabel: 'Set', currentStock: 1
+    taxRatePercent: 28, gstType: 'CGST_SGST', hsnCode: '8708', unitLabel: 'Set', currentStock: 1
 };
 const OIL = { id: 'part2', name: 'Engine Oil 1L', sku: 'OIL-1', price: 500, taxRatePercent: 18, gstType: 'CGST_SGST', currentStock: 20 };
 
-const SUMMARY = { billId: 'bill1', invoiceNumber: 'INV/2026-27/0042', customerName: 'Walk-in Customer', totalAmount: 1416 };
+const SUMMARY = { billId: 'bill1', invoiceNumber: 'INV/2026-27/0042', customerName: 'Walk-in Customer', totalAmount: 1000 };
 
 function flushPromises() {
     return new Promise((resolve) => setTimeout(resolve, 0));
@@ -61,6 +61,25 @@ function $(element, selector) {
     return element.shadowRoot.querySelector(selector);
 }
 
+function rows(element) {
+    return [...element.shadowRoot.querySelectorAll('[data-id="item-row"]')];
+}
+
+function cell(element, rowIndex, field) {
+    return rows(element)[rowIndex].querySelector(`input[data-field="${field}"]`);
+}
+
+async function typeCell(element, rowIndex, field, value) {
+    const input = cell(element, rowIndex, field);
+    input.value = value;
+    input.dispatchEvent(new CustomEvent('input', { bubbles: true }));
+    await flushPromises();
+}
+
+function pressKey(input, key, options) {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, composed: true, cancelable: true, ...options }));
+}
+
 function type(element, selector, value) {
     const input = $(element, selector);
     input.value = value;
@@ -72,12 +91,17 @@ async function switchToWalkIn(element) {
     await flushPromises();
 }
 
-async function searchAndPick(element, term, results, partId) {
-    searchParts.mockResolvedValue(results);
-    type(element, '[data-id="part-search"]', term);
-    await wait(350);
+async function setGst(element, checked) {
+    const toggle = $(element, '[data-id="include-gst"]');
+    toggle.checked = checked;
+    toggle.dispatchEvent(new CustomEvent('change'));
     await flushPromises();
-    $(element, `button.part-result[data-id="${partId}"]`).click();
+}
+
+async function typeName(element, rowIndex, value, results) {
+    searchParts.mockResolvedValue(results);
+    await typeCell(element, rowIndex, 'description', value);
+    await wait(350);
     await flushPromises();
 }
 
@@ -89,93 +113,282 @@ describe('c-quick-bill', () => {
         jest.clearAllMocks();
     });
 
-    it('starts in Customer mode with an empty cart and explains what is missing', async () => {
+    it('starts ready to type: one empty line, GST off, and no add-line button', async () => {
         const element = createQuickBillElement();
         await flushPromises();
 
         expect($(element, '[data-id="mode"]').value).toBe('customer');
+        expect(rows(element)).toHaveLength(1);
+        expect(cell(element, 0, 'quantity').value).toBe('1');
+        expect(cell(element, 0, 'taxRatePercent').value).toBe('18');
+        expect($(element, '[data-id="include-gst"]').checked).toBe(false);
+        expect($(element, '[data-id="add-custom"]')).toBeNull();
         expect($(element, '[data-id="create"]').disabled).toBe(true);
         expect($(element, '[data-id="missing-reason"]').textContent).toContain('phone number');
-        expect(element.shadowRoot.textContent).toContain('Search a part above');
     });
 
-    it('a walk-in parts sale: search, tap twice to add quantity 2, and create the bill', async () => {
+    it('keeps item, quantity, price and GST in one line, in that order', async () => {
+        const element = createQuickBillElement();
+        await flushPromises();
+
+        const inputs = [...rows(element)[0].querySelector('.item-line').querySelectorAll('input')];
+        expect(inputs.map((i) => i.dataset.field)).toEqual(['description', 'quantity', 'unitPrice', 'taxRatePercent']);
+    });
+
+    it('leaves the row buttons out of the Tab order, so Tab goes from GST to the next item name', async () => {
+        const element = createQuickBillElement();
+        await switchToWalkIn(element);
+        await setGst(element, true);
+        await typeCell(element, 0, 'description', 'Wheel alignment');
+        await typeCell(element, 0, 'unitPrice', '600');
+
+        const tabbable = [...rows(element)[0].querySelectorAll('input, button')].filter((node) => node.getAttribute('tabindex') !== '-1');
+        expect(tabbable.map((node) => node.dataset.field)).toEqual(['description', 'quantity', 'unitPrice', 'taxRatePercent']);
+        expect(rows(element)[0].querySelector('[data-id="remove-item"]')).not.toBeNull();
+        expect(rows(element)[1]).toBeDefined();
+    });
+
+    it('adds the next line as soon as a price is typed, and only one', async () => {
+        const element = createQuickBillElement();
+        await flushPromises();
+
+        await typeCell(element, 0, 'description', 'Wheel alignment');
+        expect(rows(element)).toHaveLength(1);
+
+        await typeCell(element, 0, 'unitPrice', '6');
+        expect(rows(element)).toHaveLength(2);
+
+        await typeCell(element, 0, 'unitPrice', '60');
+        await typeCell(element, 0, 'unitPrice', '600');
+        expect(rows(element)).toHaveLength(2);
+        expect(cell(element, 1, 'description').value).toBe('');
+        expect(cell(element, 1, 'taxRatePercent').value).toBe('18');
+        // The box being typed in isn't rewritten as the row list changes.
+        expect(cell(element, 0, 'unitPrice').value).toBe('600');
+
+        await typeCell(element, 1, 'description', 'Car wash');
+        await typeCell(element, 1, 'unitPrice', '200');
+        expect(rows(element)).toHaveLength(3);
+    });
+
+    it('with GST off: the GST box is skipped, totals have no tax, and the bill says so', async () => {
         createQuickBill.mockResolvedValue(SUMMARY);
         const element = createQuickBillElement();
         await switchToWalkIn(element);
-        expect(element.shadowRoot.textContent).toContain('Walk-in Customer');
 
-        searchParts.mockResolvedValue([OIL]);
-        type(element, '[data-id="part-search"]', 'oil');
-        await wait(350);
-        await flushPromises();
-        $(element, 'button.part-result[data-id="part2"]').click();
-        await flushPromises();
+        expect(cell(element, 0, 'taxRatePercent').disabled).toBe(true);
+        await typeCell(element, 0, 'description', 'Wheel alignment');
+        await typeCell(element, 0, 'quantity', '2');
+        await typeCell(element, 0, 'unitPrice', '500');
 
-        type(element, '[data-id="part-search"]', 'oil');
-        await wait(350);
-        await flushPromises();
-        $(element, 'button.part-result[data-id="part2"]').click();
-        await flushPromises();
-
-        expect(element.shadowRoot.querySelectorAll('[data-id="item-row"]')).toHaveLength(1);
-        expect($(element, 'lightning-input[data-field="quantity"]').value).toBe(2);
-        expect($(element, '[data-id="grand-total"]').textContent).toBe('₹1,180.00');
-        expect($(element, '[data-id="create"]').disabled).toBe(false);
+        expect($(element, '[data-id="grand-total"]').textContent).toBe('₹1,000.00');
+        expect($(element, '[data-id="line-amount"]').textContent).toBe('₹1,000.00');
+        expect(element.shadowRoot.textContent).not.toContain('CGST');
+        expect($(element, '[data-id="gst-excluded"]')).not.toBeNull();
 
         $(element, '[data-id="create"]').click();
         await flushPromises();
 
         const { request } = createQuickBill.mock.calls[0][0];
+        expect(request.includeGst).toBe(false);
         expect(request).toEqual(expect.objectContaining({ isWalkIn: true, customerPhone: null, vehicleId: null, newVehicle: null }));
+        // Sent with the typed rate: Apex keeps it for a newly created part and zeroes the bill's line.
         expect(request.lineItems).toEqual([
-            expect.objectContaining({ partId: 'part2', description: 'Engine Oil 1L', quantity: 2, unitPrice: 500, taxRatePercent: 18 })
+            expect.objectContaining({ partId: null, description: 'Wheel alignment', quantity: 2, unitPrice: 500, taxRatePercent: 18 })
         ]);
         expect($(element, '[data-id="created-number"]').textContent).toBe('INV/2026-27/0042');
     });
 
-    it('stepper buttons change quantity and warn when it exceeds stock', async () => {
+    it('with GST on: each line uses its own rate and totals include it', async () => {
+        createQuickBill.mockResolvedValue(SUMMARY);
         const element = createQuickBillElement();
         await switchToWalkIn(element);
-        await searchAndPick(element, 'brake', [BRAKE_PAD], 'part1');
+        await setGst(element, true);
+        expect(cell(element, 0, 'taxRatePercent').disabled).toBe(false);
 
-        expect(element.shadowRoot.textContent).toContain('1 in stock');
-        expect(element.shadowRoot.textContent).not.toContain('not enough stock');
-        expect($(element, '[data-id="decrease"]').disabled).toBe(true);
+        await typeCell(element, 0, 'description', 'Wheel alignment');
+        await typeCell(element, 0, 'unitPrice', '1000');
+        expect($(element, '[data-id="grand-total"]').textContent).toBe('₹1,180.00');
+        expect(element.shadowRoot.textContent).toContain('CGST');
+        expect($(element, '[data-id="gst-excluded"]')).toBeNull();
 
-        $(element, '[data-id="increase"]').click();
+        await typeCell(element, 0, 'taxRatePercent', '5');
+        expect($(element, '[data-id="grand-total"]').textContent).toBe('₹1,050.00');
+
+        $(element, '[data-id="create"]').click();
         await flushPromises();
-        expect($(element, 'lightning-input[data-field="quantity"]').value).toBe(2);
-        expect(element.shadowRoot.textContent).toContain('not enough stock');
-
-        $(element, '[data-id="decrease"]').click();
-        await flushPromises();
-        expect($(element, 'lightning-input[data-field="quantity"]').value).toBe(1);
+        const { request } = createQuickBill.mock.calls[0][0];
+        expect(request.includeGst).toBe(true);
+        expect(request.lineItems[0].taxRatePercent).toBe(5);
     });
 
-    it('a custom item needs a name and price before the bill can be created', async () => {
+    it('never sends the empty last line, and asks for what a started line is missing', async () => {
+        const element = createQuickBillElement();
+        await switchToWalkIn(element);
+
+        await typeCell(element, 0, 'unitPrice', '500');
+        expect($(element, '[data-id="missing-reason"]').textContent).toContain('name');
+        await typeCell(element, 0, 'description', 'Wheel alignment');
+        expect($(element, '[data-id="create"]').disabled).toBe(false);
+
+        await typeCell(element, 1, 'description', 'Car wash');
+        expect($(element, '[data-id="missing-reason"]').textContent).toContain('price');
+        await typeCell(element, 1, 'description', '');
+        expect($(element, '[data-id="create"]').disabled).toBe(false);
+        expect($(element, '[data-id="grand-total"]').textContent).toBe('₹500.00');
+    });
+
+    it('typing a name suggests parts; arrow keys and Enter pick one and move to quantity', async () => {
+        const element = createQuickBillElement();
+        await switchToWalkIn(element);
+        await typeName(element, 0, 'e', [BRAKE_PAD, OIL]);
+        expect($(element, '[data-id="suggestions"]')).toBeNull();
+
+        await typeName(element, 0, 'en', [BRAKE_PAD, OIL]);
+        expect(element.shadowRoot.querySelectorAll('[data-id="suggestion"]')).toHaveLength(2);
+
+        const name = cell(element, 0, 'description');
+        pressKey(name, 'ArrowDown');
+        pressKey(name, 'ArrowDown');
+        await flushPromises();
+        expect(element.shadowRoot.querySelectorAll('[data-id="suggestion"]')[1].getAttribute('aria-selected')).toBe('true');
+
+        pressKey(name, 'Enter');
+        await flushPromises();
+
+        expect($(element, '[data-id="suggestions"]')).toBeNull();
+        expect(cell(element, 0, 'description').value).toBe('Engine Oil 1L');
+        expect(cell(element, 0, 'unitPrice').value).toBe('500');
+        expect(rows(element)).toHaveLength(2);
+        expect(element.shadowRoot.activeElement).toBe(cell(element, 0, 'quantity'));
+    });
+
+    it('Tab on a highlighted suggestion picks it; Escape closes the list and keeps the typing', async () => {
+        const element = createQuickBillElement();
+        await switchToWalkIn(element);
+        await typeName(element, 0, 'brake', [BRAKE_PAD]);
+
+        pressKey(cell(element, 0, 'description'), 'Escape');
+        await flushPromises();
+        expect($(element, '[data-id="suggestions"]')).toBeNull();
+        expect(cell(element, 0, 'description').value).toBe('brake');
+
+        await typeName(element, 0, 'brake p', [BRAKE_PAD]);
+        pressKey(cell(element, 0, 'description'), 'ArrowDown');
+        await flushPromises();
+        pressKey(cell(element, 0, 'description'), 'Tab');
+        await flushPromises();
+
+        expect(cell(element, 0, 'description').value).toBe('Brake Pad Set');
+        expect(cell(element, 0, 'taxRatePercent').value).toBe('28');
+    });
+
+    it('a tapped suggestion fills the line, and warns when quantity exceeds stock', async () => {
+        const element = createQuickBillElement();
+        await switchToWalkIn(element);
+        await typeName(element, 0, 'brake', [BRAKE_PAD]);
+
+        $(element, '[data-id="suggestion"]').dispatchEvent(new CustomEvent('mousedown', { bubbles: true, cancelable: true }));
+        await flushPromises();
+        expect(cell(element, 0, 'unitPrice').value).toBe('1200');
+        expect($(element, '[data-id="stock-note"]')).toBeNull();
+
+        await typeCell(element, 0, 'quantity', '3');
+        expect($(element, '[data-id="stock-note"]').textContent).toBe('Only 1 in stock');
+    });
+
+    it('picking a part already on the bill adds one to that line', async () => {
+        const element = createQuickBillElement();
+        await switchToWalkIn(element);
+        await typeName(element, 0, 'oil', [OIL]);
+        $(element, '[data-id="suggestion"]').dispatchEvent(new CustomEvent('mousedown', { bubbles: true, cancelable: true }));
+        await flushPromises();
+
+        await typeName(element, 1, 'oil', [OIL]);
+        $(element, '[data-id="suggestion"]').dispatchEvent(new CustomEvent('mousedown', { bubbles: true, cancelable: true }));
+        await flushPromises();
+
+        expect(rows(element)).toHaveLength(2);
+        expect(cell(element, 0, 'quantity').value).toBe('2');
+        expect(cell(element, 1, 'description').value).toBe('');
+        expect(element.shadowRoot.activeElement).toBe(cell(element, 1, 'description'));
+    });
+
+    it('a part name typed in full and tabbed past links to that part, keeping a typed price', async () => {
         createQuickBill.mockResolvedValue(SUMMARY);
         const element = createQuickBillElement();
         await switchToWalkIn(element);
 
-        $(element, '[data-id="add-custom"]').click();
+        await typeName(element, 0, 'engine oil 1l', [OIL]);
+        await typeCell(element, 0, 'unitPrice', '450');
+        cell(element, 0, 'description').dispatchEvent(new CustomEvent('blur'));
         await flushPromises();
-        expect($(element, '[data-id="missing-reason"]').textContent).toContain('name');
 
-        type(element, 'lightning-input[data-field="description"]', 'Wheel alignment');
-        await flushPromises();
-        expect($(element, '[data-id="missing-reason"]').textContent).toContain('price');
-
-        type(element, 'lightning-input[data-field="unitPrice"]', '600');
-        $(element, 'lightning-combobox[data-field="taxRatePercent"]').dispatchEvent(new CustomEvent('change', { detail: { value: '5' } }));
-        await flushPromises();
-        expect($(element, '[data-id="grand-total"]').textContent).toBe('₹630.00');
+        expect(cell(element, 0, 'description').value).toBe('Engine Oil 1L');
+        expect(cell(element, 0, 'unitPrice').value).toBe('450');
 
         $(element, '[data-id="create"]').click();
         await flushPromises();
+        expect(createQuickBill.mock.calls[0][0].request.lineItems[0].partId).toBe('part2');
+    });
+
+    it('a name that only partly matches stays a typed item', async () => {
+        const element = createQuickBillElement();
+        await switchToWalkIn(element);
+
+        await typeName(element, 0, 'oil', [OIL]);
+        cell(element, 0, 'description').dispatchEvent(new CustomEvent('blur'));
+        await flushPromises();
+
+        expect(cell(element, 0, 'description').value).toBe('oil');
+        expect($(element, '[data-id="suggestions"]')).toBeNull();
+    });
+
+    it('changing the name of a picked part unlinks it', async () => {
+        createQuickBill.mockResolvedValue(SUMMARY);
+        const element = createQuickBillElement();
+        await switchToWalkIn(element);
+        await typeName(element, 0, 'oil', [OIL]);
+        $(element, '[data-id="suggestion"]').dispatchEvent(new CustomEvent('mousedown', { bubbles: true, cancelable: true }));
+        await flushPromises();
+
+        await typeName(element, 0, 'Engine Oil 5L', []);
+        $(element, '[data-id="create"]').click();
+        await flushPromises();
+
         expect(createQuickBill.mock.calls[0][0].request.lineItems[0]).toEqual(
-            expect.objectContaining({ partId: null, description: 'Wheel alignment', unitPrice: 600, taxRatePercent: 5 })
+            expect.objectContaining({ partId: null, description: 'Engine Oil 5L', unitPrice: 500 })
         );
+    });
+
+    it('Ctrl+Enter from the grid creates the bill; plain Enter in a number box does not', async () => {
+        createQuickBill.mockResolvedValue(SUMMARY);
+        const element = createQuickBillElement();
+        await switchToWalkIn(element);
+        await typeCell(element, 0, 'description', 'Wheel alignment');
+        await typeCell(element, 0, 'unitPrice', '600');
+
+        pressKey(cell(element, 0, 'unitPrice'), 'Enter');
+        await flushPromises();
+        expect(createQuickBill).not.toHaveBeenCalled();
+
+        pressKey(cell(element, 0, 'unitPrice'), 'Enter', { ctrlKey: true });
+        await flushPromises();
+        expect(createQuickBill).toHaveBeenCalledTimes(1);
+    });
+
+    it('removing the only filled line leaves one empty line and disables Create', async () => {
+        const element = createQuickBillElement();
+        await switchToWalkIn(element);
+        await typeCell(element, 0, 'description', 'Wheel alignment');
+        await typeCell(element, 0, 'unitPrice', '600');
+        expect($(element, '[data-id="create"]').disabled).toBe(false);
+
+        $(element, '[data-id="remove-item"]').click();
+        await flushPromises();
+
+        expect(rows(element)).toHaveLength(1);
+        expect($(element, '[data-id="create"]').disabled).toBe(true);
     });
 
     it('typing a known phone number finds the customer and offers their vehicles', async () => {
@@ -202,7 +415,8 @@ describe('c-quick-bill', () => {
         await flushPromises();
         expect(element.shadowRoot.querySelectorAll('[data-id="vehicle-chip"]')[1].variant).toBe('brand');
 
-        await searchAndPick(element, 'brake', [BRAKE_PAD], 'part1');
+        await typeCell(element, 0, 'description', 'Wheel alignment');
+        await typeCell(element, 0, 'unitPrice', '600');
         $(element, '[data-id="create"]').click();
         await flushPromises();
 
@@ -224,7 +438,8 @@ describe('c-quick-bill', () => {
 
         type(element, 'lightning-input[data-field="name"]', 'Suresh Patel');
         type(element, 'lightning-input[data-field="registrationNumber"]', 'MP09ZZ0001');
-        await searchAndPick(element, 'oil', [OIL], 'part2');
+        await typeCell(element, 0, 'description', 'Wheel alignment');
+        await typeCell(element, 0, 'unitPrice', '600');
 
         $(element, '[data-id="create"]').click();
         await flushPromises();
@@ -235,11 +450,13 @@ describe('c-quick-bill', () => {
         expect(request.newVehicle).toEqual({ registrationNumber: 'MP09ZZ0001', make: '', model: '' });
     });
 
-    it('after creating: Print opens the invoice preview, View Bill navigates, New Quick Bill resets', async () => {
+    it('after creating: Print previews, View Bill navigates, New Quick Bill resets with GST back off', async () => {
         createQuickBill.mockResolvedValue(SUMMARY);
         const element = createQuickBillElement();
         await switchToWalkIn(element);
-        await searchAndPick(element, 'oil', [OIL], 'part2');
+        await setGst(element, true);
+        await typeCell(element, 0, 'description', 'Wheel alignment');
+        await typeCell(element, 0, 'unitPrice', '600');
         $(element, '[data-id="create"]').click();
         await flushPromises();
 
@@ -255,11 +472,14 @@ describe('c-quick-bill', () => {
         $(element, '[data-id="new-bill"]').click();
         await flushPromises();
         expect($(element, '[data-id="created-number"]')).toBeNull();
-        expect(element.shadowRoot.querySelectorAll('[data-id="item-row"]')).toHaveLength(0);
+        expect(rows(element)).toHaveLength(1);
+        expect(cell(element, 0, 'description').value).toBe('');
+        expect($(element, '[data-id="include-gst"]').checked).toBe(false);
         expect($(element, '[data-id="mode"]').value).toBe('walkin');
+        expect(element.shadowRoot.activeElement).toBe(cell(element, 0, 'description'));
     });
 
-    it('scanning a barcode adds the matching part', async () => {
+    it('scanning a barcode fills the empty line with the matching part', async () => {
         mockScanner.isAvailable.mockReturnValue(true);
         mockScanner.beginCapture.mockResolvedValue({ value: '8901234567890' });
         searchParts.mockResolvedValue([BRAKE_PAD, OIL]);
@@ -272,21 +492,9 @@ describe('c-quick-bill', () => {
 
         expect(getBarcodeScanner).toHaveBeenCalled();
         expect(searchParts).toHaveBeenCalledWith({ searchTerm: '8901234567890' });
-        const rows = element.shadowRoot.querySelectorAll('[data-id="item-row"]');
-        expect(rows).toHaveLength(1);
-        expect(rows[0].textContent).toContain('Brake Pad Set');
+        expect(cell(element, 0, 'description').value).toBe('Brake Pad Set');
+        expect(rows(element)).toHaveLength(2);
         expect(mockScanner.endCapture).toHaveBeenCalled();
         mockScanner.isAvailable.mockReturnValue(false);
-    });
-
-    it('removing the only item disables Create again', async () => {
-        const element = createQuickBillElement();
-        await switchToWalkIn(element);
-        await searchAndPick(element, 'oil', [OIL], 'part2');
-        expect($(element, '[data-id="create"]').disabled).toBe(false);
-
-        $(element, '[data-id="remove-item"]').click();
-        await flushPromises();
-        expect($(element, '[data-id="create"]').disabled).toBe(true);
     });
 });

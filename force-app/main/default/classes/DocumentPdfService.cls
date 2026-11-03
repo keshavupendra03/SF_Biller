@@ -146,10 +146,13 @@ public with sharing class DocumentPdfService {
 
     // A job slip PDF is rendered from the saved Job_Slip__c, or — for a
     // blank slip to fill by hand — from the Vehicle__c/Customer__c it's
-    // printed for (JobSlipPdfController prefills only those details).
+    // printed for (JobSlipPdfController prefills only those details). A
+    // completely blank slip belongs to no customer, so it's rendered from
+    // the singleton Workshop_Profile__c, whose header is all it prints.
     private static Boolean isJobSlip(Id recordId) {
         SObjectType type = recordId.getSObjectType();
-        return type == Job_Slip__c.SObjectType || type == Vehicle__c.SObjectType || type == Customer__c.SObjectType;
+        return type == Job_Slip__c.SObjectType || type == Vehicle__c.SObjectType
+            || type == Customer__c.SObjectType || type == Workshop_Profile__c.SObjectType;
     }
 
     private static DocumentInfo loadInfo(Id recordId) {
@@ -167,6 +170,11 @@ public with sharing class DocumentPdfService {
             Vehicle__c vehicle = [SELECT Name FROM Vehicle__c WHERE Id = :recordId];
             info.documentNumber = 'Job Slip ' + vehicle.Name;
             info.title = 'Blank Job Slip ' + sanitize(vehicle.Name);
+            return info;
+        }
+        if (recordId.getSObjectType() == Workshop_Profile__c.SObjectType) {
+            info.documentNumber = 'Blank Job Slip';
+            info.title = 'Blank Job Slip';
             return info;
         }
         if (recordId.getSObjectType() == Customer__c.SObjectType) {
