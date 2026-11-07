@@ -81,6 +81,7 @@
                                 <span>{selectedCustomer.name}</span>
                                 <lightning-button-icon
                                     icon-name="utility:close"
+                                    data-id="change-customer"
                                     alternative-text="Change customer"
                                     onclick={handleClearCustomer}
                                 ></lightning-button-icon>
@@ -132,6 +133,7 @@
                                     <span>{selectedVehicle.registrationNumber} — {selectedVehicle.make} {selectedVehicle.model}</span>
                                     <lightning-button-icon
                                         icon-name="utility:close"
+                                        data-id="change-vehicle"
                                         alternative-text="Change vehicle"
                                         onclick={handleClearVehicle}
                                     ></lightning-button-icon>

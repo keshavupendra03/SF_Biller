@@ -6,12 +6,22 @@
             <span class="slds-p-around_x-small"></span>
         </div>
 
-        <lightning-input data-field="name" label="Workshop Name" value={values.name} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+        <template if:true={showCompanyChoices}>
+            <div class="slds-grid slds-wrap slds-m-bottom_small company-choices">
+                <template for:each={companyChoices} for:item="choice">
+                    <lightning-button key={choice.id} data-id="company-choice" data-value={choice.id} label={choice.label} variant={choice.variant} onclick={handleChooseCompany}></lightning-button>
+                </template>
+            </div>
+        </template>
+
+        <lightning-input data-field="name" label={nameLabel} value={values.name} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
         <lightning-input data-field="address" label="Address" value={values.address} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
         <lightning-input data-field="phone" label="Phone" value={values.phone} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
         <lightning-input data-field="email" label="Email" value={values.email} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
         <lightning-input data-field="gstin" label="GSTIN" value={values.gstin} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
-        <lightning-input data-field="state" label="State (e.g. 23-Madhya Pradesh)" value={values.state} onchange={handleFieldChange} class="slds-m-bottom_medium"></lightning-input>
+        <lightning-input data-field="state" label="State (e.g. 23-Madhya Pradesh)" value={values.state} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+        <lightning-input data-field="invoicePrefix" label="Invoice Prefix" max-length="3" placeholder="INV" value={values.invoicePrefix} onchange={handleFieldChange}></lightning-input>
+        <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_medium" data-id="invoice-example">{invoiceExample}</p>
 
         <hr class="slds-m-vertical_medium" />
         <h2 class="slds-text-heading_small slds-m-bottom_small">Bank Details (shown as "Pay To" on invoices)</h2>
@@ -32,6 +42,12 @@
             class="slds-m-bottom_medium"
         ></lightning-textarea>
 
-        <lightning-button data-id="save" label="Save Profile" variant="brand" disabled={saveDisabled} onclick={handleSave}></lightning-button>
+        <lightning-button data-id="save" label={saveLabel} variant="brand" disabled={saveDisabled} onclick={handleSave}></lightning-button>
+        <template if:true={isAddingCompany}>
+            <lightning-button data-id="cancel-add" label="Cancel" onclick={handleCancelAdd} class="slds-m-left_x-small"></lightning-button>
+        </template>
+        <template if:true={canAddCompany}>
+            <lightning-button data-id="add-company" label="Add second company" icon-name="utility:add" onclick={handleAddCompany} class="slds-m-left_x-small"></lightning-button>
+        </template>
     </div>
 </template>

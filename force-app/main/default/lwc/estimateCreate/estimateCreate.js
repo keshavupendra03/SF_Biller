@@ -49,6 +49,7 @@ export default class EstimateCreate extends NavigationMixin(LightningElement) {
 
     notes = '';
     estimateDate = todayIso();
+    workshopProfileId;
 
     isSubmitting = false;
     isSearchingCustomers = false;
@@ -211,6 +212,10 @@ export default class EstimateCreate extends NavigationMixin(LightningElement) {
 
     get cardTitle() {
         return this.isVersioning ? 'Edit Estimate' : 'New Estimate';
+    }
+
+    handleCompanyChange(event) {
+        this.workshopProfileId = event.detail.id;
     }
 
     handleBack() {
@@ -443,6 +448,7 @@ export default class EstimateCreate extends NavigationMixin(LightningElement) {
         this.isSubmitting = true;
 
         const request = {
+            workshopProfileId: this.workshopProfileId || undefined,
             customerId: this.selectedCustomer.id,
             jobId: this.jobId,
             notes: this.notes,
@@ -530,6 +536,7 @@ export default class EstimateCreate extends NavigationMixin(LightningElement) {
     }
 
     applySummaryToForm(summary) {
+        this.workshopProfileId = summary.workshopProfileId;
         this.selectedCustomer = { id: summary.customerId, name: summary.customerName, phone: '' };
         this.notes = summary.notes || '';
         this.estimateDate = todayIso();

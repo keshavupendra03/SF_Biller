@@ -42,18 +42,18 @@ public with sharing class DocumentPdfService {
     }
 
     @AuraEnabled
-    public static PdfDownload getPdfDownload(Id recordId) {
+    public static PdfDownload getPdfDownload(Id recordId, Id workshopProfileId) {
         DocumentInfo info = loadInfo(recordId);
         PdfDownload download = new PdfDownload();
         download.fileName = info.title + '.pdf';
-        download.base64Data = EncodingUtil.base64Encode(renderPdf(recordId));
+        download.base64Data = EncodingUtil.base64Encode(renderPdf(recordId, workshopProfileId));
         return download;
     }
 
     @AuraEnabled
-    public static PublicLink getPublicLink(Id recordId) {
+    public static PublicLink getPublicLink(Id recordId, Id workshopProfileId) {
         DocumentInfo info = loadInfo(recordId);
-        Id documentId = saveFileVersion(recordId, info.title, renderPdf(recordId));
+        Id documentId = saveFileVersion(recordId, info.title, renderPdf(recordId, workshopProfileId));
         Datetime expiresAt = Datetime.now().addDays(LINK_VALID_DAYS);
 
         List<ContentDistribution> existing = [
@@ -115,9 +115,14 @@ public with sharing class DocumentPdfService {
         System.scheduleBatch(new BillEstimateFileCleanupBatch(new Set<Id>{ contentDocumentId }), jobName, 5);
     }
 
-    private static Blob renderPdf(Id recordId) {
+    // workshopProfileId only matters for a blank job slip printed for a customer
+    // or vehicle: every other document knows its own company.
+    private static Blob renderPdf(Id recordId, Id workshopProfileId) {
         PageReference page = isJobSlip(recordId) ? Page.JobSlipPdf : Page.InvoicePdf;
         page.getParameters().put('id', recordId);
+        if (workshopProfileId != null) {
+            page.getParameters().put('workshop', workshopProfileId);
+        }
         // getContentAsPDF() isn't allowed in test context.
         return Test.isRunningTest() ? Blob.valueOf('test-pdf') : page.getContentAsPDF();
     }
@@ -148,7 +153,7 @@ public with sharing class DocumentPdfService {
     // blank slip to fill by hand — from the Vehicle__c/Customer__c it's
     // printed for (JobSlipPdfController prefills only those details). A
     // completely blank slip belongs to no customer, so it's rendered from
-    // the singleton Workshop_Profile__c, whose header is all it prints.
+    // the chosen Workshop_Profile__c, whose header is all it prints.
     private static Boolean isJobSlip(Id recordId) {
         SObjectType type = recordId.getSObjectType();
         return type == Job_Slip__c.SObjectType || type == Vehicle__c.SObjectType

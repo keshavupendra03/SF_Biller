@@ -1,7 +1,7 @@
 /**
- * Backs the Quick Bill screen — one screen to bill a counter sale (spare
- * parts over the counter) or any car customer without first setting up a
- * customer/vehicle through the Customers screens.
+ * Backs the Quick Bill and Quick Estimate screens — one screen to bill or
+ * quote a counter sale (spare parts over the counter) or any car customer
+ * without first setting up a customer/vehicle through the Customers screens.
  *
  * Bill__c.Customer__c and Customer__c.Phone__c stay required, so this
  * resolves the customer itself rather than relaxing the schema:
@@ -14,7 +14,8 @@
  * customer's existing vehicle with the same number, else creates one.
  * The bill itself goes through BillController.createBill, so invoice
  * numbering, stock deduction and manual-line part creation behave
- * exactly as on the New Bill screen.
+ * exactly as on the New Bill screen. Estimates likewise go through
+ * EstimateController.createEstimate and never touch stock.
  *
  * GST is off unless the request says includeGst. Lines still arrive with
  * the rate typed on screen: a part created from a typed line must remember
@@ -41,6 +42,7 @@ public with sharing class QuickBillController {
     }
 
     public class QuickBillRequest {
+        @AuraEnabled public Id workshopProfileId { get; set; }
         @AuraEnabled public Boolean isWalkIn { get; set; }
         @AuraEnabled public String customerName { get; set; }
         @AuraEnabled public String customerPhone { get; set; }
@@ -49,7 +51,7 @@ public with sharing class QuickBillController {
         @AuraEnabled public String customerState { get; set; }
         @AuraEnabled public Id vehicleId { get; set; }
         @AuraEnabled public CustomerController.NewVehicleInput newVehicle { get; set; }
-        @AuraEnabled public Date billDate { get; set; }
+        @AuraEnabled public Date documentDate { get; set; }
         @AuraEnabled public String notes { get; set; }
         @AuraEnabled public Boolean includeGst { get; set; }
         @AuraEnabled public List<BillController.LineItemInput> lineItems { get; set; }
@@ -57,15 +59,16 @@ public with sharing class QuickBillController {
 
     /**
      * Called as staff type a phone number, so the screen can show "existing
-     * customer" and offer their vehicles before the bill is created.
+     * customer" and offer their vehicles before the document is created.
      * Returns null when no customer has this number.
      */
     @AuraEnabled
     public static CustomerMatch findCustomerByPhone(String phone) {
         Customer__c customer = findByPhone(phone);
-        if (customer == null) {
-            return null;
-        }
+        return customer == null ? null : toMatch(customer);
+    }
+
+    public static CustomerMatch toMatch(Customer__c customer) {
         CustomerMatch match = new CustomerMatch();
         match.id = customer.Id;
         match.name = customer.Name;
@@ -79,11 +82,47 @@ public with sharing class QuickBillController {
 
     @AuraEnabled
     public static BillController.BillSummary createQuickBill(QuickBillRequest request) {
+        ResolvedParties parties = prepare(request);
+
+        BillController.CreateBillRequest bill = new BillController.CreateBillRequest();
+        bill.workshopProfileId = request.workshopProfileId;
+        bill.customerId = parties.customerId;
+        bill.vehicleId = parties.vehicleId;
+        bill.newVehicle = parties.newVehicle;
+        bill.billDate = request.documentDate;
+        bill.notes = request.notes;
+        bill.lineItems = request.lineItems;
+        return BillController.createBill(bill);
+    }
+
+    @AuraEnabled
+    public static EstimateController.EstimateSummary createQuickEstimate(QuickBillRequest request) {
+        ResolvedParties parties = prepare(request);
+
+        EstimateController.CreateEstimateRequest estimate = new EstimateController.CreateEstimateRequest();
+        estimate.workshopProfileId = request.workshopProfileId;
+        estimate.customerId = parties.customerId;
+        estimate.vehicleId = parties.vehicleId;
+        estimate.newVehicle = parties.newVehicle;
+        estimate.estimateDate = request.documentDate;
+        estimate.notes = request.notes;
+        estimate.lineItems = request.lineItems;
+        return EstimateController.createEstimate(estimate);
+    }
+
+    private class ResolvedParties {
+        Id customerId;
+        Id vehicleId;
+        CustomerController.NewVehicleInput newVehicle;
+    }
+
+    private static ResolvedParties prepare(QuickBillRequest request) {
         if (request == null || request.lineItems == null || request.lineItems.isEmpty()) {
-            throw new QuickBillControllerException('Add at least one item to the bill.');
+            throw new QuickBillControllerException('Add at least one item.');
         }
         Boolean walkIn = request.isWalkIn == true;
-        Id customerId = walkIn ? walkInCustomerId() : resolveCustomer(request);
+        ResolvedParties parties = new ResolvedParties();
+        parties.customerId = walkIn ? walkInCustomerId() : resolveCustomer(request);
 
         PartUpsertService.fillManualPartIds(request.lineItems);
         if (request.includeGst != true) {
@@ -92,18 +131,13 @@ public with sharing class QuickBillController {
             }
         }
 
-        BillController.CreateBillRequest bill = new BillController.CreateBillRequest();
-        bill.customerId = customerId;
-        bill.billDate = request.billDate;
-        bill.notes = request.notes;
-        bill.lineItems = request.lineItems;
         if (!walkIn) {
-            bill.vehicleId = resolveVehicleId(customerId, request);
-            if (bill.vehicleId == null) {
-                bill.newVehicle = hasRegistration(request.newVehicle) ? request.newVehicle : null;
+            parties.vehicleId = resolveVehicleId(parties.customerId, request);
+            if (parties.vehicleId == null && hasRegistration(request.newVehicle)) {
+                parties.newVehicle = request.newVehicle;
             }
         }
-        return BillController.createBill(bill);
+        return parties;
     }
 
     private static Id resolveCustomer(QuickBillRequest request) {
@@ -171,7 +205,7 @@ public with sharing class QuickBillController {
         return vehicle != null && String.isNotBlank(vehicle.registrationNumber);
     }
 
-    private static Id walkInCustomerId() {
+    public static Id walkInCustomerId() {
         List<Customer__c> existing = [
             SELECT Id FROM Customer__c WHERE Name = :WALK_IN_NAME AND Phone__c = :WALK_IN_PHONE
             ORDER BY CreatedDate LIMIT 1
@@ -186,7 +220,7 @@ public with sharing class QuickBillController {
 
     // Matches however the number was saved: as typed, digits only, the
     // last 10 digits, or with +91 in front.
-    private static Customer__c findByPhone(String phone) {
+    public static Customer__c findByPhone(String phone) {
         if (String.isBlank(phone)) {
             return null;
         }

@@ -67,6 +67,10 @@ function boardWithOneJob() {
 
 describe('c-job-board', () => {
     beforeEach(() => {
+        searchVehicles.mockResolvedValue([]);
+    });
+
+    beforeEach(() => {
         getActiveMechanics.mockResolvedValue([]);
         getActiveSurveyors.mockResolvedValue([]);
     });
@@ -275,5 +279,105 @@ describe('c-job-board', () => {
 
         expect(createCustomer).toHaveBeenCalledTimes(1);
         expect(element.shadowRoot.querySelector('[data-id="job-customer-search"]')).toBeNull();
+    });
+
+    describe('filling in the vehicle for an existing customer', () => {
+        const CITY = { id: 'veh1', registrationNumber: 'MP09AA1111', make: 'Honda', model: 'City' };
+        const SWIFT = { id: 'veh2', registrationNumber: 'MP09BB2222', make: 'Maruti', model: 'Swift' };
+
+        async function openFormAndPickCustomer() {
+            getBoardData.mockResolvedValue({ stages: STAGES, jobs: [] });
+            searchCustomers.mockResolvedValue([{ id: 'cust1', name: 'Ramesh Kumar', phone: '9000011111' }]);
+            createJob.mockResolvedValue({ id: 'job1' });
+
+            const element = createElement('c-job-board', { is: JobBoard });
+            document.body.appendChild(element);
+            await flushPromises();
+            element.shadowRoot.querySelector('[data-id="toggle-create-form"]').click();
+            await flushPromises();
+
+            const customerSearch = element.shadowRoot.querySelector('[data-id="job-customer-search"]');
+            customerSearch.value = 'Ramesh';
+            customerSearch.dispatchEvent(new CustomEvent('change'));
+            await flushPromises();
+            element.shadowRoot.querySelector('button[data-id="cust1"]').click();
+            return element;
+        }
+
+        it('picking a customer fills in their first vehicle, ready to submit', async () => {
+            searchVehicles.mockResolvedValue([CITY, SWIFT]);
+            const element = await openFormAndPickCustomer();
+            await flushPromises();
+
+            expect(searchVehicles).toHaveBeenCalledWith({ customerId: 'cust1', searchTerm: '' });
+            expect(element.shadowRoot.textContent).toContain('MP09AA1111');
+            expect(element.shadowRoot.querySelector('[data-id="job-vehicle-search"]')).toBeNull();
+            expect(element.shadowRoot.querySelector('[data-id="submit-job"]').disabled).toBe(false);
+
+            element.shadowRoot.querySelector('[data-id="submit-job"]').click();
+            await flushPromises();
+            expect(createJob.mock.calls[0][0].request.vehicleId).toBe('veh1');
+        });
+
+        it('a customer with no vehicles is left to search or add one', async () => {
+            searchVehicles.mockResolvedValue([]);
+            const element = await openFormAndPickCustomer();
+            await flushPromises();
+
+            expect(element.shadowRoot.querySelector('[data-id="job-vehicle-search"]')).not.toBeNull();
+            expect(element.shadowRoot.querySelector('[data-id="submit-job"]').disabled).toBe(true);
+        });
+
+        it('Change lists the other vehicles of the customer, and one can be picked', async () => {
+            searchVehicles.mockResolvedValue([CITY, SWIFT]);
+            const element = await openFormAndPickCustomer();
+            await flushPromises();
+
+            element.shadowRoot.querySelector('[data-id="change-vehicle"]').click();
+            await flushPromises();
+            expect(element.shadowRoot.querySelector('button[data-id="veh1"]')).not.toBeNull();
+
+            element.shadowRoot.querySelector('button[data-id="veh2"]').click();
+            await flushPromises();
+            element.shadowRoot.querySelector('[data-id="submit-job"]').click();
+            await flushPromises();
+
+            expect(createJob.mock.calls[0][0].request.vehicleId).toBe('veh2');
+        });
+
+        it('does not overwrite This is a new vehicle if it was turned on while loading', async () => {
+            let finishLoading;
+            searchVehicles.mockReturnValue(new Promise((resolve) => {
+                finishLoading = resolve;
+            }));
+            const element = await openFormAndPickCustomer();
+            await flushPromises();
+
+            const toggle = element.shadowRoot.querySelector('[data-id="new-vehicle-toggle"]');
+            toggle.checked = true;
+            toggle.dispatchEvent(new CustomEvent('change'));
+            await flushPromises();
+            finishLoading([CITY]);
+            await flushPromises();
+
+            expect(element.shadowRoot.textContent).not.toContain('MP09AA1111');
+            expect(element.shadowRoot.querySelector('[data-field="registrationNumber"]')).not.toBeNull();
+        });
+
+        it('ignores a late answer for a customer that was since changed', async () => {
+            let finishLoading;
+            searchVehicles.mockReturnValue(new Promise((resolve) => {
+                finishLoading = resolve;
+            }));
+            const element = await openFormAndPickCustomer();
+            await flushPromises();
+
+            element.shadowRoot.querySelector('[data-id="change-customer"]').click();
+            await flushPromises();
+            finishLoading([CITY]);
+            await flushPromises();
+
+            expect(element.shadowRoot.textContent).not.toContain('MP09AA1111');
+        });
     });
 });

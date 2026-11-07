@@ -1,0 +1,22 @@
+<template>
+    <div class="paper-field">
+        <template lwc:if={multiline}>
+            <textarea class={boxClass} rows="2" aria-label={label} placeholder={placeholder} oninput={handleInput} onkeydown={handleKeydown} onblur={handleBlur}></textarea>
+        </template>
+        <template lwc:else>
+            <input type={type} class={boxClass} aria-label={label} placeholder={placeholder} autocomplete="off" value={value} oninput={handleInput} onkeydown={handleKeydown} onfocus={handleFocus} onblur={handleBlur} />
+        </template>
+        <template lwc:if={hasOptions}>
+            <ul class="options" role="listbox" aria-label={label} data-id="options">
+                <template for:each={decoratedOptions} for:item="option">
+                    <li key={option.value} role="presentation">
+                        <button type="button" tabindex="-1" role="option" aria-selected={option.ariaSelected} class={option.optionClass} data-id="option" data-value={option.value} onmousedown={handleOptionMouseDown}>
+                            <span>{option.label}</span>
+                            <span class="option-sub">{option.sub}</span>
+                        </button>
+                    </li>
+                </template>
+            </ul>
+        </template>
+    </div>
+</template>

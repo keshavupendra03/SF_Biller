@@ -30,6 +30,8 @@ public with sharing class CustomerController {
     public class DocumentItem {
         @AuraEnabled public Id id { get; set; }
         @AuraEnabled public String documentNumber { get; set; }
+        // Only set when the workshop has two companies.
+        @AuraEnabled public String companyName { get; set; }
         @AuraEnabled public String status { get; set; }
         @AuraEnabled public Decimal totalAmount { get; set; }
         @AuraEnabled public Date documentDate { get; set; }
@@ -190,9 +192,11 @@ public with sharing class CustomerController {
             detail.jobSlips.add(item);
         }
 
+        Map<Id, String> companyNames = WorkshopProfileService.companyNames();
+
         detail.bills = new List<DocumentItem>();
         for (Bill__c b : [
-            SELECT Invoice_Number__c, Status__c, Total_Amount__c, Bill_Date__c
+            SELECT Invoice_Number__c, Status__c, Total_Amount__c, Bill_Date__c, Workshop_Profile__c
             FROM Bill__c
             WHERE Customer__c = :customerId AND Is_Latest_Version__c = true
             ORDER BY CreatedDate DESC
@@ -200,6 +204,7 @@ public with sharing class CustomerController {
             DocumentItem item = new DocumentItem();
             item.id = b.Id;
             item.documentNumber = b.Invoice_Number__c;
+            item.companyName = companyNames.get(b.Workshop_Profile__c);
             item.status = b.Status__c;
             item.totalAmount = b.Total_Amount__c;
             item.documentDate = b.Bill_Date__c;
@@ -208,7 +213,7 @@ public with sharing class CustomerController {
 
         detail.estimates = new List<DocumentItem>();
         for (Estimate__c e : [
-            SELECT Name, Status__c, Total_Amount__c, Estimate_Date__c
+            SELECT Name, Status__c, Total_Amount__c, Estimate_Date__c, Workshop_Profile__c
             FROM Estimate__c
             WHERE Customer__c = :customerId AND Is_Latest_Version__c = true
             ORDER BY CreatedDate DESC
@@ -216,6 +221,7 @@ public with sharing class CustomerController {
             DocumentItem item = new DocumentItem();
             item.id = e.Id;
             item.documentNumber = e.Name;
+            item.companyName = companyNames.get(e.Workshop_Profile__c);
             item.status = e.Status__c;
             item.totalAmount = e.Total_Amount__c;
             item.documentDate = e.Estimate_Date__c;

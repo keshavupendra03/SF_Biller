@@ -21,6 +21,8 @@
             </div>
         </div>
 
+        <c-company-picker allow-all value={companyFilter} oncompanychange={handleCompanyFilter}></c-company-picker>
+
         <lightning-input
             data-id="search"
             type="search"
@@ -45,6 +47,9 @@
                     <span class="bill-row-body">
                         <span class="slds-text-heading_small">{bill.invoiceNumber}</span>
                         <span class="slds-text-body_small slds-text-color_weak">{bill.customerName}</span>
+                        <template if:true={bill.companyName}>
+                            <span class="slds-text-body_small slds-text-color_weak" data-id="bill-company">{bill.companyName}</span>
+                        </template>
                     </span>
                     <span class="bill-row-amount">
                         <span class="slds-text-heading_small">₹{bill.totalAmount}</span>

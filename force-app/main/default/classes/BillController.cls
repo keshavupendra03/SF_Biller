@@ -41,6 +41,9 @@ public with sharing class BillController {
     }
 
     public class CreateBillRequest {
+        // The company this bill is for. Blank means the source estimate's
+        // company if there is one, else the primary company.
+        @AuraEnabled public Id workshopProfileId { get; set; }
         @AuraEnabled public Id customerId { get; set; }
         @AuraEnabled public Id jobId { get; set; }
         @AuraEnabled public Id billToPartyId { get; set; }
@@ -94,6 +97,7 @@ public with sharing class BillController {
         @AuraEnabled public Id id { get; set; }
         @AuraEnabled public String invoiceNumber { get; set; }
         @AuraEnabled public String customerName { get; set; }
+        @AuraEnabled public String companyName { get; set; }
         @AuraEnabled public Decimal totalAmount { get; set; }
         @AuraEnabled public String status { get; set; }
         @AuraEnabled public Date billDate { get; set; }
@@ -109,6 +113,9 @@ public with sharing class BillController {
         @AuraEnabled public Boolean isLatestVersion { get; set; }
         @AuraEnabled public Id sourceEstimateId { get; set; }
         @AuraEnabled public Id jobId { get; set; }
+        @AuraEnabled public Id workshopProfileId { get; set; }
+        // Only set when the workshop has two companies.
+        @AuraEnabled public String companyName { get; set; }
         @AuraEnabled public Id customerId { get; set; }
         @AuraEnabled public String customerName { get; set; }
         @AuraEnabled public Id billToPartyId { get; set; }
@@ -213,6 +220,7 @@ public with sharing class BillController {
         Id vehicleId = resolveVehicleId(request.customerId, request.vehicleId, request.newVehicle);
 
         Bill__c bill = new Bill__c(
+            Workshop_Profile__c = companyFor(request),
             Customer__c = request.customerId,
             Job__c = request.jobId,
             Bill_To_Party__c = billToPartyId,
@@ -246,7 +254,7 @@ public with sharing class BillController {
         PartUpsertService.fillManualPartIds(request.lineItems);
 
         Bill__c previous = [
-            SELECT Version_Number__c, Root_Bill__c, Source_Estimate__c, Job__c, Vehicle__c
+            SELECT Version_Number__c, Root_Bill__c, Source_Estimate__c, Job__c, Vehicle__c, Workshop_Profile__c
             FROM Bill__c
             WHERE Id = :previousBillId
         ];
@@ -262,7 +270,10 @@ public with sharing class BillController {
             ? resolveVehicleId(request.customerId, request.vehicleId, request.newVehicle)
             : previous.Vehicle__c;
 
+        // A later version stays with its company and invoice series, whatever
+        // the request says.
         Bill__c newVersion = new Bill__c(
+            Workshop_Profile__c = previous.Workshop_Profile__c,
             Customer__c = request.customerId,
             Job__c = request.jobId != null ? request.jobId : previous.Job__c,
             Bill_To_Party__c = billToPartyId,
@@ -333,47 +344,26 @@ public with sharing class BillController {
      * across invoice number, customer name, and customer phone.
      */
     @AuraEnabled
-    public static List<BillListItem> listBills(String filter, String searchTerm) {
+    public static List<BillListItem> listBills(String filter, String searchTerm, Id workshopProfileId) {
         Boolean duesOnly = 'DuesOnly'.equals(filter);
         String term = '%' + String.escapeSingleQuotes(String.isBlank(searchTerm) ? '' : searchTerm) + '%';
         Boolean hasSearch = String.isNotBlank(searchTerm);
 
-        List<Bill__c> bills;
-        if (duesOnly && hasSearch) {
-            bills = [
-                SELECT Invoice_Number__c, Customer__r.Name, Total_Amount__c, Status__c, Bill_Date__c
-                FROM Bill__c
-                WHERE Is_Latest_Version__c = true AND Status__c != 'Paid'
-                      AND (Invoice_Number__c LIKE :term OR Customer__r.Name LIKE :term OR Customer__r.Phone__c LIKE :term)
-                ORDER BY CreatedDate DESC
-                LIMIT 200
-            ];
-        } else if (duesOnly) {
-            bills = [
-                SELECT Invoice_Number__c, Customer__r.Name, Total_Amount__c, Status__c, Bill_Date__c
-                FROM Bill__c
-                WHERE Is_Latest_Version__c = true AND Status__c != 'Paid'
-                ORDER BY CreatedDate DESC
-                LIMIT 200
-            ];
-        } else if (hasSearch) {
-            bills = [
-                SELECT Invoice_Number__c, Customer__r.Name, Total_Amount__c, Status__c, Bill_Date__c
-                FROM Bill__c
-                WHERE Is_Latest_Version__c = true
-                      AND (Invoice_Number__c LIKE :term OR Customer__r.Name LIKE :term OR Customer__r.Phone__c LIKE :term)
-                ORDER BY CreatedDate DESC
-                LIMIT 200
-            ];
-        } else {
-            bills = [
-                SELECT Invoice_Number__c, Customer__r.Name, Total_Amount__c, Status__c, Bill_Date__c
-                FROM Bill__c
-                WHERE Is_Latest_Version__c = true
-                ORDER BY CreatedDate DESC
-                LIMIT 200
-            ];
+        String soql = 'SELECT Invoice_Number__c, Customer__r.Name, Total_Amount__c, Status__c, Bill_Date__c, Workshop_Profile__c'
+            + ' FROM Bill__c WHERE Is_Latest_Version__c = true';
+        if (duesOnly) {
+            soql += ' AND Status__c != \'Paid\'';
         }
+        if (hasSearch) {
+            soql += ' AND (Invoice_Number__c LIKE :term OR Customer__r.Name LIKE :term OR Customer__r.Phone__c LIKE :term)';
+        }
+        if (workshopProfileId != null) {
+            // A bill with no company recorded belongs to the primary company.
+            Id orNoCompany = workshopProfileId == WorkshopProfileService.primaryId() ? null : workshopProfileId;
+            soql += ' AND (Workshop_Profile__c = :workshopProfileId OR Workshop_Profile__c = :orNoCompany)';
+        }
+        List<Bill__c> bills = Database.query(soql + ' ORDER BY CreatedDate DESC LIMIT 200');
+        Map<Id, String> companyNames = WorkshopProfileService.companyNames();
 
         List<BillListItem> results = new List<BillListItem>();
         for (Bill__c b : bills) {
@@ -381,12 +371,20 @@ public with sharing class BillController {
             item.id = b.Id;
             item.invoiceNumber = b.Invoice_Number__c;
             item.customerName = b.Customer__r != null ? b.Customer__r.Name : null;
+            item.companyName = companyNames.get(b.Workshop_Profile__c);
             item.totalAmount = b.Total_Amount__c;
             item.status = b.Status__c;
             item.billDate = b.Bill_Date__c;
             results.add(item);
         }
         return results;
+    }
+
+    private static Id companyFor(CreateBillRequest request) {
+        if (request.workshopProfileId != null || request.sourceEstimateId == null) {
+            return request.workshopProfileId;
+        }
+        return [SELECT Workshop_Profile__c FROM Estimate__c WHERE Id = :request.sourceEstimateId].Workshop_Profile__c;
     }
 
     private static void validate(CreateBillRequest request) {
@@ -505,7 +503,7 @@ public with sharing class BillController {
                    Customer__c, Customer__r.Name, Bill_To_Party__c, Bill_To_Party__r.Name,
                    Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c,
                    Vehicle__r.Chassis_Number__c, Notes__c,
-                   Subtotal__c, GST_Amount__c, Total_Amount__c
+                   Subtotal__c, GST_Amount__c, Total_Amount__c, Workshop_Profile__c
             FROM Bill__c
             WHERE Id = :billId
         ];
@@ -547,6 +545,8 @@ public with sharing class BillController {
         summary.versionNumber = bill.Version_Number__c == null ? 1 : bill.Version_Number__c.intValue();
         summary.isLatestVersion = bill.Is_Latest_Version__c;
         summary.sourceEstimateId = bill.Source_Estimate__c;
+        summary.workshopProfileId = bill.Workshop_Profile__c;
+        summary.companyName = WorkshopProfileService.companyNames().get(bill.Workshop_Profile__c);
         summary.customerId = bill.Customer__c;
         summary.customerName = bill.Customer__r != null ? bill.Customer__r.Name : null;
         summary.billToPartyId = bill.Bill_To_Party__c;

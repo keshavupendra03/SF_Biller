@@ -45,6 +45,7 @@ export default class JobBoard extends NavigationMixin(LightningElement) {
     isSavingCustomer = false;
     vehicleSearchTerm = '';
     selectedVehicle;
+    customerVehicles = [];
     showNewVehicleFields = false;
     newVehicle = { ...EMPTY_NEW_VEHICLE };
     selectedSurveyorId = '';
@@ -176,11 +177,32 @@ export default class JobBoard extends NavigationMixin(LightningElement) {
         this.customerSearchTerm = '';
         this.selectedVehicle = undefined;
         this.vehicleResults = [];
+        this.fillFirstVehicle(id);
+    }
+
+    // An existing customer usually brings the same car back, so it starts
+    // filled in. The first is the same one this form's search lists first.
+    fillFirstVehicle(customerId) {
+        this.customerVehicles = [];
+        searchVehicles({ customerId, searchTerm: '' })
+            .then((vehicles) => {
+                // Staff may have moved on while this was loading.
+                if (!this.selectedCustomer || this.selectedCustomer.id !== customerId) {
+                    return;
+                }
+                this.customerVehicles = vehicles;
+                if (vehicles.length > 0 && !this.selectedVehicle && !this.showNewVehicleFields) {
+                    this.selectedVehicle = vehicles[0];
+                }
+            })
+            .catch((error) => this.showError(error));
     }
 
     handleClearCustomer() {
         this.selectedCustomer = undefined;
         this.selectedVehicle = undefined;
+        this.customerVehicles = [];
+        this.vehicleResults = [];
     }
 
     handleToggleNewCustomer(event) {
@@ -240,8 +262,11 @@ export default class JobBoard extends NavigationMixin(LightningElement) {
         this.vehicleSearchTerm = '';
     }
 
+    // Lists the customer's vehicles, since they didn't get to choose the one
+    // that was filled in.
     handleClearVehicle() {
         this.selectedVehicle = undefined;
+        this.vehicleResults = this.customerVehicles;
     }
 
     handleToggleNewVehicle(event) {
@@ -321,6 +346,7 @@ export default class JobBoard extends NavigationMixin(LightningElement) {
         this.vehicleSearchTerm = '';
         this.selectedVehicle = undefined;
         this.vehicleResults = [];
+        this.customerVehicles = [];
         this.showNewVehicleFields = false;
         this.newVehicle = { ...EMPTY_NEW_VEHICLE };
         this.selectedSurveyorId = '';

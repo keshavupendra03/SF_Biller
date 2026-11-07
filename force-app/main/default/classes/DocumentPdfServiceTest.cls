@@ -29,7 +29,7 @@ private class DocumentPdfServiceTest {
         BillController.BillSummary bill = BillController.createBill(request);
 
         Test.startTest();
-        DocumentPdfService.PdfDownload download = DocumentPdfService.getPdfDownload(bill.billId);
+        DocumentPdfService.PdfDownload download = DocumentPdfService.getPdfDownload(bill.billId, null);
         Test.stopTest();
 
         System.assertEquals(bill.invoiceNumber.replace('/', '-') + '.pdf', download.fileName);
@@ -44,7 +44,7 @@ private class DocumentPdfServiceTest {
         EstimateController.EstimateSummary estimate = EstimateController.createEstimate(request);
 
         Test.startTest();
-        DocumentPdfService.PdfDownload download = DocumentPdfService.getPdfDownload(estimate.estimateId);
+        DocumentPdfService.PdfDownload download = DocumentPdfService.getPdfDownload(estimate.estimateId, null);
         Test.stopTest();
 
         System.assertEquals(estimate.estimateNumber + '.pdf', download.fileName);
@@ -62,7 +62,7 @@ private class DocumentPdfServiceTest {
         BillController.BillSummary bill = createBill();
 
         Test.startTest();
-        DocumentPdfService.PublicLink link = DocumentPdfService.getPublicLink(bill.billId);
+        DocumentPdfService.PublicLink link = DocumentPdfService.getPublicLink(bill.billId, null);
         Test.stopTest();
 
         System.assertNotEquals(null, link.downloadUrl);
@@ -76,8 +76,8 @@ private class DocumentPdfServiceTest {
         BillController.BillSummary bill = createBill();
 
         Test.startTest();
-        DocumentPdfService.PublicLink first = DocumentPdfService.getPublicLink(bill.billId);
-        DocumentPdfService.PublicLink second = DocumentPdfService.getPublicLink(bill.billId);
+        DocumentPdfService.PublicLink first = DocumentPdfService.getPublicLink(bill.billId, null);
+        DocumentPdfService.PublicLink second = DocumentPdfService.getPublicLink(bill.billId, null);
         Test.stopTest();
 
         // downloadUrl points at a specific ContentVersion, so it's expected
@@ -96,7 +96,7 @@ private class DocumentPdfServiceTest {
         Integer before = [SELECT COUNT() FROM CronTrigger];
 
         Test.startTest();
-        DocumentPdfService.getPublicLink(bill.billId);
+        DocumentPdfService.getPublicLink(bill.billId, null);
         Test.stopTest();
 
         System.assertEquals(before, [SELECT COUNT() FROM CronTrigger], 'Test.isRunningTest() must skip System.scheduleBatch, or every test run would leave a CronTrigger behind.');
@@ -110,7 +110,7 @@ private class DocumentPdfServiceTest {
         String slipNumber = [SELECT Name FROM Job_Slip__c WHERE Id = :slip.Id].Name;
 
         Test.startTest();
-        DocumentPdfService.PdfDownload download = DocumentPdfService.getPdfDownload(slip.Id);
+        DocumentPdfService.PdfDownload download = DocumentPdfService.getPdfDownload(slip.Id, null);
         Test.stopTest();
 
         System.assertEquals('Job Slip ' + slipNumber + '.pdf', download.fileName);
@@ -123,8 +123,8 @@ private class DocumentPdfServiceTest {
         insert vehicle;
 
         Test.startTest();
-        DocumentPdfService.PdfDownload forVehicle = DocumentPdfService.getPdfDownload(vehicle.Id);
-        DocumentPdfService.PdfDownload forCustomer = DocumentPdfService.getPdfDownload(customerId);
+        DocumentPdfService.PdfDownload forVehicle = DocumentPdfService.getPdfDownload(vehicle.Id, null);
+        DocumentPdfService.PdfDownload forCustomer = DocumentPdfService.getPdfDownload(customerId, null);
         Test.stopTest();
 
         System.assertEquals('Blank Job Slip MP09AB1234.pdf', forVehicle.fileName);
@@ -136,8 +136,8 @@ private class DocumentPdfServiceTest {
         Id profileId = [SELECT Id FROM Workshop_Profile__c LIMIT 1].Id;
 
         Test.startTest();
-        DocumentPdfService.PdfDownload download = DocumentPdfService.getPdfDownload(profileId);
-        DocumentPdfService.PublicLink link = DocumentPdfService.getPublicLink(profileId);
+        DocumentPdfService.PdfDownload download = DocumentPdfService.getPdfDownload(profileId, null);
+        DocumentPdfService.PublicLink link = DocumentPdfService.getPublicLink(profileId, null);
         Test.stopTest();
 
         System.assertEquals('Blank Job Slip.pdf', download.fileName);
@@ -151,7 +151,7 @@ private class DocumentPdfServiceTest {
         insert slip;
 
         Test.startTest();
-        DocumentPdfService.PublicLink link = DocumentPdfService.getPublicLink(slip.Id);
+        DocumentPdfService.PublicLink link = DocumentPdfService.getPublicLink(slip.Id, null);
         Test.stopTest();
 
         System.assertNotEquals(null, link.downloadUrl);
@@ -164,7 +164,7 @@ private class DocumentPdfServiceTest {
         insert part;
         Boolean threw = false;
         try {
-            DocumentPdfService.getPdfDownload(part.Id);
+            DocumentPdfService.getPdfDownload(part.Id, null);
         } catch (DocumentPdfService.DocumentPdfServiceException e) {
             threw = true;
         }

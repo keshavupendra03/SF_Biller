@@ -2,8 +2,8 @@
     <div class="page-container">
         <div class="slds-p-around_medium slds-p-bottom_none">
             <div class="slds-m-bottom_medium">
-                <h1 class="slds-text-heading_medium">Quick Bill</h1>
-                <p class="slds-text-body_small slds-text-color_weak">Bill a parts sale or any customer in one step.</p>
+                <h1 class="slds-text-heading_medium">{labels.title}</h1>
+                <p class="slds-text-body_small slds-text-color_weak">{labels.subtitle}</p>
             </div>
         </div>
 
@@ -11,16 +11,16 @@
         <template lwc:if={isCreated}>
             <div class="slds-p-horizontal_medium">
                 <div class="success-card slds-text-align_center">
-                    <lightning-icon icon-name="action:approval" size="large" alternative-text="Bill created"></lightning-icon>
-                    <p class="slds-text-heading_small slds-m-top_small">Bill created</p>
-                    <p class="slds-text-heading_large slds-m-top_xx-small" data-id="created-number">{createdBill.invoiceNumber}</p>
-                    <p class="slds-text-body_regular slds-text-color_weak slds-m-top_xx-small">{createdBill.customerName}</p>
-                    <p class="success-total slds-m-top_small">₹{createdBill.formattedTotal}</p>
+                    <lightning-icon icon-name="action:approval" size="large" alternative-text={labels.created}></lightning-icon>
+                    <p class="slds-text-heading_small slds-m-top_small">{labels.created}</p>
+                    <p class="slds-text-heading_large slds-m-top_xx-small" data-id="created-number">{created.number}</p>
+                    <p class="slds-text-body_regular slds-text-color_weak slds-m-top_xx-small">{created.customerName}</p>
+                    <p class="success-total slds-m-top_small">₹{created.formattedTotal}</p>
 
                     <div class="success-actions slds-m-top_large">
                         <lightning-button data-id="print" variant="brand" label="Print / Download PDF" icon-name="utility:print" onclick={handlePrint} stretch></lightning-button>
-                        <lightning-button data-id="view-bill" label="View Bill" icon-name="utility:preview" onclick={handleViewBill} stretch></lightning-button>
-                        <lightning-button data-id="new-bill" label="New Quick Bill" icon-name="utility:add" onclick={handleNewBill} stretch></lightning-button>
+                        <lightning-button data-id="view-document" label={labels.view} icon-name="utility:preview" onclick={handleViewDocument} stretch></lightning-button>
+                        <lightning-button data-id="new-document" label={labels.startNew} icon-name="utility:add" onclick={handleNewDocument} stretch></lightning-button>
                     </div>
                 </div>
             </div>
@@ -29,13 +29,15 @@
         <!-- ================= Form ================= -->
         <template lwc:if={isEditing}>
             <div class="slds-p-horizontal_medium">
-                <!-- Bill to -->
-                <lightning-card title="Bill To" icon-name="standard:person_account" class="section">
+                <c-company-picker value={workshopProfileId} oncompanychange={handleCompanyChange}></c-company-picker>
+
+                <!-- Bill to / estimate for -->
+                <lightning-card title={labels.partyTitle} icon-name="standard:person_account" class="section">
                     <div class="slds-p-horizontal_medium">
                         <lightning-radio-group
                             data-id="mode"
                             type="button"
-                            label="Who is this bill for?"
+                            label="Who is this for?"
                             variant="label-hidden"
                             options={modeOptions}
                             value={mode}
@@ -46,7 +48,7 @@
                         <template lwc:if={isWalkIn}>
                             <div class="walkin-note slds-m-top_small">
                                 <lightning-icon icon-name="utility:info" size="x-small" class="slds-m-right_x-small"></lightning-icon>
-                                <span>No customer details needed. The bill is issued to "Walk-in Customer".</span>
+                                <span>No customer details needed. The {labels.noun} is issued to "Walk-in Customer".</span>
                             </div>
                         </template>
 
@@ -81,7 +83,7 @@
                             <template lwc:if={hasMatch}>
                                 <div class="match-banner slds-m-top_x-small" data-id="match-banner">
                                     <lightning-icon icon-name="utility:success" size="x-small" variant="success" class="slds-m-right_x-small"></lightning-icon>
-                                    <span>Existing customer. This bill is added to <strong>{match.name}</strong>'s history.</span>
+                                    <span>Existing customer. This {labels.noun} is added to <strong>{match.name}</strong>'s history.</span>
                                 </div>
                             </template>
 
@@ -146,86 +148,10 @@
                         onchange={handleToggleGst}
                     ></lightning-input>
                     <div class="slds-p-horizontal_medium">
-                        <template lwc:if={canScan}>
-                            <lightning-button data-id="scan" label="Scan barcode" icon-name="utility:scan" onclick={handleScan} class="slds-m-bottom_x-small"></lightning-button>
-                        </template>
-
-                        <!-- Plain slds-input boxes: focus()/select() are needed to move
-                             between cells, which lightning-input doesn't fully expose.
-                             Row buttons are tabindex="-1" so Tab goes item, qty, price,
-                             GST, next item. -->
-                        <div class="item-grid" onkeydown={handleGridKeydown}>
-                            <div class="item-line item-header" aria-hidden="true">
-                                <span>Item</span>
-                                <span class="cell-number">Qty</span>
-                                <span class="cell-number">Price (₹)</span>
-                                <span class="cell-number">GST %</span>
-                                <span class="cell-amount">Amount</span>
-                                <span></span>
-                            </div>
-                            <template for:each={decoratedItems} for:item="item">
-                                <div key={item.key} class="item-row" data-id="item-row">
-                                    <div class="item-line">
-                                        <input
-                                            type="text"
-                                            class="slds-input item-input"
-                                            data-key={item.key}
-                                            data-field="description"
-                                            aria-label={item.nameLabel}
-                                            placeholder="Item name"
-                                            autocomplete="off"
-                                            value={item.description}
-                                            oninput={handleNameInput}
-                                            onkeydown={handleNameKeydown}
-                                            onblur={handleNameBlur}
-                                        />
-                                        <input type="number" class="slds-input item-input cell-number" data-key={item.key} data-field="quantity" aria-label={item.quantityLabel} min="0" step="any" value={item.quantity} oninput={handleCellInput} />
-                                        <input type="number" class="slds-input item-input cell-number" data-key={item.key} data-field="unitPrice" aria-label={item.priceLabel} min="0" step="any" value={item.unitPrice} oninput={handleCellInput} />
-                                        <input type="number" class="slds-input item-input cell-number" data-key={item.key} data-field="taxRatePercent" aria-label={item.gstLabel} min="0" max="100" step="any" value={item.taxRatePercent} disabled={gstDisabled} oninput={handleCellInput} />
-                                        <span class="cell-amount" data-id="line-amount">{item.formattedAmount}</span>
-                                        <span class="item-actions">
-                                            <template lwc:if={item.isFilled}>
-                                                <button type="button" tabindex="-1" class="slds-button slds-button_icon" data-id="edit-item" data-key={item.key} title="HSN, unit and IGST" onclick={handleEditItem}>
-                                                    <lightning-icon icon-name="utility:edit" size="xx-small" alternative-text="HSN, unit and IGST"></lightning-icon>
-                                                </button>
-                                                <button type="button" tabindex="-1" class="slds-button slds-button_icon" data-id="remove-item" data-key={item.key} title="Remove item" onclick={handleRemoveItem}>
-                                                    <lightning-icon icon-name="utility:delete" size="xx-small" alternative-text="Remove item"></lightning-icon>
-                                                </button>
-                                            </template>
-                                        </span>
-                                    </div>
-                                    <template lwc:if={item.stockNote}>
-                                        <p class="slds-text-body_small slds-text-color_error" data-id="stock-note">{item.stockNote}</p>
-                                    </template>
-                                    <template lwc:if={item.showSuggestions}>
-                                        <ul class="suggestions" role="listbox" aria-label="Matching parts" data-id="suggestions">
-                                            <template for:each={item.suggestions} for:item="part">
-                                                <li key={part.id} role="presentation">
-                                                    <button
-                                                        type="button"
-                                                        tabindex="-1"
-                                                        role="option"
-                                                        aria-selected={part.ariaSelected}
-                                                        class={part.optionClass}
-                                                        data-id="suggestion"
-                                                        data-key={item.key}
-                                                        data-part-id={part.id}
-                                                        onmousedown={handleSuggestionMouseDown}
-                                                    >
-                                                        <span class="suggestion-name">{part.name}</span>
-                                                        <span class="suggestion-side">
-                                                            <span>₹{part.formattedPrice}</span>
-                                                            <template lwc:if={part.stockLabel}><span class={part.stockClass}>{part.stockLabel}</span></template>
-                                                        </span>
-                                                    </button>
-                                                </li>
-                                            </template>
-                                        </ul>
-                                    </template>
-                                </div>
-                            </template>
+                        <div onkeydown={handleGridKeydown}>
+                            <c-line-item-grid include-gst={includeGst} warn-stock={takesStock} onlineschange={handleLinesChange} onfinish={handleGridFinish}></c-line-item-grid>
                         </div>
-                        <p class="keyboard-hint slds-text-body_small slds-text-color_weak">Tab moves along the line. As you type a name, ↑ ↓ and Enter pick a part. Ctrl+Enter creates the bill.</p>
+                        <p class="keyboard-hint slds-text-body_small slds-text-color_weak">Tab or Enter moves along the line. As you type a name, ↑ ↓ and Enter pick a part. Ctrl+Enter creates the {labels.noun}.</p>
                     </div>
                 </lightning-card>
 
@@ -254,8 +180,8 @@
                 </button>
                 <template lwc:if={showMoreOptions}>
                     <div class="slds-m-bottom_medium">
-                        <lightning-input data-id="bill-date" type="date" label="Bill Date" value={billDate} onchange={handleBillDateChange}></lightning-input>
-                        <lightning-textarea data-id="notes" label="Notes (printed on the bill)" value={notes} onchange={handleNotesChange}></lightning-textarea>
+                        <lightning-input data-id="document-date" type="date" label={labels.date} value={documentDate} onchange={handleDocumentDateChange}></lightning-input>
+                        <lightning-textarea data-id="notes" label="Notes (printed on the PDF)" value={notes} onchange={handleNotesChange}></lightning-textarea>
                     </div>
                 </template>
             </div>
@@ -275,12 +201,8 @@
             </div>
         </template>
 
-        <template lwc:if={editingItem}>
-            <c-line-item-editor record={editingItem} onsave={handleItemEditorSave} oncancel={handleItemEditorCancel}></c-line-item-editor>
-        </template>
-
         <template lwc:if={showPreview}>
-            <c-document-preview record-id={createdBill.billId} heading={createdBill.invoiceNumber} onclose={handleClosePreview}></c-document-preview>
+            <c-document-preview record-id={created.recordId} heading={created.number} onclose={handleClosePreview}></c-document-preview>
         </template>
     </div>
 </template>

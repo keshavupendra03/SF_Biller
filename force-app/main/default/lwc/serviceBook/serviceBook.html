@@ -1,0 +1,87 @@
+<template>
+    <div class="sb-screen">
+        <!-- The date at the top of the page -->
+        <header class="sb-header">
+            <div class="sb-date-row">
+                <lightning-button-icon data-id="previous-day" icon-name="utility:chevronleft" alternative-text="Previous day" onclick={handlePreviousDay}></lightning-button-icon>
+                <div class="sb-date-text">
+                    <h1 class="sb-date" data-id="date-heading">{dateHeading}</h1>
+                    <template lwc:if={isToday}><span class="sb-today" data-id="today-tag">Today</span></template>
+                </div>
+                <lightning-button-icon data-id="next-day" icon-name="utility:chevronright" alternative-text="Next day" disabled={isToday} onclick={handleNextDay}></lightning-button-icon>
+            </div>
+            <div class="sb-date-tools">
+                <lightning-input data-id="date-picker" type="date" label="Change date" variant="label-hidden" max={today} value={selectedDate} onchange={handleDateChange} class="sb-date-picker"></lightning-input>
+                <template lwc:if={isNotToday}>
+                    <lightning-button data-id="go-today" label="Go to today" onclick={handleToday}></lightning-button>
+                </template>
+            </div>
+        </header>
+
+        <!-- Search -->
+        <div class="sb-search-row" onkeydown={handleSearchKeydown}>
+            <lightning-input
+                data-id="search"
+                type="search"
+                label="Search"
+                variant="label-hidden"
+                placeholder="Search car number, model, customer name or mobile"
+                value={searchTerm}
+                onchange={handleSearchChange}
+                class="sb-search"
+            ></lightning-input>
+            <lightning-button data-id="new-car" label="New Car" icon-name="utility:add" variant="brand" onclick={handleNewCar}></lightning-button>
+        </div>
+        <p class="sb-hint">Enter opens a car. ↑ ↓ moves in the list. In Work Done, Enter starts a new line. Esc comes back here.</p>
+
+        <!-- Search results -->
+        <template lwc:if={isSearching}>
+            <div class="sb-results" data-id="results">
+                <template for:each={decoratedResults} for:item="result">
+                    <button type="button" key={result.key} class={result.rowClass} data-id="result" data-index={result.index} onclick={handleResultClick}>
+                        <span class="sb-result-head">
+                            <span>
+                                <span class="sb-result-number">{result.registrationNumber}</span>
+                                <span class="sb-result-model">{result.carModel}</span>
+                                <template lwc:if={result.hasNoCar}><span class="sb-result-model">No car on file yet</span></template>
+                            </span>
+                            <span class="sb-result-customer">
+                                <span class="sb-result-name">{result.customerName}</span>
+                                <span>{result.phone}</span>
+                            </span>
+                        </span>
+                        <template for:each={result.shownVisits} for:item="visit">
+                            <span key={visit.entryDate} class="sb-result-visit">
+                                <span class="sb-result-date">{visit.dateLabel}</span>
+                                <span class="sb-result-work">{visit.workDone}</span>
+                            </span>
+                        </template>
+                        <template lwc:if={result.moreVisitsLabel}><span class="sb-result-more">{result.moreVisitsLabel}</span></template>
+                        <template lwc:if={result.hasNoVisits}><span class="sb-result-more">No work written yet</span></template>
+                        <span class="sb-result-action">{writeButtonLabel}</span>
+                    </button>
+                </template>
+                <template lwc:if={showNoResults}>
+                    <div class="sb-empty" data-id="no-results">
+                        <p>Nothing found for "{searchTerm}".</p>
+                        <p>Press Enter or tap New Car to add it.</p>
+                    </div>
+                </template>
+            </div>
+        </template>
+
+        <!-- The page itself. Hidden, not removed, while searching, so a half
+             written card isn't lost. -->
+        <div class={dayClass} data-id="day">
+            <template lwc:if={showEmptyDay}>
+                <div class="sb-empty" data-id="empty-day">
+                    <p>No work written for this day yet.</p>
+                    <p>Search for a car above, or tap New Car.</p>
+                </div>
+            </template>
+            <template for:each={cards} for:item="card">
+                <c-service-card key={card.key} class="sb-card" data-key={card.key} card={card} entry-date={selectedDate} ondone={handleCardDone} onopendate={handleOpenDate} oncarknown={handleCarKnown}></c-service-card>
+            </template>
+        </div>
+    </div>
+</template>

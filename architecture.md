@@ -51,6 +51,12 @@ actual metadata, don't assume):
 autocomplete-suggestion table for the vehicle Make/Model fields. `Vehicle__c`
 itself has no lookup to it.
 
+`Workshop_Profile__c` holds up to two companies since 2026-11-04 (§F,
+Thirty-second): don't read it with a bare `LIMIT 1`; use
+`WorkshopProfileService.primaryId()` or the document's own company.
+
+`Service_Entry__c` was added 2026-11-04 (§F, Thirty-third): the Service Book.
+
 `Job_Slip__c` + `Job_Slip_Line__c` were added 2026-11-01 (§F, Twenty-sixth) —
 the workshop's paper vehicle-intake slip, stored and printable.
 `Vehicle__c.Engine_Number__c`/`Date_Of_Sale__c` and
@@ -2012,4 +2018,186 @@ grid, and GST became opt-in per bill.** User request.
   case-sensitive map over a case-insensitive SOQL `IN`, so a differently-cased
   name can create a duplicate part. The grid's case-insensitive exact-match
   link avoids this for parts it finds in time.
+
+**Thirtieth (2026-11-04): Quick Estimate, the same screen as Quick Bill.** User
+request. Not a copy: `c:quickBill` gained `@api documentType` ('bill' default,
+or 'estimate') with its wording in a `LABELS` map, and `c:quickEstimate` is a
+one-line wrapper that sets it, on a new `Quick_Estimate` tab right after
+Quick Bill (tab listed in the app and the permission set; no new class access
+needed). Any later change to the grid applies to both screens.
+
+- `QuickBillController.createQuickEstimate` shares `prepare()` with
+  `createQuickBill` (customer and vehicle resolution, part creation, GST
+  switch), then calls `EstimateController.createEstimate`. The request's
+  `billDate` was renamed `documentDate`.
+- The only behaviour difference: no "Only N in stock" note on estimates, since
+  they take no stock. Suggestions still show the stock figure.
+- A GST-off estimate prints like a GST-off bill: 0.0% in the GST column and
+  CGST/SGST rows of Rs. 0.00 (titled "Estimate").
+
+**Thirty-first (2026-11-04): Easy Bill, a screen that looks like the printed
+bill and is typed straight onto, for bills and estimates.** User request, for
+staff who find CRM forms hard. `c:paperBill` on a new `Easy_Bill` tab, with a
+Bill/Estimate switch at the top rather than a second tab; saves through
+`PaperBillController.saveDocument` into a normal `Bill__c`/`Estimate__c` via
+`BillController`/`EstimateController`, so numbering, stock and totals are
+unchanged.
+
+- **Everything printed is typeable except the invoice number**, which stays
+  atomic on save (hard rule); the page says "Given when you save". Amount in
+  words comes from `AmountInWordsService` so it can't differ from the PDF.
+- **`InvoicePdf.page` prints customer, vehicle and workshop live from their
+  records, with no per-document copy.** So typing a change on the page has to
+  update those records, which also changes how that customer's older bills
+  reprint. That was already true of editing a customer. Two guards: a note
+  appears when an existing customer is being renamed, and workshop details stay
+  locked behind "Change workshop details" with a warning, and out of the Tab
+  order until opened. Changing a mobile number or vehicle number detaches from
+  the picked record rather than editing it.
+- Blank customer means the shared Walk-in Customer. A name with no phone reuses
+  a customer with that name and the `0000000000` placeholder, so it prints the
+  typed name.
+- **No-GST documents now print without GST.** `InvoicePdfController.hasGst`
+  drops the Taxable Amt and GST columns and the Sub Total/SGST/CGST rows, and a
+  bill is titled "Bill" instead of "Tax Invoice". This applies to every no-GST
+  document, including older ones when reprinted. The Unit column also prints
+  only when a line has a unit. PDF headers renamed to match the screen: Product
+  Name, HSN, Price, Total. `c:paperBill` mirrors the title rule.
+- The item lines moved out of `c:quickBill` into a shared `c:lineItemGrid`
+  (`compact` for Quick Bill/Quick Estimate, `paper` for Easy Bill), which also
+  gained Enter to move on, up/down between lines, and Ctrl+Delete. Boxes on the
+  page are `c:paperField`: plain styled inputs, a deliberate exception to the
+  `lightning-*` preference (CLAUDE.md), because matching the print is the point.
+- Not built: opening a saved bill back on this page. Corrections go through
+  View Bill > Edit (the existing new-version flow).
+
+Issues found only by driving real key presses in headless Chrome against the
+org (puppeteer-core, `sf org open --url-only` for the session). Jest passed
+with all of these present:
+- **Synthetic shadow lets Salesforce's global CSS reach component elements.**
+  A class named `.footer` made its contents invisible. Screen classes are
+  prefixed `pb-`.
+- **Lightning takes focus back while its page settles**, so a single `focus()`
+  on first render is lost and the first keys typed go nowhere. It's retried a
+  few times, only while nothing in the component has focus.
+- **Chrome's `type="date"` takes four Tab presses** (day, month, year, calendar
+  button). The date is one text box in the printed dd-mm-yyyy format.
+- **Enter on a product name awaited the part lookup before moving focus**, so
+  fast typing landed in the wrong box ("Second Item8708"). Focus now moves at
+  once and the link happens on blur, keeping anything typed meanwhile.
+- For anyone repeating this: Lightning caches component code in the browser
+  profile, so a reused profile shows the old version after a deploy, and a
+  headless tab may not render until `page.bringToFront()`.
+
+**Thirty-second (2026-11-04): two companies.** User request: workshops often
+run car decoration as a separate business with its own name and GST number, so
+a bill or estimate must be made for a chosen company. Limited to two.
+
+- New fields: `Bill__c`, `Estimate__c` and `Job_Slip__c` each get
+  `Workshop_Profile__c` (lookup, labelled Company, Restrict delete, not
+  required) and `Workshop_Profile__c.Invoice_Prefix__c` (Text 3). No company on
+  a document means the primary company, the oldest row, which is what owned
+  everything before a second one existed. `post-install.apex` also records the
+  company on such old records (idempotent), so reports agree.
+- **Limit of two and prefix rules live in `WorkshopProfileTrigger`**, so no
+  screen, import or admin action gets around them. Screens get a readable
+  message because `WorkshopProfileController` rethrows `getDmlMessage`.
+- **Each company has its own invoice series.** The counter was already on the
+  profile row, so `InvoiceNumberingService` locks the bill's company's row. A
+  GSTIN keeps its own series, and the prefix (`DEC/2026-27/0001`) keeps numbers
+  distinct. It's limited to 3 characters because GST caps an invoice number at
+  16. The primary company stays on `INV`, continuing its series. Estimate and
+  job slip numbers are autonumbers shared across companies, as neither is a tax
+  document. `FOR UPDATE` can't be combined with `ORDER BY`, so the row is found
+  first and locked by Id.
+- `c:companyPicker` is on every create screen (New Bill, New Estimate, Quick
+  Bill, Quick Estimate, Easy Bill, Job Slip) and both blank job slip prints. It
+  renders nothing with one company, so single-company workshops see no change.
+  It starts on the company last chosen on that device (localStorage, a
+  convenience only). Company names on lists and detail screens are likewise set
+  only when two exist. Billing List filters by company.
+- A later version of a bill or estimate stays with its company and series,
+  whatever the request says; the picker is locked there. A bill made from an
+  estimate defaults to the estimate's company.
+- `InvoicePdf` and `JobSlipPdf` print the document's own company. A blank job
+  slip for a customer or vehicle passes `?workshop=`, which is why
+  `DocumentPdfService` methods and `documentPreview` gained `workshopProfileId`.
+- Revenue Summary gains a Company column; there's no per-company report split.
+  Jobs on the board have no company: it's chosen when the bill is made. There's
+  no screen to remove a second company, and bills on it block deletion anyway.
+
+Caught by tests before reaching the user: `{selectedProfile.gstin}` in the
+picker's template crashed when nothing was selected ("All"), which would have
+broken Billing List as soon as a second company existed. And looking up the
+primary company took the 100-call numbering test to 101 SOQL queries, so
+`primaryId()` caches for the transaction, and that test names its company.
+
+**Thirty-third (2026-11-04): Service Book, the workshop's daily notebook on
+screen.** User request: staff keep a paper book, a page per date, noting
+customer, phone, car model, car number and work done, and leaf back through it
+when a car returns. `c:serviceBook` + `c:serviceCard` on a new `Service_Book`
+tab. Audited `objects/` first: `Job__c` needs a stage and sits on the board, and
+nothing else is a dated note against a car, so one new object.
+
+- `Service_Entry__c`: `Vehicle__c` (required, Restrict), `Entry_Date__c`
+  (required), `Work_Done__c` (LongTextArea), `Unique_Key__c` (vehicle Id + date,
+  unique external id). **One entry per car per day**, upserted on that key, so
+  two people on one car share an entry. Customer comes through the vehicle.
+- Work Done is **one text box, not a child line object**: Enter making a new line
+  with the cursor on it is what a textarea already does, and it's drawn ruled
+  like the book. LongTextArea isn't filterable in SOQL, so search can't cover the
+  work text; it wasn't asked for.
+- A car on another day is a new entry, so it's on both pages. `getDay` and
+  `search` return each car's other visits; a card can show them and their dates
+  jump to that page. Looking a car up saves nothing: the card is client-only until
+  something is written, and clearing the text deletes the entry, so the book never
+  fills with empty cards.
+- **Autosave, no Save button** (800ms after typing and on leaving the box), with
+  Saved/Not saved shown on the card. `c:serviceCard` owns its state after creation
+  (the `card` setter only reads once), so a parent re-render can't overwrite typing.
+  It saves on `disconnectedCallback`, so changing date doesn't lose the last keys,
+  and saves are chained so text typed during a save goes in the next one.
+- Search is per word, every word must match across car number, make, model,
+  customer name and phone, built with `escapeSingleQuotes` because binds can't
+  vary per word. Enter on no results starts a new card with the text in the right
+  box (digits only → mobile, has a digit → car number, else name).
+- New cards reuse `QuickBillController.findByPhone` and the `0000000000` no-number
+  customer pattern from Easy Bill. A car number on file is matched within that
+  customer, so the same number under another customer can still be added.
+- **Bill/Estimate open Easy Bill filled in with the customer and car** via
+  `c__customerId`, `c__vehicleId`, `c__documentType`, plus a `c__opened` timestamp
+  so the same car twice still refills. Deliberately not copied: the work lines. A
+  typed bill line becomes a `Part__c` through `PartUpsertService` and deducts stock,
+  so notes like "washed" would become inventory items at -1 stock.
+- Not linked to Jobs: it's the book as they keep it now, and a job on the board
+  doesn't write a book entry. No company on entries: the company is chosen on the
+  bill. Editing customer or car details stays on their own screens.
+
+Platform issue: **`<textarea value={x}>` does nothing in an LWC template.** The
+compiler only treats `value` as a property on `<input>`; on a textarea it becomes
+an attribute, which the element ignores, so the box shows blank. Jest caught it
+here. It had already shipped in `c:paperField` (Easy Bill's Terms box looked empty
+when opened, though typing nothing left the saved terms alone). Set `box.value` in
+`renderedCallback`, only when it differs, so the cursor doesn't jump.
+
+**Service Book, later the same day: the car number is the only requirement.** User
+request. `Vehicle__c.Customer__c` stays required: a car with no details sits under
+the shared Walk-in Customer, and `ServiceBookController` reports that as no customer
+(`customerId` null), which is what turns off Bill/Estimate on the card. Chose this
+over making the lookup optional because the Walk-in pattern already exists, and an
+optional lookup would mean null-checking `Customer__r` on every vehicle screen and
+changing a required field's permissions in orgs already deployed. So Walk-in Customer's
+own page lists these cars.
+
+- A card keeps a box for whatever it's missing (customer, mobile, model). Filled in
+  later, `saveCardDetails` moves the car to the real customer, so its entries follow
+  it. It only fills gaps: details a car already has change on their own screens.
+- This reverses "matched within that customer" above: on this screen the car number
+  **is** the car across all customers, compared ignoring case, spaces and dashes,
+  and new ones are stored compact and upper case. A car on file under someone else
+  stays with them rather than getting a second record.
+- A mobile with no name creates a customer named with the number, because
+  `Customer__c.Name` is required. They can rename it later, including on Easy Bill.
+- Details save when the cursor leaves the boxes, not on leaving each one (a 150ms
+  check of where focus went), or tabbing name to mobile would save half a customer.
 

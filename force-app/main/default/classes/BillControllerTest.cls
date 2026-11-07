@@ -468,8 +468,8 @@ private class BillControllerTest {
         BillController.createBill(paidRequest);
 
         Test.startTest();
-        List<BillController.BillListItem> all = BillController.listBills('All', null);
-        List<BillController.BillListItem> duesOnly = BillController.listBills('DuesOnly', null);
+        List<BillController.BillListItem> all = BillController.listBills('All', null, null);
+        List<BillController.BillListItem> duesOnly = BillController.listBills('DuesOnly', null, null);
         Test.stopTest();
 
         System.assertEquals(2, all.size());
@@ -501,9 +501,9 @@ private class BillControllerTest {
         BillController.createBill(sureshRequest);
 
         Test.startTest();
-        List<BillController.BillListItem> byCustomerName = BillController.listBills('All', 'Ramesh');
-        List<BillController.BillListItem> byPhone = BillController.listBills('All', '9000022222');
-        List<BillController.BillListItem> byInvoiceNumber = BillController.listBills('All', rameshBill.invoiceNumber);
+        List<BillController.BillListItem> byCustomerName = BillController.listBills('All', 'Ramesh', null);
+        List<BillController.BillListItem> byPhone = BillController.listBills('All', '9000022222', null);
+        List<BillController.BillListItem> byInvoiceNumber = BillController.listBills('All', rameshBill.invoiceNumber, null);
         Test.stopTest();
 
         System.assertEquals(1, byCustomerName.size());

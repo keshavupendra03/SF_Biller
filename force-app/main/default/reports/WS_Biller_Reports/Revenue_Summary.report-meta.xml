@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Report xmlns="http://soap.sforce.com/2006/04/metadata">
     <columns>
+        <field>Bill__c.Workshop_Profile__c</field>
+    </columns>
+    <columns>
         <aggregateTypes>Sum</aggregateTypes>
         <field>Bill__c.Subtotal__c</field>
     </columns>

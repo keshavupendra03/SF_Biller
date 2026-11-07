@@ -255,4 +255,114 @@ private class QuickBillControllerTest {
 
         System.assertEquals(1050, summary.totalAmount);
     }
+
+    @isTest
+    static void estimate_walkIn_usesTheSharedCustomerAndLeavesStockAlone() {
+        Part__c part = new Part__c(Name = 'Brake Pad Set', Price__c = 1200, Tax_Rate_Percent__c = 18, Current_Stock__c = 10);
+        insert part;
+        QuickBillController.QuickBillRequest r = request();
+        r.isWalkIn = true;
+        r.includeGst = true;
+        r.documentDate = Date.newInstance(2026, 11, 1);
+        r.notes = 'Valid for 7 days';
+        BillController.LineItemInput partLine = line('Brake Pad Set', 3, 1200);
+        partLine.partId = part.Id;
+        r.lineItems.add(partLine);
+
+        Test.startTest();
+        EstimateController.EstimateSummary summary = QuickBillController.createQuickEstimate(r);
+        Test.stopTest();
+
+        System.assert(summary.estimateNumber.startsWith('EST-'));
+        System.assertEquals(QuickBillController.WALK_IN_NAME, summary.customerName);
+        System.assertEquals(5428, summary.totalAmount);
+        System.assertEquals(Date.newInstance(2026, 11, 1), summary.estimateDate);
+        System.assertEquals(10, [SELECT Current_Stock__c FROM Part__c WHERE Id = :part.Id].Current_Stock__c, 'An estimate never deducts stock.');
+    }
+
+    @isTest
+    static void estimate_gstOff_quotesAtZeroPercent_butANewPartKeepsTheTypedRate() {
+        QuickBillController.QuickBillRequest r = request();
+        r.isWalkIn = true;
+
+        Test.startTest();
+        EstimateController.EstimateSummary summary = QuickBillController.createQuickEstimate(r);
+        Test.stopTest();
+
+        System.assertEquals(1000, summary.totalAmount);
+        System.assertEquals(0, [SELECT Tax_Rate_Percent__c FROM Estimate_Line_Item__c WHERE Estimate__c = :summary.estimateId].Tax_Rate_Percent__c);
+        System.assertEquals(18, [SELECT Tax_Rate_Percent__c FROM Part__c WHERE Name = 'Engine Oil 1L'].Tax_Rate_Percent__c);
+    }
+
+    @isTest
+    static void estimate_newPhone_createsCustomerAndVehicle() {
+        QuickBillController.QuickBillRequest r = request();
+        r.customerName = 'Suresh Patel';
+        r.customerPhone = '9826011111';
+        r.newVehicle = new CustomerController.NewVehicleInput();
+        r.newVehicle.registrationNumber = 'MP09CD5678';
+
+        Test.startTest();
+        EstimateController.EstimateSummary summary = QuickBillController.createQuickEstimate(r);
+        Test.stopTest();
+
+        System.assertEquals('Suresh Patel', summary.customerName);
+        Vehicle__c vehicle = [SELECT Name, Customer__c FROM Vehicle__c WHERE Id = :summary.vehicleId];
+        System.assertEquals('MP09CD5678', vehicle.Name);
+        System.assertEquals(summary.customerId, vehicle.Customer__c);
+    }
+
+    @isTest
+    static void estimate_existingPhone_reusesCustomerAndMatchesVehicle() {
+        Customer__c existing = new Customer__c(Name = 'Ramesh Kumar', Phone__c = '9000011111');
+        insert existing;
+        Vehicle__c vehicle = new Vehicle__c(Name = 'MP09AB1234', Customer__c = existing.Id);
+        insert vehicle;
+        QuickBillController.QuickBillRequest r = request();
+        r.customerPhone = '9000011111';
+        r.newVehicle = new CustomerController.NewVehicleInput();
+        r.newVehicle.registrationNumber = 'mp09ab1234';
+
+        Test.startTest();
+        EstimateController.EstimateSummary summary = QuickBillController.createQuickEstimate(r);
+        Test.stopTest();
+
+        System.assertEquals(existing.Id, summary.customerId);
+        System.assertEquals(vehicle.Id, summary.vehicleId);
+        System.assertEquals(1, [SELECT COUNT() FROM Vehicle__c]);
+    }
+
+    @isTest
+    static void estimate_noItems_throws() {
+        QuickBillController.QuickBillRequest r = request();
+        r.isWalkIn = true;
+        r.lineItems = new List<BillController.LineItemInput>();
+
+        Boolean threw = false;
+        try {
+            QuickBillController.createQuickEstimate(r);
+        } catch (QuickBillController.QuickBillControllerException e) {
+            threw = true;
+        }
+        System.assertEquals(true, threw);
+    }
+
+    @isTest
+    static void walkInEstimatePdf_doesNotPrintThePlaceholderPhone() {
+        QuickBillController.QuickBillRequest r = request();
+        r.isWalkIn = true;
+        EstimateController.EstimateSummary summary = QuickBillController.createQuickEstimate(r);
+
+        PageReference page = Page.InvoicePdf;
+        page.getParameters().put('id', summary.estimateId);
+        Test.setCurrentPage(page);
+
+        Test.startTest();
+        InvoicePdfController controller = new InvoicePdfController();
+        Test.stopTest();
+
+        System.assertEquals('Estimate', controller.documentTitle);
+        System.assertEquals(QuickBillController.WALK_IN_NAME, controller.billToName);
+        System.assertEquals(null, controller.billToContact);
+    }
 }

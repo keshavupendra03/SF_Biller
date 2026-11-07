@@ -1,0 +1,121 @@
+/* sc- prefix: Salesforce's global CSS reaches into components, and has hit plain
+   class names on these screens before. */
+.sc-card {
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    background-color: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.sc-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.25rem 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.sc-number {
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.sc-model {
+    color: #444;
+}
+
+.sc-customer {
+    text-align: right;
+}
+
+.sc-name {
+    font-weight: 700;
+}
+
+.sc-labelled {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.sc-work-label {
+    display: block;
+    margin: 0.5rem 0 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #444;
+}
+
+/* Ruled like the page of a book: each typed line sits on a line. */
+.sc-work {
+    display: block;
+    width: 100%;
+    padding: 0 0.375rem;
+    border: 0;
+    outline: 1px solid #c9c9c9;
+    border-radius: 0.125rem;
+    font: inherit;
+    font-size: 0.9375rem;
+    line-height: 1.75rem;
+    resize: none;
+    background-color: #fff;
+    background-image: linear-gradient(to bottom, transparent calc(1.75rem - 1px), #d8dde6 calc(1.75rem - 1px));
+    background-size: 100% 1.75rem;
+    background-attachment: local;
+}
+
+.sc-work:focus {
+    outline: 2px solid #1a4fa0;
+    background-color: #fff8d6;
+}
+
+.sc-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.sc-status {
+    min-width: 3.5rem;
+    font-size: 0.75rem;
+    color: #2e844a;
+}
+
+.sc-status_failed {
+    font-weight: 700;
+    color: #ba0517;
+}
+
+.sc-missing {
+    font-size: 0.75rem;
+    color: #8c4b02;
+}
+
+.sc-actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-left: auto;
+}
+
+.sc-visits-toggle {
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+}
+
+.sc-visits {
+    margin-top: 0.25rem;
+    padding-left: 0.5rem;
+    border-left: 3px solid #d8dde6;
+}
+
+.sc-visit {
+    margin-bottom: 0.5rem;
+}
+
+.sc-visit-work {
+    white-space: pre-line;
+    color: #333;
+}

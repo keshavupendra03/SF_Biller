@@ -63,6 +63,7 @@ export default class BillCreate extends NavigationMixin(LightningElement) {
 
     notes = '';
     billDate = todayIso();
+    workshopProfileId;
 
     // recordPaymentNow = false;
     // paymentAmount = 0;
@@ -234,6 +235,10 @@ export default class BillCreate extends NavigationMixin(LightningElement) {
 
     get cardTitle() {
         return this.isVersioning ? 'Edit Bill' : 'New Bill';
+    }
+
+    handleCompanyChange(event) {
+        this.workshopProfileId = event.detail.id;
     }
 
     handleBack() {
@@ -481,6 +486,7 @@ export default class BillCreate extends NavigationMixin(LightningElement) {
         this.isSubmitting = true;
 
         const request = {
+            workshopProfileId: this.workshopProfileId || undefined,
             customerId: this.selectedCustomer.id,
             jobId: this.jobId,
             notes: this.notes,
@@ -578,6 +584,7 @@ export default class BillCreate extends NavigationMixin(LightningElement) {
     loadFromEstimate(estimateId) {
         getEstimateSummary({ estimateId })
             .then((summary) => {
+                this.workshopProfileId = summary.workshopProfileId;
                 this.selectedCustomer = { id: summary.customerId, name: summary.customerName, phone: '' };
                 this.notes = summary.notes || '';
                 this.carriedBillToPartyId = summary.billToPartyId;
@@ -605,6 +612,7 @@ export default class BillCreate extends NavigationMixin(LightningElement) {
     }
 
     applySummaryToForm(summary) {
+        this.workshopProfileId = summary.workshopProfileId;
         this.selectedCustomer = { id: summary.customerId, name: summary.customerName, phone: '' };
         this.notes = summary.notes || '';
         this.billDate = todayIso();

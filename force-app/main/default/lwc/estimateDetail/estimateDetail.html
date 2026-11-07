@@ -8,6 +8,9 @@
 
         <template if:true={hasSummary}>
             <h2 class="slds-text-heading_large">{summary.estimateNumber}</h2>
+            <template if:true={summary.companyName}>
+                <p class="slds-text-body_regular" data-id="company-name"><strong>Company:</strong> {summary.companyName}</p>
+            </template>
             <p class="slds-text-body_regular slds-m-bottom_small">Date: {summary.estimateDate}</p>
             <span class={statusBadgeClass}>{summary.status}</span>
 

@@ -2,10 +2,10 @@
  * Sequential, FY-based invoice numbers that never collide or skip under
  * concurrent bill creation (architecture.md §C.1). Salesforce is the sole
  * writer in this project, so there is no placeholder/reconciliation state —
- * the single Workshop_Profile__c row (seeded once per org) holds the
- * counter, and assignNextInvoiceNumber locks it with FOR UPDATE for the
- * duration of the transaction so concurrent callers serialize instead of
- * racing each other.
+ * each company's Workshop_Profile__c row holds its own counter and prefix (a
+ * GSTIN keeps its own series), and assignNextInvoiceNumber locks that row with
+ * FOR UPDATE for the duration of the transaction so concurrent callers
+ * serialize instead of racing each other.
  */
 public with sharing class InvoiceNumberingService {
 
@@ -30,25 +30,31 @@ public with sharing class InvoiceNumberingService {
 
     /**
      * Assigns the next sequential invoice number for the current financial
-     * year. Precondition: exactly one Workshop_Profile__c row already
-     * exists in the org (seeded once, not lazily created here — a lazy
+     * year, for the primary company. Precondition: a Workshop_Profile__c row
+     * already exists in the org (seeded once, not lazily created here — a lazy
      * get-or-create here would itself race under concurrent callers with
      * no row yet, which SOQL's FOR UPDATE can't protect against since it
      * locks rows that exist, not the absence of one).
      */
     public static InvoiceNumberResult assignNextInvoiceNumber() {
+        return assignNextInvoiceNumber(null);
+    }
+
+    public static InvoiceNumberResult assignNextInvoiceNumber(Id workshopProfileId) {
         String fy = financialYearFor(Date.today());
 
+        // FOR UPDATE can't be combined with ORDER BY, so find the row first.
+        Id profileId = workshopProfileId != null ? workshopProfileId : WorkshopProfileService.primaryId();
         List<Workshop_Profile__c> profiles = [
-            SELECT Id, Invoice_Sequence_Financial_Year__c, Invoice_Sequence_Last_Number__c
+            SELECT Id, Invoice_Prefix__c, Invoice_Sequence_Financial_Year__c, Invoice_Sequence_Last_Number__c
             FROM Workshop_Profile__c
-            LIMIT 1
+            WHERE Id = :profileId
             FOR UPDATE
         ];
         if (profiles.isEmpty()) {
             throw new InvoiceNumberingException(
                 'No Workshop_Profile__c row exists to hold the invoice sequence ' +
-                'counter. Exactly one must be seeded before bills can be numbered.'
+                'counter. One must be seeded before bills can be numbered.'
             );
         }
         Workshop_Profile__c profile = profiles[0];
@@ -64,7 +70,7 @@ public with sharing class InvoiceNumberingService {
         update profile;
 
         InvoiceNumberResult result = new InvoiceNumberResult();
-        result.invoiceNumber = 'INV/' + fy + '/' + String.valueOf(nextSequence).leftPad(4, '0');
+        result.invoiceNumber = WorkshopProfileService.invoicePrefix(profile) + '/' + fy + '/' + String.valueOf(nextSequence).leftPad(4, '0');
         result.financialYear = fy;
         return result;
     }

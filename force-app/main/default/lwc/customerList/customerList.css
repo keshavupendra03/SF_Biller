@@ -33,3 +33,8 @@
     color: #0b5cab;
     font-weight: 700;
 }
+
+.slip-company {
+    display: block;
+    margin-bottom: 0.5rem;
+}

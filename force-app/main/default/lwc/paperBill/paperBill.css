@@ -1,0 +1,215 @@
+.pb-screen {
+    position: relative;
+    min-height: 100%;
+    padding: 0.5rem;
+    background-color: #eceef1;
+}
+
+.pb-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.pb-keyboard-hint {
+    display: none;
+    font-size: 0.75rem;
+    color: #444;
+}
+
+/* The page itself: same font, sizes and blue as InvoicePdf.page. */
+.pb-sheet {
+    max-width: 62rem;
+    margin: 0 auto 0.75rem;
+    padding: 0.75rem;
+    background-color: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.8125rem;
+    color: #222;
+}
+
+.pb-workshop-name {
+    display: block;
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.pb-workshop-warning {
+    margin-bottom: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    background-color: #fff3cd;
+}
+
+.pb-workshop-toggle {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+}
+
+.pb-divider {
+    margin: 0.5rem 0;
+    border-bottom: 2px solid #1a4fa0;
+}
+
+.pb-title {
+    margin-bottom: 0.5rem;
+    text-align: center;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1a4fa0;
+}
+
+.pb-two-col {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+}
+
+.pb-section-label {
+    font-weight: 700;
+    color: #555;
+}
+
+.pb-labelled {
+    display: grid;
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.pb-auto-number {
+    padding: 0.125rem 0.25rem;
+    color: #666;
+    font-style: italic;
+}
+
+.pb-note {
+    margin: 0.125rem 0;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    background-color: #fff3cd;
+    font-size: 0.75rem;
+}
+
+.pb-note_ok {
+    background-color: #ebf7e6;
+    color: #2e844a;
+}
+
+.pb-items {
+    margin-top: 0.75rem;
+}
+
+.pb-bottom {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+}
+
+.pb-total-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.125rem 0;
+}
+
+.pb-total-row_grand {
+    margin-top: 0.125rem;
+    padding-top: 0.25rem;
+    border-top: 1px solid #999;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.pb-gst-button {
+    display: block;
+    margin-top: 0.5rem;
+    text-align: right;
+}
+
+.pb-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+}
+
+.pb-signature {
+    text-align: right;
+}
+
+.pb-signature-space {
+    height: 2.5rem;
+}
+
+.pb-action-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: 0.625rem 0.75rem;
+    background-color: #fff;
+    border-top: 1px solid #e5e5e5;
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.pb-action-total {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.pb-saved-card {
+    max-width: 30rem;
+    margin: 1rem auto;
+    padding: 2rem 1rem 1.5rem;
+    border-radius: 0.5rem;
+    background-color: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.pb-saved-total {
+    font-size: 1.75rem;
+    font-weight: 700;
+}
+
+.pb-saved-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: 22rem;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+@media (min-width: 48em) {
+    .pb-screen {
+        padding: 1rem;
+    }
+
+    .pb-keyboard-hint {
+        display: block;
+    }
+
+    .pb-sheet {
+        padding: 1.5rem;
+    }
+
+    .pb-two-col {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem 2rem;
+    }
+
+    .pb-bottom {
+        grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+        gap: 1.5rem;
+    }
+
+    .pb-footer {
+        grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    }
+}

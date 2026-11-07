@@ -1,0 +1,28 @@
+<template>
+    <template lwc:if={isShown}>
+        <div class="company-picker" data-id="company-picker">
+            <template lwc:if={showChoices}>
+                <span class="company-label">Company</span>
+                <div class="company-choices">
+                    <template for:each={choices} for:item="choice">
+                        <lightning-button
+                            key={choice.id}
+                            data-id="company-choice"
+                            data-value={choice.id}
+                            label={choice.label}
+                            variant={choice.variant}
+                            onclick={handleChoose}
+                        ></lightning-button>
+                    </template>
+                </div>
+            </template>
+            <template lwc:else>
+                <span class="company-label">Company</span>
+                <strong data-id="company-locked">{selectedName}</strong>
+            </template>
+            <template lwc:if={selectedGstin}>
+                <span class="company-gstin" data-id="company-gstin">GSTIN: {selectedGstin}</span>
+            </template>
+        </div>
+    </template>
+</template>

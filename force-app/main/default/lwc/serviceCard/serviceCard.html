@@ -1,0 +1,76 @@
+<template>
+    <article class="sc-card" data-id="service-card">
+        <template lwc:if={showHeader}>
+            <div class="sc-head">
+                <div>
+                    <p class="sc-number" data-id="card-number">{card.registrationNumber}</p>
+                    <template lwc:if={card.carModel}><p class="sc-model" data-id="card-model">{card.carModel}</p></template>
+                </div>
+                <div class="sc-customer">
+                    <template lwc:if={card.customerName}><p class="sc-name" data-id="card-name">{card.customerName}</p></template>
+                    <template lwc:if={card.phone}>
+                        <p data-id="card-phone"><a href={phoneLink}>{card.phone}</a></p>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+        <!-- Whatever this car doesn't have yet. On a new card, the car number comes first. -->
+        <template lwc:if={showBoxes}>
+            <div class="sc-new">
+                <template lwc:if={isNewCar}>
+                    <div class="sc-labelled"><span>Car Number</span><c-paper-field data-field="registrationNumber" label="Car number" placeholder="e.g. MP09AB1234" strong min-chars="0" value={draft.registrationNumber} search={searchCarOptions} onvaluechange={handleDraftChange} onpick={handleCarPick} onleave={handleCarNumberLeave} onadvance={handleAdvance}></c-paper-field></div>
+                </template>
+                <template lwc:if={showCustomerBox}>
+                    <div class="sc-labelled"><span>Customer</span><c-paper-field data-field="customerName" label="Customer name" placeholder="Name, if you have it" value={draft.customerName} search={searchCustomerOptions} onvaluechange={handleDraftChange} onpick={handleCustomerPick} onleave={handleDetailsLeave} onadvance={handleAdvance}></c-paper-field></div>
+                </template>
+                <template lwc:if={showMobileBox}>
+                    <div class="sc-labelled"><span>Mobile</span><c-paper-field data-field="phone" type="tel" label="Mobile number" placeholder="Number, if you have it" value={draft.phone} search={searchCustomerOptions} onvaluechange={handleDraftChange} onpick={handleCustomerPick} onleave={handlePhoneLeave} onadvance={handleAdvance}></c-paper-field></div>
+                </template>
+                <template lwc:if={showModelBox}>
+                    <div class="sc-labelled"><span>Car Model</span><c-paper-field data-field="carModel" label="Car model" placeholder="e.g. Swift" value={carModelValue} search={searchModelOptions} onvaluechange={handleModelChange} onpick={handleModelPick} onleave={handleDetailsLeave} onadvance={handleAdvance}></c-paper-field></div>
+                </template>
+            </div>
+        </template>
+
+        <label class="sc-work-label" for="work">Work Done</label>
+        <textarea
+            id="work"
+            class="sc-work"
+            data-id="work"
+            rows={workRows}
+            placeholder="Type what was done. Press Enter for the next line."
+            oninput={handleWorkInput}
+            onkeydown={handleWorkKeydown}
+            onblur={saveNow}
+        ></textarea>
+
+        <div class="sc-foot">
+            <p class={saveStateClass} data-id="save-state" aria-live="polite">{saveStateLabel}</p>
+            <template lwc:if={missingDetails}>
+                <p class="sc-missing" data-id="missing-details">{missingDetails}</p>
+            </template>
+            <template lwc:if={noCustomerHint}>
+                <p class="sc-missing" data-id="no-customer-hint">{noCustomerHint}</p>
+            </template>
+            <div class="sc-actions">
+                <lightning-button data-id="make-bill" label="Bill" icon-name="utility:new_window" disabled={noBillYet} onclick={handleMakeBill}></lightning-button>
+                <lightning-button data-id="make-estimate" label="Estimate" icon-name="utility:new_window" disabled={noBillYet} onclick={handleMakeEstimate}></lightning-button>
+            </div>
+        </div>
+
+        <template lwc:if={hasVisits}>
+            <button type="button" class="slds-button slds-text-link sc-visits-toggle" data-id="toggle-visits" onclick={handleToggleVisits}>{visitsLabel}</button>
+            <template lwc:if={showVisits}>
+                <ul class="sc-visits" data-id="visits">
+                    <template for:each={visits} for:item="visit">
+                        <li key={visit.entryDate} class="sc-visit">
+                            <button type="button" class="slds-button slds-text-link" data-id="visit-date" data-date={visit.entryDate} onclick={handleOpenVisit}>{visit.dateLabel}</button>
+                            <p class="sc-visit-work">{visit.workDone}</p>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+        </template>
+    </article>
+</template>

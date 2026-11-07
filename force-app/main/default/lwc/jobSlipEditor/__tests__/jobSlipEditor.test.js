@@ -4,6 +4,7 @@ import JobSlipEditor from 'c/jobSlipEditor';
 import getJobSlipForm from '@salesforce/apex/JobSlipController.getJobSlipForm';
 import saveJobSlip from '@salesforce/apex/JobSlipController.saveJobSlip';
 
+jest.mock('@salesforce/apex/WorkshopProfileController.listProfiles', () => ({ default: jest.fn(() => Promise.resolve([])) }), { virtual: true });
 jest.mock('@salesforce/apex/JobSlipController.getJobSlipForm', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/JobSlipController.saveJobSlip', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPdfDownload', () => ({ default: jest.fn() }), { virtual: true });

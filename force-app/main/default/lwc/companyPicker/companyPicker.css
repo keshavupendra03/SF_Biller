@@ -1,0 +1,25 @@
+.company-picker {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.company-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #444;
+}
+
+/* Wraps rather than overflows: company names can be long on a phone. */
+.company-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.company-gstin {
+    font-size: 0.75rem;
+    color: #444;
+}

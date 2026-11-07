@@ -1,0 +1,168 @@
+<template>
+    <div class="pb-screen" onkeydown={handleKeydown}>
+        <!-- ================= Saved ================= -->
+        <template lwc:if={saved}>
+            <div class="pb-saved-card slds-text-align_center">
+                <lightning-icon icon-name="action:approval" size="large" alternative-text={savedLabel}></lightning-icon>
+                <p class="slds-text-heading_small slds-m-top_small">{savedLabel}</p>
+                <p class="slds-text-heading_large slds-m-top_xx-small" data-id="saved-number">{saved.documentNumber}</p>
+                <p class="slds-text-color_weak slds-m-top_xx-small">{saved.customerName}</p>
+                <p class="pb-saved-total slds-m-top_small">₹{saved.formattedTotal}</p>
+                <div class="pb-saved-actions slds-m-top_large">
+                    <lightning-button data-id="print" variant="brand" label="Print / Download PDF" icon-name="utility:print" onclick={handlePrint} stretch></lightning-button>
+                    <lightning-button data-id="view" label={viewLabel} icon-name="utility:preview" onclick={handleView} stretch></lightning-button>
+                    <lightning-button data-id="new" label={newLabel} icon-name="utility:add" onclick={handleNew} stretch></lightning-button>
+                </div>
+            </div>
+        </template>
+
+        <!-- ================= The bill ================= -->
+        <template lwc:if={isEditing}>
+            <div class="pb-toolbar">
+                <lightning-radio-group
+                    data-id="document-type"
+                    type="button"
+                    label="What are you making?"
+                    variant="label-hidden"
+                    options={documentOptions}
+                    value={documentType}
+                    onchange={handleDocumentTypeChange}
+                ></lightning-radio-group>
+                <c-company-picker value={workshopProfileId} oncompanychange={handleCompanyChange}></c-company-picker>
+                <p class="pb-keyboard-hint">Tab or Enter: next box. Ctrl+S: save. Alt+G: add or remove GST.</p>
+            </div>
+
+            <div class="pb-sheet" data-id="sheet">
+                <!-- Workshop, same block as the top of the print -->
+                <div class="pb-workshop">
+                    <template lwc:if={isEditingWorkshop}>
+                        <p class="pb-workshop-warning" data-id="workshop-warning">Changes here show on every bill and estimate.</p>
+                        <c-paper-field class="pb-workshop-name" data-field="name" label="Workshop name" placeholder="Workshop name" strong value={workshop.name} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
+                        <c-paper-field data-field="address" label="Workshop address" placeholder="Workshop address" value={workshop.address} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
+                        <c-paper-field data-field="phone" type="tel" label="Workshop phone" placeholder="Phone no." value={workshop.phone} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
+                        <c-paper-field data-field="email" label="Workshop email" placeholder="Email" value={workshop.email} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
+                        <c-paper-field data-field="gstin" label="Workshop GSTIN" placeholder="GSTIN" value={workshop.gstin} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
+                        <c-paper-field data-field="state" label="Workshop state" placeholder="State" value={workshop.state} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
+                    </template>
+                    <template lwc:else>
+                        <p class="pb-workshop-name" data-id="workshop-name">{workshop.name}</p>
+                        <template lwc:if={workshop.address}><p>{workshop.address}</p></template>
+                        <template lwc:if={workshop.phone}><p>Phone no.: {workshop.phone}</p></template>
+                        <template lwc:if={workshop.email}><p>Email: {workshop.email}</p></template>
+                        <template lwc:if={workshop.gstin}><p>GSTIN: {workshop.gstin}</p></template>
+                        <template lwc:if={workshop.state}><p>State: {workshop.state}</p></template>
+                    </template>
+                    <button type="button" tabindex="-1" class="slds-button slds-text-link pb-workshop-toggle" data-id="toggle-workshop" onclick={handleToggleWorkshop}>{workshopToggleLabel}</button>
+                </div>
+
+                <div class="pb-divider"></div>
+                <p class="pb-title" data-id="title">{documentTitle}</p>
+
+                <!-- Bill to, and details -->
+                <div class="pb-two-col">
+                    <div>
+                        <p class="pb-section-label">{labels.billTo}</p>
+                        <c-paper-field data-id="customer-name" data-field="name" label="Customer name" placeholder="Customer name" strong value={customer.name} search={searchCustomerOptions} onvaluechange={handleCustomerChange} onpick={handleCustomerPick} onadvance={handleAdvance}></c-paper-field>
+                        <template lwc:if={isRenamingCustomer}>
+                            <p class="pb-note" data-id="rename-note">This renames {originalCustomerName} on all their bills.</p>
+                        </template>
+                        <template lwc:if={showExistingNote}>
+                            <p class="pb-note pb-note_ok" data-id="existing-note">Existing customer. Details filled in for you.</p>
+                        </template>
+                        <c-paper-field data-field="address" label="Customer address" placeholder="Address" value={customer.address} onvaluechange={handleCustomerChange} onadvance={handleAdvance}></c-paper-field>
+                        <div class="pb-labelled"><span>Contact No.:</span><c-paper-field data-id="customer-phone" data-field="phone" type="tel" label="Customer mobile number" placeholder="Mobile number" value={customer.phone} search={searchCustomerOptions} onvaluechange={handleCustomerChange} onpick={handleCustomerPick} onleave={handlePhoneLeave} onadvance={handleAdvance}></c-paper-field></div>
+                        <div class="pb-labelled"><span>GSTIN Number:</span><c-paper-field data-field="gstin" label="Customer GSTIN" placeholder="Only if the customer has one" value={customer.gstin} onvaluechange={handleCustomerChange} onadvance={handleAdvance}></c-paper-field></div>
+                        <div class="pb-labelled"><span>State:</span><c-paper-field data-field="state" label="Customer state" placeholder="State" value={customer.state} onvaluechange={handleCustomerChange} onadvance={handleAdvance}></c-paper-field></div>
+                    </div>
+                    <div>
+                        <p class="pb-section-label">{labels.details}</p>
+                        <div class="pb-labelled"><span>{labels.number}</span><span class="pb-auto-number" data-id="auto-number">Given when you save</span></div>
+                        <div class="pb-labelled"><span>Date:</span><c-paper-field data-id="document-date" label="Date" placeholder="dd-mm-yyyy" value={documentDate} onvaluechange={handleDateChange} onadvance={handleAdvance}></c-paper-field></div>
+                        <div class="pb-labelled"><span>Vehicle No.:</span><c-paper-field data-field="registrationNumber" label="Vehicle number" placeholder="e.g. MP09AB1234" min-chars="0" value={vehicle.registrationNumber} search={searchVehicleOptions} onvaluechange={handleVehicleChange} onpick={handleVehiclePick} onleave={handleVehicleNumberLeave} onadvance={handleAdvance}></c-paper-field></div>
+                        <div class="pb-labelled"><span>Make:</span><c-paper-field data-field="make" label="Vehicle make" placeholder="e.g. Tata" value={vehicle.make} search={searchMakeOptions} onvaluechange={handleVehicleChange} onpick={handleMakeModelPick} onadvance={handleAdvance}></c-paper-field></div>
+                        <div class="pb-labelled"><span>Model:</span><c-paper-field data-field="model" label="Vehicle model" placeholder="e.g. Punch" value={vehicle.model} search={searchModelOptions} onvaluechange={handleVehicleChange} onpick={handleMakeModelPick} onadvance={handleAdvance}></c-paper-field></div>
+                        <div class="pb-labelled"><span>Chassis No.:</span><c-paper-field data-field="chassisNumber" data-next="grid" label="Chassis number" placeholder="Chassis number" value={vehicle.chassisNumber} onvaluechange={handleVehicleChange} onadvance={handleAdvance}></c-paper-field></div>
+                    </div>
+                </div>
+
+                <!-- Items -->
+                <div class="pb-items">
+                    <c-line-item-grid variant="paper" include-gst={includeGst} warn-stock={billTakesStock} onlineschange={handleLinesChange} onfinish={focusSave}></c-line-item-grid>
+                </div>
+
+                <!-- Words and terms on the left, totals on the right -->
+                <div class="pb-bottom">
+                    <div class="pb-bottom-left">
+                        <p class="pb-section-label">Description</p>
+                        <c-paper-field data-id="notes" multiline label="Description" placeholder="Any note to print on the bill" value={notes} onvaluechange={handleNotesChange}></c-paper-field>
+                        <p class="pb-section-label slds-m-top_small">{labels.words}</p>
+                        <p data-id="amount-words">{words}</p>
+                        <template lwc:if={isEditingWorkshop}>
+                            <p class="pb-section-label slds-m-top_small">Terms And Conditions</p>
+                            <c-paper-field data-field="termsAndConditions" multiline label="Terms and conditions" placeholder="Terms and conditions" value={workshop.termsAndConditions} onvaluechange={handleWorkshopChange}></c-paper-field>
+                        </template>
+                        <template lwc:elseif={workshop.termsAndConditions}>
+                            <p class="pb-section-label slds-m-top_small">Terms And Conditions</p>
+                            <p data-id="terms">{workshop.termsAndConditions}</p>
+                        </template>
+                    </div>
+                    <div class="pb-bottom-right">
+                        <template lwc:if={hasGstAmount}>
+                            <div class="pb-total-row"><span>Sub Total</span><span>Rs. {formattedSubtotal}</span></div>
+                            <template lwc:if={hasCgstSgst}>
+                                <div class="pb-total-row"><span>SGST</span><span>Rs. {formattedSgst}</span></div>
+                                <div class="pb-total-row"><span>CGST</span><span>Rs. {formattedCgst}</span></div>
+                            </template>
+                            <template lwc:if={hasIgst}>
+                                <div class="pb-total-row"><span>IGST</span><span>Rs. {formattedIgst}</span></div>
+                            </template>
+                        </template>
+                        <div class="pb-total-row pb-total-row_grand"><span>Total</span><span data-id="grand-total">Rs. {formattedTotal}</span></div>
+                        <lightning-button data-id="gst-toggle" label={gstButtonLabel} icon-name={gstButtonIcon} onclick={handleToggleGst} class="pb-gst-button"></lightning-button>
+                    </div>
+                </div>
+
+                <!-- Bank and signature -->
+                <div class="pb-footer">
+                    <div>
+                        <template lwc:if={showBank}>
+                            <p class="pb-section-label">Pay To:</p>
+                            <template lwc:if={isEditingWorkshop}>
+                                <c-paper-field data-field="bankName" label="Bank name" placeholder="Bank name" value={workshop.bankName} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
+                                <c-paper-field data-field="bankAccountNo" label="Bank account number" placeholder="Bank account no." value={workshop.bankAccountNo} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
+                                <c-paper-field data-field="bankIfsc" label="Bank IFSC code" placeholder="IFSC code" value={workshop.bankIfsc} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
+                                <c-paper-field data-field="bankAccountHolder" label="Account holder name" placeholder="Account holder name" value={workshop.bankAccountHolder} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
+                            </template>
+                            <template lwc:else>
+                                <template lwc:if={workshop.bankName}><p>Bank Name: {workshop.bankName}</p></template>
+                                <template lwc:if={workshop.bankAccountNo}><p>Bank Account No.: {workshop.bankAccountNo}</p></template>
+                                <template lwc:if={workshop.bankIfsc}><p>Bank IFSC code: {workshop.bankIfsc}</p></template>
+                                <template lwc:if={workshop.bankAccountHolder}><p>Account Holder's Name: {workshop.bankAccountHolder}</p></template>
+                            </template>
+                        </template>
+                    </div>
+                    <div class="pb-signature">
+                        <p>For: {workshop.name}</p>
+                        <div class="pb-signature-space"></div>
+                        <p>Authorized Signatory</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Save bar -->
+            <div class="pb-action-bar">
+                <template lwc:if={missingReason}>
+                    <p class="slds-text-color_weak slds-m-bottom_x-small" data-id="missing-reason">{missingReason}</p>
+                </template>
+                <div class="slds-grid slds-grid_vertical-align-center slds-grid_align-spread">
+                    <p class="pb-action-total">₹{formattedTotal}</p>
+                    <lightning-button data-id="save" variant="brand" label={saveLabel} icon-name="utility:check" disabled={saveDisabled} onclick={handleSave}></lightning-button>
+                </div>
+            </div>
+        </template>
+
+        <template lwc:if={showPreview}>
+            <c-document-preview record-id={saved.recordId} heading={saved.documentNumber} onclose={handleClosePreview}></c-document-preview>
+        </template>
+    </div>
+</template>

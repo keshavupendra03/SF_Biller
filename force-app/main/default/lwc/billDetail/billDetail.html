@@ -8,6 +8,9 @@
 
         <template if:true={hasSummary}>
             <h2 class="slds-text-heading_large">{summary.invoiceNumber}</h2>
+            <template if:true={summary.companyName}>
+                <p class="slds-text-body_regular" data-id="company-name"><strong>Company:</strong> {summary.companyName}</p>
+            </template>
             <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_xx-small">FY {summary.financialYear}</p>
             <p class="slds-text-body_regular slds-m-bottom_small">Date: {summary.billDate}</p>
             <!-- Record Payment feature disabled (2026-10) — uncomment to restore.

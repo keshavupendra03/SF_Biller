@@ -14,6 +14,8 @@ public with sharing class EstimateController {
     public class EstimateControllerException extends Exception {}
 
     public class CreateEstimateRequest {
+        // The company this estimate is for. Blank means the primary company.
+        @AuraEnabled public Id workshopProfileId { get; set; }
         @AuraEnabled public Id customerId { get; set; }
         @AuraEnabled public Id jobId { get; set; }
         @AuraEnabled public Id billToPartyId { get; set; }
@@ -33,6 +35,9 @@ public with sharing class EstimateController {
         @AuraEnabled public String status { get; set; }
         @AuraEnabled public Date estimateDate { get; set; }
         @AuraEnabled public Id jobId { get; set; }
+        @AuraEnabled public Id workshopProfileId { get; set; }
+        // Only set when the workshop has two companies.
+        @AuraEnabled public String companyName { get; set; }
         @AuraEnabled public Id customerId { get; set; }
         @AuraEnabled public String customerName { get; set; }
         @AuraEnabled public Id billToPartyId { get; set; }
@@ -57,6 +62,7 @@ public with sharing class EstimateController {
         Id vehicleId = resolveVehicleId(request.customerId, request.vehicleId, request.newVehicle);
 
         Estimate__c estimate = new Estimate__c(
+            Workshop_Profile__c = request.workshopProfileId != null ? request.workshopProfileId : WorkshopProfileService.primaryId(),
             Customer__c = request.customerId,
             Job__c = request.jobId,
             Bill_To_Party__c = billToPartyId,
@@ -84,7 +90,7 @@ public with sharing class EstimateController {
         PartUpsertService.fillManualPartIds(request.lineItems);
 
         Estimate__c previous = [
-            SELECT Version_Number__c, Root_Estimate__c, Job__c, Vehicle__c FROM Estimate__c WHERE Id = :previousEstimateId
+            SELECT Version_Number__c, Root_Estimate__c, Job__c, Vehicle__c, Workshop_Profile__c FROM Estimate__c WHERE Id = :previousEstimateId
         ];
         Id rootId = previous.Root_Estimate__c != null ? previous.Root_Estimate__c : previousEstimateId;
 
@@ -93,7 +99,9 @@ public with sharing class EstimateController {
             ? resolveVehicleId(request.customerId, request.vehicleId, request.newVehicle)
             : previous.Vehicle__c;
 
+        // A later version stays with its company, whatever the request says.
         Estimate__c newVersion = new Estimate__c(
+            Workshop_Profile__c = previous.Workshop_Profile__c,
             Customer__c = request.customerId,
             Job__c = request.jobId != null ? request.jobId : previous.Job__c,
             Bill_To_Party__c = billToPartyId,
@@ -237,7 +245,7 @@ public with sharing class EstimateController {
                    Customer__c, Customer__r.Name, Bill_To_Party__c, Bill_To_Party__r.Name,
                    Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c,
                    Vehicle__r.Chassis_Number__c, Notes__c,
-                   Subtotal__c, Total_Amount__c
+                   Subtotal__c, Total_Amount__c, Workshop_Profile__c
             FROM Estimate__c
             WHERE Id = :estimateId
         ];
@@ -274,6 +282,8 @@ public with sharing class EstimateController {
         summary.status = estimate.Status__c;
         summary.estimateDate = estimate.Estimate_Date__c;
         summary.jobId = estimate.Job__c;
+        summary.workshopProfileId = estimate.Workshop_Profile__c;
+        summary.companyName = WorkshopProfileService.companyNames().get(estimate.Workshop_Profile__c);
         summary.customerId = estimate.Customer__c;
         summary.customerName = estimate.Customer__r != null ? estimate.Customer__r.Name : null;
         summary.billToPartyId = estimate.Bill_To_Party__c;

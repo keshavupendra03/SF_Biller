@@ -2,11 +2,14 @@ import { createElement } from 'lwc';
 import QuickBill from 'c/quickBill';
 import findCustomerByPhone from '@salesforce/apex/QuickBillController.findCustomerByPhone';
 import createQuickBill from '@salesforce/apex/QuickBillController.createQuickBill';
+import createQuickEstimate from '@salesforce/apex/QuickBillController.createQuickEstimate';
 import searchParts from '@salesforce/apex/BillController.searchParts';
 import { getBarcodeScanner } from 'lightning/mobileCapabilities';
 
+jest.mock('@salesforce/apex/WorkshopProfileController.listProfiles', () => ({ default: jest.fn(() => Promise.resolve([])) }), { virtual: true });
 jest.mock('@salesforce/apex/QuickBillController.findCustomerByPhone', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/QuickBillController.createQuickBill', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/QuickBillController.createQuickEstimate', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/BillController.searchParts', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPdfDownload', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPublicLink', () => ({ default: jest.fn() }), { virtual: true });
@@ -57,12 +60,22 @@ function createQuickBillElement() {
     return element;
 }
 
+function grid(element) {
+    const child = element.shadowRoot.querySelector('c-line-item-grid');
+    return child ? child.shadowRoot : null;
+}
+
+// Looks on the screen, then inside the item grid.
 function $(element, selector) {
-    return element.shadowRoot.querySelector(selector);
+    const found = element.shadowRoot.querySelector(selector);
+    if (found) {
+        return found;
+    }
+    return grid(element) ? grid(element).querySelector(selector) : null;
 }
 
 function rows(element) {
-    return [...element.shadowRoot.querySelectorAll('[data-id="item-row"]')];
+    return [...grid(element).querySelectorAll('[data-id="item-row"]')];
 }
 
 function cell(element, rowIndex, field) {
@@ -245,13 +258,13 @@ describe('c-quick-bill', () => {
         expect($(element, '[data-id="suggestions"]')).toBeNull();
 
         await typeName(element, 0, 'en', [BRAKE_PAD, OIL]);
-        expect(element.shadowRoot.querySelectorAll('[data-id="suggestion"]')).toHaveLength(2);
+        expect(grid(element).querySelectorAll('[data-id="suggestion"]')).toHaveLength(2);
 
         const name = cell(element, 0, 'description');
         pressKey(name, 'ArrowDown');
         pressKey(name, 'ArrowDown');
         await flushPromises();
-        expect(element.shadowRoot.querySelectorAll('[data-id="suggestion"]')[1].getAttribute('aria-selected')).toBe('true');
+        expect(grid(element).querySelectorAll('[data-id="suggestion"]')[1].getAttribute('aria-selected')).toBe('true');
 
         pressKey(name, 'Enter');
         await flushPromises();
@@ -260,7 +273,7 @@ describe('c-quick-bill', () => {
         expect(cell(element, 0, 'description').value).toBe('Engine Oil 1L');
         expect(cell(element, 0, 'unitPrice').value).toBe('500');
         expect(rows(element)).toHaveLength(2);
-        expect(element.shadowRoot.activeElement).toBe(cell(element, 0, 'quantity'));
+        expect(grid(element).activeElement).toBe(cell(element, 0, 'quantity'));
     });
 
     it('Tab on a highlighted suggestion picks it; Escape closes the list and keeps the typing', async () => {
@@ -311,7 +324,7 @@ describe('c-quick-bill', () => {
         expect(rows(element)).toHaveLength(2);
         expect(cell(element, 0, 'quantity').value).toBe('2');
         expect(cell(element, 1, 'description').value).toBe('');
-        expect(element.shadowRoot.activeElement).toBe(cell(element, 1, 'description'));
+        expect(grid(element).activeElement).toBe(cell(element, 1, 'description'));
     });
 
     it('a part name typed in full and tabbed past links to that part, keeping a typed price', async () => {
@@ -464,19 +477,19 @@ describe('c-quick-bill', () => {
         await flushPromises();
         expect($(element, 'c-document-preview').recordId).toBe('bill1');
 
-        $(element, '[data-id="view-bill"]').click();
+        $(element, '[data-id="view-document"]').click();
         expect(mockNavigate).toHaveBeenCalledWith({
             type: 'standard__navItemPage', attributes: { apiName: 'Bill_Detail' }, state: { c__recordId: 'bill1' }
         });
 
-        $(element, '[data-id="new-bill"]').click();
+        $(element, '[data-id="new-document"]').click();
         await flushPromises();
         expect($(element, '[data-id="created-number"]')).toBeNull();
         expect(rows(element)).toHaveLength(1);
         expect(cell(element, 0, 'description').value).toBe('');
         expect($(element, '[data-id="include-gst"]').checked).toBe(false);
         expect($(element, '[data-id="mode"]').value).toBe('walkin');
-        expect(element.shadowRoot.activeElement).toBe(cell(element, 0, 'description'));
+        expect(grid(element).activeElement).toBe(cell(element, 0, 'description'));
     });
 
     it('scanning a barcode fills the empty line with the matching part', async () => {
@@ -496,5 +509,103 @@ describe('c-quick-bill', () => {
         expect(rows(element)).toHaveLength(2);
         expect(mockScanner.endCapture).toHaveBeenCalled();
         mockScanner.isAvailable.mockReturnValue(false);
+    });
+
+    describe('in estimate mode', () => {
+        const ESTIMATE = { estimateId: 'est1', estimateNumber: 'EST-0042', customerName: 'Walk-in Customer', totalAmount: 600 };
+
+        function createEstimateScreen() {
+            const element = createElement('c-quick-bill', { is: QuickBill });
+            element.documentType = 'estimate';
+            document.body.appendChild(element);
+            return element;
+        }
+
+        it('says estimate throughout, with no mention of a bill', async () => {
+            const element = createEstimateScreen();
+            await switchToWalkIn(element);
+
+            const text = element.shadowRoot.textContent;
+            expect(text).toContain('Quick Estimate');
+            expect(text).toContain('The estimate is issued to');
+            expect(text).toContain('Estimate date & notes');
+            expect(text).toContain('Ctrl+Enter creates the estimate.');
+            expect(text.toLowerCase()).not.toContain('bill');
+            expect($(element, '[data-id="create"]').label).toBe('Create Estimate');
+        });
+
+        it('has the same one-line keyboard grid, with GST off by default', async () => {
+            const element = createEstimateScreen();
+            await switchToWalkIn(element);
+
+            expect([...rows(element)[0].querySelectorAll('input')].map((i) => i.dataset.field)).toEqual(['description', 'quantity', 'unitPrice', 'taxRatePercent']);
+            expect(cell(element, 0, 'taxRatePercent').disabled).toBe(true);
+            await typeCell(element, 0, 'description', 'Wheel alignment');
+            await typeCell(element, 0, 'unitPrice', '600');
+            expect(rows(element)).toHaveLength(2);
+            expect($(element, '[data-id="grand-total"]').textContent).toBe('₹600.00');
+
+            await setGst(element, true);
+            expect($(element, '[data-id="grand-total"]').textContent).toBe('₹708.00');
+        });
+
+        it('creates an estimate, not a bill, and sends the date as the estimate date', async () => {
+            createQuickEstimate.mockResolvedValue(ESTIMATE);
+            const element = createEstimateScreen();
+            await switchToWalkIn(element);
+            await typeCell(element, 0, 'description', 'Wheel alignment');
+            await typeCell(element, 0, 'unitPrice', '600');
+
+            $(element, '[data-id="create"]').click();
+            await flushPromises();
+
+            expect(createQuickBill).not.toHaveBeenCalled();
+            const { request } = createQuickEstimate.mock.calls[0][0];
+            expect(request).toEqual(expect.objectContaining({ isWalkIn: true, includeGst: false }));
+            expect(request.documentDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+            expect(request.lineItems).toHaveLength(1);
+        });
+
+        it('after creating: previews the estimate, opens Estimate Details, and starts a new one', async () => {
+            createQuickEstimate.mockResolvedValue(ESTIMATE);
+            const element = createEstimateScreen();
+            await switchToWalkIn(element);
+            await typeCell(element, 0, 'description', 'Wheel alignment');
+            await typeCell(element, 0, 'unitPrice', '600');
+            $(element, '[data-id="create"]').click();
+            await flushPromises();
+
+            expect($(element, '[data-id="created-number"]').textContent).toBe('EST-0042');
+            expect(element.shadowRoot.textContent).toContain('Estimate created');
+            expect($(element, '[data-id="view-document"]').label).toBe('View Estimate');
+            expect($(element, '[data-id="new-document"]').label).toBe('New Quick Estimate');
+
+            $(element, '[data-id="print"]').click();
+            await flushPromises();
+            const preview = $(element, 'c-document-preview');
+            expect(preview.recordId).toBe('est1');
+            expect(preview.heading).toBe('EST-0042');
+
+            $(element, '[data-id="view-document"]').click();
+            expect(mockNavigate).toHaveBeenCalledWith({
+                type: 'standard__navItemPage', attributes: { apiName: 'Estimate_Detail' }, state: { c__recordId: 'est1' }
+            });
+
+            $(element, '[data-id="new-document"]').click();
+            await flushPromises();
+            expect($(element, '[data-id="created-number"]')).toBeNull();
+            expect(rows(element)).toHaveLength(1);
+        });
+
+        it('does not warn about stock, since a quote takes none', async () => {
+            const element = createEstimateScreen();
+            await switchToWalkIn(element);
+            await typeName(element, 0, 'brake', [BRAKE_PAD]);
+            $(element, '[data-id="suggestion"]').dispatchEvent(new CustomEvent('mousedown', { bubbles: true, cancelable: true }));
+            await flushPromises();
+
+            await typeCell(element, 0, 'quantity', '3');
+            expect($(element, '[data-id="stock-note"]')).toBeNull();
+        });
     });
 });

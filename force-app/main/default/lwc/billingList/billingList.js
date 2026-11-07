@@ -23,6 +23,8 @@ export default class BillingList extends NavigationMixin(LightningElement) {
     searchTerm = '';
     isLoading = true;
 
+    companyFilter = null;
+
     connectedCallback() {
         disablePullToRefresh(this);
         this.loadBills();
@@ -30,7 +32,7 @@ export default class BillingList extends NavigationMixin(LightningElement) {
 
     loadBills() {
         this.isLoading = true;
-        return listBills({ filter: 'All', searchTerm: this.searchTerm })
+        return listBills({ filter: 'All', searchTerm: this.searchTerm, workshopProfileId: this.companyFilter || undefined })
             .then((results) => {
                 this.bills = results;
             })
@@ -98,6 +100,15 @@ export default class BillingList extends NavigationMixin(LightningElement) {
             type: 'standard__navItemPage',
             attributes: { apiName: 'New_Bill' }
         });
+    }
+
+    // Only reloads on a real change: the picker also reports in when it loads.
+    handleCompanyFilter(event) {
+        const id = event.detail.id || null;
+        if (id !== this.companyFilter) {
+            this.companyFilter = id;
+            this.loadBills();
+        }
     }
 
     handleQuickBill() {

@@ -22,6 +22,8 @@
 
         <template lwc:if={hasForm}>
             <div class="slds-p-horizontal_medium">
+                <c-company-picker value={slip.workshopProfileId} oncompanychange={handleCompanyChange}></c-company-picker>
+
                 <!-- Customer -->
                 <lightning-card title={customer.name} icon-name="standard:person_account" class="section">
                     <div class="slds-p-horizontal_medium slds-text-body_regular">

@@ -2,11 +2,11 @@ import { createElement } from 'lwc';
 import CustomerList from 'c/customerList';
 import listCustomers from '@salesforce/apex/CustomerController.listCustomers';
 import createCustomer from '@salesforce/apex/BillController.createCustomer';
-import getProfile from '@salesforce/apex/WorkshopProfileController.getProfile';
+import listProfiles from '@salesforce/apex/WorkshopProfileController.listProfiles';
 
 jest.mock('@salesforce/apex/CustomerController.listCustomers', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/BillController.createCustomer', () => ({ default: jest.fn() }), { virtual: true });
-jest.mock('@salesforce/apex/WorkshopProfileController.getProfile', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/WorkshopProfileController.listProfiles', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPdfDownload', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPublicLink', () => ({ default: jest.fn() }), { virtual: true });
 
@@ -81,7 +81,7 @@ describe('c-customer-list', () => {
 
     it('Print Job Slip previews a completely blank slip, and Close dismisses it', async () => {
         listCustomers.mockResolvedValue([]);
-        getProfile.mockResolvedValue({ id: 'profile1', name: 'Speedy Motors' });
+        listProfiles.mockResolvedValue([{ id: 'profile1', name: 'Speedy Motors' }]);
         const element = createElement('c-customer-list', { is: CustomerList });
         document.body.appendChild(element);
         await flushPromises();
@@ -101,7 +101,7 @@ describe('c-customer-list', () => {
 
     it('Print Job Slip asks for workshop details when there is no profile yet', async () => {
         listCustomers.mockResolvedValue([]);
-        getProfile.mockResolvedValue(null);
+        listProfiles.mockResolvedValue([]);
         const element = createElement('c-customer-list', { is: CustomerList });
         document.body.appendChild(element);
         const toastHandler = jest.fn();
@@ -113,5 +113,22 @@ describe('c-customer-list', () => {
 
         expect(element.shadowRoot.querySelector('c-document-preview')).toBeNull();
         expect(toastHandler.mock.calls[0][0].detail.title).toBe('Workshop profile needed');
+    });
+
+    it('Print Job Slip asks which company when there are two, and prints that one', async () => {
+        listCustomers.mockResolvedValue([]);
+        listProfiles.mockResolvedValue([{ id: 'wp1', name: 'Speedy Motors' }, { id: 'wp2', name: 'Speedy Decor' }]);
+        const element = createElement('c-customer-list', { is: CustomerList });
+        document.body.appendChild(element);
+        await flushPromises();
+
+        element.shadowRoot.querySelector('[data-id="print-job-slip"]').click();
+        await flushPromises();
+        expect(element.shadowRoot.querySelector('c-document-preview')).toBeNull();
+
+        element.shadowRoot.querySelector('[data-id="wp2"]').click();
+        await flushPromises();
+
+        expect(element.shadowRoot.querySelector('c-document-preview').recordId).toBe('wp2');
     });
 });

@@ -1,9 +1,8 @@
 /**
- * Workshop_Profile__c is a singleton — exactly one record holds the
- * workshop's own details (name, GSTIN, bank account) shown as the "Pay To"
- * block on every invoice PDF (InvoicePdfController already reads it the
- * same way). saveProfile finds-or-creates that one record rather than
- * exposing a generic CRUD surface, since there is never a second one.
+ * The workshop's companies: at most two (WorkshopProfileTrigger enforces it),
+ * each with its own details, GSTIN, bank account, terms and invoice prefix.
+ * Most workshops only ever have the one, so getProfile and saveProfile without
+ * an id still mean the primary company.
  */
 public with sharing class WorkshopProfileController {
 
@@ -23,56 +22,86 @@ public with sharing class WorkshopProfileController {
         @AuraEnabled public String bankIfsc { get; set; }
         @AuraEnabled public String termsAndConditions { get; set; }
         @AuraEnabled public String jobSlipTerms { get; set; }
+        @AuraEnabled public String invoicePrefix { get; set; }
+        @AuraEnabled public Boolean isPrimary { get; set; }
+    }
+
+    private static final List<String> FIELDS = new List<String>{
+        'Name', 'Address__c', 'Phone__c', 'Email__c', 'GSTIN__c', 'State__c', 'Invoice_Prefix__c',
+        'Bank_Account_Holder__c', 'Bank_Name__c', 'Bank_Account_No__c', 'Bank_IFSC__c',
+        'Terms_And_Conditions__c', 'Job_Slip_Terms__c'
+    };
+
+    /** Primary company first. */
+    @AuraEnabled
+    public static List<ProfileData> listProfiles() {
+        List<ProfileData> results = new List<ProfileData>();
+        for (Workshop_Profile__c profile : Database.query(
+            'SELECT ' + String.join(FIELDS, ', ') + ' FROM Workshop_Profile__c ORDER BY CreatedDate, Id'
+        )) {
+            ProfileData data = toProfileData(profile);
+            data.isPrimary = results.isEmpty();
+            results.add(data);
+        }
+        return results;
     }
 
     @AuraEnabled
     public static ProfileData getProfile() {
-        List<Workshop_Profile__c> records = [
-            SELECT Name, Address__c, Phone__c, Email__c, GSTIN__c, State__c,
-                   Bank_Account_Holder__c, Bank_Name__c, Bank_Account_No__c, Bank_IFSC__c,
-                   Terms_And_Conditions__c, Job_Slip_Terms__c
-            FROM Workshop_Profile__c
-            LIMIT 1
-        ];
-        if (records.isEmpty()) {
-            return null;
-        }
-        return toProfileData(records[0]);
+        List<ProfileData> profiles = listProfiles();
+        return profiles.isEmpty() ? null : profiles[0];
     }
 
+    /** Updates the company given by input.id, or the primary one (adding it if there's none). */
     @AuraEnabled
     public static ProfileData saveProfile(ProfileData input) {
+        requireName(input);
+        Id existingId = input.id != null ? input.id : WorkshopProfileService.primaryId();
+        return write(applyTo(new Workshop_Profile__c(Id = existingId), input));
+    }
+
+    /** Adds a company. Refused by WorkshopProfileTrigger if there are already two. */
+    @AuraEnabled
+    public static ProfileData addProfile(ProfileData input) {
+        requireName(input);
+        return write(applyTo(new Workshop_Profile__c(), input));
+    }
+
+    private static void requireName(ProfileData input) {
         if (input == null || String.isBlank(input.name)) {
             throw new WorkshopProfileControllerException('A workshop name is required.');
         }
+    }
 
-        List<Workshop_Profile__c> existing = [SELECT Id FROM Workshop_Profile__c LIMIT 1];
-        Workshop_Profile__c profile = existing.isEmpty()
-            ? new Workshop_Profile__c()
-            : new Workshop_Profile__c(Id = existing[0].Id);
-
+    private static Workshop_Profile__c applyTo(Workshop_Profile__c profile, ProfileData input) {
         profile.Name = input.name;
         profile.Address__c = input.address;
         profile.Phone__c = input.phone;
         profile.Email__c = input.email;
         profile.GSTIN__c = input.gstin;
         profile.State__c = input.state;
+        profile.Invoice_Prefix__c = input.invoicePrefix;
         profile.Bank_Account_Holder__c = input.bankAccountHolder;
         profile.Bank_Name__c = input.bankName;
         profile.Bank_Account_No__c = input.bankAccountNo;
         profile.Bank_IFSC__c = input.bankIfsc;
         profile.Terms_And_Conditions__c = input.termsAndConditions;
         profile.Job_Slip_Terms__c = input.jobSlipTerms;
+        return profile;
+    }
 
-        upsert profile;
-
-        return toProfileData([
-            SELECT Name, Address__c, Phone__c, Email__c, GSTIN__c, State__c,
-                   Bank_Account_Holder__c, Bank_Name__c, Bank_Account_No__c, Bank_IFSC__c,
-                   Terms_And_Conditions__c, Job_Slip_Terms__c
-            FROM Workshop_Profile__c
-            WHERE Id = :profile.Id
-        ]);
+    // A DmlException reaches the screen with no readable message, so the
+    // trigger's own wording is rethrown as one that does.
+    private static ProfileData write(Workshop_Profile__c profile) {
+        try {
+            upsert profile;
+        } catch (DmlException e) {
+            throw new WorkshopProfileControllerException(e.getDmlMessage(0));
+        }
+        Id profileId = profile.Id;
+        return toProfileData(Database.query(
+            'SELECT ' + String.join(FIELDS, ', ') + ' FROM Workshop_Profile__c WHERE Id = :profileId'
+        ));
     }
 
     private static ProfileData toProfileData(Workshop_Profile__c p) {
@@ -90,6 +119,7 @@ public with sharing class WorkshopProfileController {
         data.bankIfsc = p.Bank_IFSC__c;
         data.termsAndConditions = p.Terms_And_Conditions__c;
         data.jobSlipTerms = p.Job_Slip_Terms__c;
+        data.invoicePrefix = WorkshopProfileService.invoicePrefix(p);
         return data;
     }
 }

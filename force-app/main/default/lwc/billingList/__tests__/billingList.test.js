@@ -2,6 +2,7 @@ import { createElement } from 'lwc';
 import BillingList from 'c/billingList';
 import listBills from '@salesforce/apex/BillController.listBills';
 
+jest.mock('@salesforce/apex/WorkshopProfileController.listProfiles', () => ({ default: jest.fn(() => Promise.resolve([])) }), { virtual: true });
 jest.mock('@salesforce/apex/BillController.listBills', () => ({ default: jest.fn() }), { virtual: true });
 
 const mockNavigate = jest.fn();

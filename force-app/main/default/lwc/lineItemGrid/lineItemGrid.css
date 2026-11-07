@@ -1,0 +1,257 @@
+/* ---- compact: one line per item. The phone layout has no room for Amount;
+   the screen's footer carries the running total there. ---- */
+.item-grid {
+    margin: 0 -0.5rem;
+}
+
+.item-line {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 2.75rem 4rem 2.75rem 3rem;
+    gap: 0.25rem;
+    align-items: center;
+}
+
+.item-header {
+    font-size: 0.75rem;
+    color: #444;
+    margin-bottom: 0.25rem;
+}
+
+.item-row {
+    position: relative;
+    margin-bottom: 0.25rem;
+}
+
+.item-input {
+    padding: 0 0.375rem;
+    min-width: 0;
+}
+
+.cell-number {
+    text-align: right;
+}
+
+/* Spinner arrows take up most of a box this narrow. */
+input[type='number'] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.cell-amount {
+    display: none;
+    text-align: right;
+    font-weight: 700;
+}
+
+.item-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.25rem;
+}
+
+@media (min-width: 48em) {
+    .item-grid {
+        margin: 0;
+    }
+
+    .item-line {
+        grid-template-columns: minmax(0, 1fr) 4rem 6rem 4rem 7rem 3.5rem;
+        gap: 0.5rem;
+    }
+
+    .cell-amount {
+        display: block;
+    }
+}
+
+/* ---- paper: drawn like the printed bill's table (same blue as InvoicePdf).
+   On a phone each item takes two lines so the boxes stay big enough to use. ---- */
+.item-grid_paper {
+    margin: 0;
+    border: 1px solid #1a4fa0;
+}
+
+.item-grid_paper .item-header {
+    display: none;
+}
+
+.item-grid_paper .item-row {
+    margin-bottom: 0;
+    border-bottom: 1px solid #ccc;
+}
+
+.item-grid_paper .item-row:last-child {
+    border-bottom: 0;
+}
+
+.item-grid_paper .cell-amount {
+    display: block;
+    padding-right: 0.375rem;
+}
+
+.item-line_paper {
+    gap: 0;
+    grid-template-columns: 1.5rem minmax(0, 1fr) 2.75rem 4rem 5rem;
+    grid-template-areas:
+        'sr name name name actions'
+        'sr hsn qty price amount';
+}
+
+.item-line_paper-gst {
+    grid-template-columns: 1.5rem minmax(0, 1fr) 2.5rem 3.5rem 2.5rem 4.5rem;
+    grid-template-areas:
+        'sr name name name name actions'
+        'sr hsn qty price gst amount';
+}
+
+.item-line_paper .cell-sr {
+    grid-area: sr;
+    text-align: center;
+    font-size: 0.75rem;
+}
+
+.item-line_paper input[data-field='description'],
+.item-line_paper .cell-name {
+    grid-area: name;
+}
+
+.item-line_paper input[data-field='hsnSacCode'],
+.item-line_paper .cell-hsn {
+    grid-area: hsn;
+}
+
+.item-line_paper input[data-field='quantity'],
+.item-line_paper .cell-qty {
+    grid-area: qty;
+}
+
+.item-line_paper input[data-field='unitPrice'],
+.item-line_paper .cell-price {
+    grid-area: price;
+}
+
+.item-line_paper input[data-field='taxRatePercent'],
+.item-line_paper .cell-gst {
+    grid-area: gst;
+}
+
+.item-line_paper .cell-amount {
+    grid-area: amount;
+}
+
+.item-line_paper .cell-actions {
+    grid-area: actions;
+    padding-right: 0.25rem;
+}
+
+.paper-input {
+    width: 100%;
+    min-width: 0;
+    height: 2.25rem;
+    padding: 0 0.375rem;
+    border: 0;
+    background-color: transparent;
+    font: inherit;
+    color: inherit;
+}
+
+.paper-input::placeholder {
+    color: #8a8a8a;
+}
+
+/* The box being typed in is the one thing that stands out on the page. */
+.paper-input:focus {
+    outline: 2px solid #1a4fa0;
+    outline-offset: -2px;
+    background-color: #fff8d6;
+}
+
+@media (min-width: 48em) {
+    .item-grid_paper .item-header {
+        display: grid;
+        margin-bottom: 0;
+        padding: 0.375rem 0;
+        background-color: #1a4fa0;
+        color: #fff;
+        font-weight: 700;
+    }
+
+    .item-grid_paper .item-header .cell-amount {
+        display: block;
+    }
+
+    .item-line_paper {
+        grid-template-columns: 2.5rem minmax(0, 1fr) 6rem 5rem 7rem 8rem 2rem;
+        grid-template-areas: 'sr name hsn qty price amount actions';
+    }
+
+    .item-line_paper-gst {
+        grid-template-columns: 2.5rem minmax(0, 1fr) 6rem 4.5rem 6.5rem 4.5rem 8rem 2rem;
+        grid-template-areas: 'sr name hsn qty price gst amount actions';
+    }
+
+    /* Column rules, like the printed table. */
+    .item-row .item-line_paper .paper-input,
+    .item-row .item-line_paper .cell-sr,
+    .item-row .item-line_paper .cell-amount {
+        border-right: 1px solid #ccc;
+    }
+
+    .item-row .item-line_paper .cell-sr,
+    .item-row .item-line_paper .cell-amount {
+        align-self: stretch;
+        line-height: 2.25rem;
+    }
+
+    .item-grid_paper .paper-input::placeholder {
+        color: transparent;
+    }
+}
+
+.suggestions {
+    position: absolute;
+    z-index: 10;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 15rem;
+    overflow-y: auto;
+    background-color: #fff;
+    border: 1px solid #c9c9c9;
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16);
+}
+
+.suggestion {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    min-height: 44px;
+    padding: 0.375rem 0.75rem;
+    border-bottom: 1px solid #f3f3f3;
+    text-align: left;
+}
+
+.suggestion_active {
+    background-color: #eef4ff;
+}
+
+.suggestion-name {
+    min-width: 0;
+}
+
+.suggestion-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.125rem;
+    flex-shrink: 0;
+    margin-left: 0.5rem;
+}

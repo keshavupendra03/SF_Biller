@@ -117,6 +117,9 @@
                     <button type="button" key={bill.id} class="slds-button slds-button_reset document-row" data-id={bill.id} onclick={handleOpenBill}>
                         <span class="document-row-body">
                             <span class="slds-text-body_regular">{bill.documentNumber}</span>
+                            <template if:true={bill.companyName}>
+                                <span class="slds-text-body_small slds-text-color_weak">{bill.companyName}</span>
+                            </template>
                             <!-- Record Payment feature disabled (2026-10) — uncomment to restore the Paid/Partial/Unpaid status badge.
                             <span class={bill.badgeClass}>{bill.status}</span>
                             -->
@@ -138,6 +141,9 @@
                     <button type="button" key={estimate.id} class="slds-button slds-button_reset document-row" data-id={estimate.id} onclick={handleOpenEstimate}>
                         <span class="document-row-body">
                             <span class="slds-text-body_regular">{estimate.documentNumber}</span>
+                            <template if:true={estimate.companyName}>
+                                <span class="slds-text-body_small slds-text-color_weak">{estimate.companyName}</span>
+                            </template>
                             <span class={estimate.badgeClass}>{estimate.status}</span>
                         </span>
                         <span class="slds-text-body_regular">₹{estimate.totalAmount}</span>
@@ -154,6 +160,7 @@
                         <p class="slds-m-top_x-small slds-text-color_weak">Which vehicle is it for? Its details are printed on the slip; everything else is left blank to fill by hand.</p>
                     </header>
                     <div class="slds-modal__content slds-p-around_medium">
+                        <c-company-picker value={blankSlipCompanyId} oncompanychange={handleBlankSlipCompany}></c-company-picker>
                         <template for:each={decoratedVehicles} for:item="vehicle">
                             <button type="button" key={vehicle.id} class="slds-button slds-button_reset document-row" data-id="blank-slip-vehicle" data-vehicle-id={vehicle.id} onclick={handleChooseBlankSlipVehicle}>
                                 <span class="document-row-body">
@@ -165,7 +172,7 @@
                         </template>
                         <button type="button" class="slds-button slds-button_reset document-row" data-id="blank-slip-no-vehicle" onclick={handleChooseBlankSlipVehicle}>
                             <span class="document-row-body">
-                                <span class="slds-text-body_regular">Another vehicle</span>
+                                <span class="slds-text-body_regular">{noVehicleLabel}</span>
                                 <span class="slds-text-body_small slds-text-color_weak">Leave the vehicle details blank</span>
                             </span>
                             <lightning-icon icon-name="utility:print" size="x-small"></lightning-icon>
@@ -180,7 +187,7 @@
         </template>
 
         <template if:true={blankSlipRecordId}>
-            <c-document-preview record-id={blankSlipRecordId} page-name="JobSlipPdf" heading="Blank Job Slip" onclose={handleCloseBlankSlip}></c-document-preview>
+            <c-document-preview record-id={blankSlipRecordId} workshop-profile-id={blankSlipCompanyId} page-name="JobSlipPdf" heading="Blank Job Slip" onclose={handleCloseBlankSlip}></c-document-preview>
         </template>
     </div>
 </template>

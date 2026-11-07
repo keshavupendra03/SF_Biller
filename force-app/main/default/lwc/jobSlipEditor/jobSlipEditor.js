@@ -207,6 +207,10 @@ export default class JobSlipEditor extends NavigationMixin(LightningElement) {
 
     // ---- field handlers -------------------------------------------------
 
+    handleCompanyChange(event) {
+        this.slip = { ...this.slip, workshopProfileId: event.detail.id };
+    }
+
     handleFieldChange(event) {
         const field = event.target.dataset.field;
         this.slip = { ...this.slip, [field]: event.detail.value !== undefined ? event.detail.value : event.target.value };

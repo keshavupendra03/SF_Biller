@@ -5,6 +5,7 @@ import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import getCustomerDetail from '@salesforce/apex/CustomerController.getCustomerDetail';
 import updateCustomer from '@salesforce/apex/CustomerController.updateCustomer';
 import createVehicle from '@salesforce/apex/CustomerController.createVehicle';
+import listProfiles from '@salesforce/apex/WorkshopProfileController.listProfiles';
 
 const EMPTY_VEHICLE = { registrationNumber: '', make: '', model: '', year: '', color: '', chassisNumber: '' };
 
@@ -39,6 +40,7 @@ export default class CustomerDetail extends NavigationMixin(LightningElement) {
     // The Vehicle__c (or, with no vehicle picked, Customer__c) a blank job
     // slip is being previewed for — JobSlipPdf prefills just those details.
     blankSlipRecordId;
+    blankSlipCompanyId;
 
     connectedCallback() {
         disablePullToRefresh(this);
@@ -233,13 +235,26 @@ export default class CustomerDetail extends NavigationMixin(LightningElement) {
         this.navigateToRecord('Job_Slip', event.currentTarget.dataset.id);
     }
 
-    // With no vehicles there's nothing to choose — straight to the preview.
+    // With no vehicles and one company there's nothing to choose, so straight
+    // to the preview.
     handlePrintBlankSlip() {
-        if (this.hasVehicles) {
-            this.showBlankSlipChooser = true;
-        } else {
-            this.blankSlipRecordId = this.customerId;
-        }
+        listProfiles()
+            .then((profiles) => {
+                if (this.hasVehicles || (profiles || []).length > 1) {
+                    this.showBlankSlipChooser = true;
+                } else {
+                    this.blankSlipRecordId = this.customerId;
+                }
+            })
+            .catch((error) => this.showError(error));
+    }
+
+    handleBlankSlipCompany(event) {
+        this.blankSlipCompanyId = event.detail.id;
+    }
+
+    get noVehicleLabel() {
+        return this.hasVehicles ? 'Another vehicle' : 'Print job slip';
     }
 
     handleChooseBlankSlipVehicle(event) {

@@ -11,6 +11,8 @@ export default class DocumentPreview extends LightningElement {
     // bills/estimates, JobSlipPdf for job slips. DocumentPdfService picks
     // the same page server-side from the record type when making the PDF.
     @api pageName = 'InvoicePdf';
+    // Which company a blank job slip is for. Other documents know their own.
+    @api workshopProfileId;
 
     isFrameLoading = true;
     isDownloading = false;
@@ -25,12 +27,17 @@ export default class DocumentPreview extends LightningElement {
 
     connectedCallback() {
         if (this.isPhone) {
-            this._linkPromise = getPublicLink({ recordId: this.recordId });
+            this._linkPromise = this.fetchLink();
         }
     }
 
     get previewUrl() {
-        return `/apex/${this.pageName}?id=${this.recordId}&format=html`;
+        const company = this.workshopProfileId ? `&workshop=${this.workshopProfileId}` : '';
+        return `/apex/${this.pageName}?id=${this.recordId}&format=html${company}`;
+    }
+
+    fetchLink() {
+        return getPublicLink({ recordId: this.recordId, workshopProfileId: this.workshopProfileId });
     }
 
     get isPhone() {
@@ -75,7 +82,7 @@ export default class DocumentPreview extends LightningElement {
     // real <a href target="_blank"> is a native DOM action that doesn't
     // go through Salesforce's own URL classification at all.
     downloadViaShareSheet() {
-        const linkPromise = this._linkPromise || getPublicLink({ recordId: this.recordId });
+        const linkPromise = this._linkPromise || this.fetchLink();
         return linkPromise.then((link) => {
             if (!navigator.share) {
                 this.openInBrowser(link.downloadUrl);
@@ -104,7 +111,7 @@ export default class DocumentPreview extends LightningElement {
     }
 
     downloadInPage() {
-        return getPdfDownload({ recordId: this.recordId }).then((download) => {
+        return getPdfDownload({ recordId: this.recordId, workshopProfileId: this.workshopProfileId }).then((download) => {
             const bytes = atob(download.base64Data);
             const buffer = new Uint8Array(bytes.length);
             for (let i = 0; i < bytes.length; i++) {

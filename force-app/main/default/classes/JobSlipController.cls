@@ -49,6 +49,7 @@ public with sharing class JobSlipController {
     public class JobSlipData {
         @AuraEnabled public Id id { get; set; }
         @AuraEnabled public String slipNumber { get; set; }
+        @AuraEnabled public Id workshopProfileId { get; set; }
         @AuraEnabled public Id customerId { get; set; }
         @AuraEnabled public Id vehicleId { get; set; }
         @AuraEnabled public CustomerController.NewVehicleInput newVehicle { get; set; }
@@ -166,6 +167,7 @@ public with sharing class JobSlipController {
 
         Job_Slip__c slip = new Job_Slip__c(
             Id = input.id,
+            Workshop_Profile__c = input.workshopProfileId != null ? input.workshopProfileId : WorkshopProfileService.primaryId(),
             Vehicle__c = vehicleId,
             Slip_Date__c = input.slipDate != null ? input.slipDate : Date.today(),
             Time_In__c = parseTime(input.timeIn),
@@ -249,7 +251,7 @@ public with sharing class JobSlipController {
 
     public static Job_Slip__c loadSlip(Id jobSlipId) {
         return [
-            SELECT Id, Name, Customer__c, Vehicle__c, Slip_Date__c, Time_In__c, Current_Km__c,
+            SELECT Id, Name, Workshop_Profile__c, Customer__c, Vehicle__c, Slip_Date__c, Time_In__c, Current_Km__c,
                    Visit_Reason__c, Fuel_Level__c,
                    Service_Booklet__c, Spare_Wheel__c, Jack_And_Handle__c, Tool_Kit__c, Mats__c,
                    Mud_Flaps__c, Stereo__c, Clock__c, Cassette_CD__c, Side_Bidding__c,
@@ -270,6 +272,7 @@ public with sharing class JobSlipController {
         JobSlipData data = new JobSlipData();
         data.id = s.Id;
         data.slipNumber = s.Name;
+        data.workshopProfileId = s.Workshop_Profile__c;
         data.customerId = s.Customer__c;
         data.vehicleId = s.Vehicle__c;
         data.slipDate = s.Slip_Date__c;

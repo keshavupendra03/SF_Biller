@@ -6,6 +6,8 @@
             <span class="slds-p-around_x-small"></span>
         </div>
 
+        <c-company-picker value={workshopProfileId} locked={isVersioning} oncompanychange={handleCompanyChange}></c-company-picker>
+
         <!-- Customer -->
         <template if:true={isVersioning}>
             <p class="slds-text-heading_medium slds-m-bottom_medium">{selectedCustomer.name}</p>

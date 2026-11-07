@@ -8,7 +8,9 @@
  *    vehicle) details prefilled, for staff to fill by hand and type into
  *    the Job Slip screen later.
  *  - Workshop_Profile__c: a completely blank slip (Customers screen's Print
- *    Job Slip) — just the workshop header, to keep a stack on the counter.
+ *    Job Slip) — just that company's header, to keep a stack on the counter.
+ * A saved slip prints its own company. A blank slip for a vehicle or customer
+ * names its company in ?workshop= (the primary one if not given).
  * The repairs table always pads out to the paper form's 15 rows so a
  * printed slip still has room for handwritten additions.
  */
@@ -121,8 +123,8 @@ public with sharing class JobSlipPdfController {
             return;
         }
 
-        loadWorkshopProfile();
         SObjectType type = recordId.getSObjectType();
+        loadWorkshopProfile(companyFor(recordId, type));
         if (type == Job_Slip__c.SObjectType) {
             loadSlip(recordId);
         } else if (type == Vehicle__c.SObjectType) {
@@ -149,9 +151,21 @@ public with sharing class JobSlipPdfController {
         }
     }
 
-    private void loadWorkshopProfile() {
+    private static Id companyFor(Id recordId, SObjectType type) {
+        if (type == Workshop_Profile__c.SObjectType) {
+            return recordId;
+        }
+        if (type == Job_Slip__c.SObjectType) {
+            return [SELECT Workshop_Profile__c FROM Job_Slip__c WHERE Id = :recordId].Workshop_Profile__c;
+        }
+        String requested = ApexPages.currentPage().getParameters().get('workshop');
+        return String.isBlank(requested) ? null : Id.valueOf(requested);
+    }
+
+    private void loadWorkshopProfile(Id workshopProfileId) {
+        Id profileId = workshopProfileId != null ? workshopProfileId : WorkshopProfileService.primaryId();
         List<Workshop_Profile__c> profiles = [
-            SELECT Name, Address__c, Phone__c, Email__c, Job_Slip_Terms__c FROM Workshop_Profile__c LIMIT 1
+            SELECT Name, Address__c, Phone__c, Email__c, Job_Slip_Terms__c FROM Workshop_Profile__c WHERE Id = :profileId
         ];
         String rawTerms = DEFAULT_TERMS;
         if (!profiles.isEmpty()) {

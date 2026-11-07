@@ -4,7 +4,7 @@ import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import listCustomers from '@salesforce/apex/CustomerController.listCustomers';
 import createCustomer from '@salesforce/apex/BillController.createCustomer';
-import getProfile from '@salesforce/apex/WorkshopProfileController.getProfile';
+import listProfiles from '@salesforce/apex/WorkshopProfileController.listProfiles';
 const EMPTY_NEW_CUSTOMER = { name: '', phone: '', address: '', email: '', gstin: '', state: '' };
 
 export default class CustomerList extends NavigationMixin(LightningElement) {
@@ -21,6 +21,8 @@ export default class CustomerList extends NavigationMixin(LightningElement) {
     // rendered from the Workshop Profile, since it belongs to no customer.
     blankSlipRecordId;
     isOpeningJobSlip = false;
+    // Set => asking which company's slip to print.
+    slipCompanies;
 
     connectedCallback() {
         disablePullToRefresh(this);
@@ -108,10 +110,12 @@ export default class CustomerList extends NavigationMixin(LightningElement) {
 
     handlePrintJobSlip() {
         this.isOpeningJobSlip = true;
-        getProfile()
-            .then((profile) => {
-                if (profile) {
-                    this.blankSlipRecordId = profile.id;
+        listProfiles()
+            .then((profiles) => {
+                if (profiles && profiles.length > 1) {
+                    this.slipCompanies = profiles;
+                } else if (profiles && profiles.length) {
+                    this.blankSlipRecordId = profiles[0].id;
                 } else {
                     this.showToast('Workshop profile needed', 'Add your workshop details under Settings first. They are printed at the top of the job slip.', 'warning');
                 }
@@ -120,6 +124,15 @@ export default class CustomerList extends NavigationMixin(LightningElement) {
             .finally(() => {
                 this.isOpeningJobSlip = false;
             });
+    }
+
+    handleChooseSlipCompany(event) {
+        this.blankSlipRecordId = event.currentTarget.dataset.id;
+        this.slipCompanies = undefined;
+    }
+
+    handleCancelSlipCompany() {
+        this.slipCompanies = undefined;
     }
 
     handleCloseJobSlip() {

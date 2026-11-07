@@ -5,6 +5,7 @@ import getCustomerDetail from '@salesforce/apex/CustomerController.getCustomerDe
 import updateCustomer from '@salesforce/apex/CustomerController.updateCustomer';
 import createVehicle from '@salesforce/apex/CustomerController.createVehicle';
 
+jest.mock('@salesforce/apex/WorkshopProfileController.listProfiles', () => ({ default: jest.fn(() => Promise.resolve([])) }), { virtual: true });
 jest.mock('@salesforce/apex/CustomerController.getCustomerDetail', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/CustomerController.updateCustomer', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/CustomerController.createVehicle', () => ({ default: jest.fn() }), { virtual: true });

@@ -85,11 +85,13 @@ private class InvoiceNumberingServiceTest {
     // creations produce 100 unique sequential numbers.
     @isTest
     static void assignNextInvoiceNumber_100CallsProduce100UniqueSequentialNumbers() {
+        // Named outright: looking up the primary company would be a 101st query.
+        Id companyId = [SELECT Id FROM Workshop_Profile__c LIMIT 1].Id;
         Test.startTest();
         Set<String> numbers = new Set<String>();
         List<Integer> sequenceNumbers = new List<Integer>();
         for (Integer i = 0; i < 100; i++) {
-            InvoiceNumberingService.InvoiceNumberResult result = InvoiceNumberingService.assignNextInvoiceNumber();
+            InvoiceNumberingService.InvoiceNumberResult result = InvoiceNumberingService.assignNextInvoiceNumber(companyId);
             numbers.add(result.invoiceNumber);
             List<String> parts = result.invoiceNumber.split('/');
             sequenceNumbers.add(Integer.valueOf(parts[2]));

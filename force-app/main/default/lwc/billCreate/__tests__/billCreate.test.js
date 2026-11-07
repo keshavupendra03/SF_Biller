@@ -9,6 +9,7 @@ import getBillSummary from '@salesforce/apex/BillController.getBillSummary';
 import listBillToParties from '@salesforce/apex/DirectoryController.listBillToParties';
 import listVehiclesForCustomer from '@salesforce/apex/CustomerController.listVehiclesForCustomer';
 
+jest.mock('@salesforce/apex/WorkshopProfileController.listProfiles', () => ({ default: jest.fn(() => Promise.resolve([])) }), { virtual: true });
 jest.mock('@salesforce/apex/BillController.searchCustomers', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/BillController.createBill', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/BillController.createNewVersion', () => ({ default: jest.fn() }), { virtual: true });

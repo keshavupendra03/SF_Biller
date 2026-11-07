@@ -23,6 +23,10 @@ public with sharing class InvoicePdfController {
     public String amountInWordsLabel { get; private set; }
     public Boolean showPayment { get; private set; }
     public Boolean showIgst { get; private set; }
+    // A document with no GST prints no GST columns or rows, and a bill then
+    // isn't a tax invoice. c/paperBill mirrors this so its screen matches.
+    public Boolean hasGst { get; private set; }
+    public Boolean showUnit { get; private set; }
     public Boolean recordFound { get; private set; }
     // ?format=html renders the same template as plain HTML for the in-app
     // preview; anything else renders the PDF.
@@ -104,7 +108,6 @@ public with sharing class InvoicePdfController {
         }
 
         String sobjectName = recordId.getSObjectType().getDescribe().getName();
-        loadWorkshopProfile();
         if (sobjectName == 'Bill__c') {
             loadBill(recordId);
         } else if (sobjectName == 'Estimate__c') {
@@ -112,13 +115,16 @@ public with sharing class InvoicePdfController {
         }
     }
 
-    private void loadWorkshopProfile() {
+    // The company on the document. None recorded means it predates a second
+    // company, so it belongs to the primary one.
+    private void loadWorkshopProfile(Id workshopProfileId) {
+        Id profileId = workshopProfileId != null ? workshopProfileId : WorkshopProfileService.primaryId();
         List<Workshop_Profile__c> profiles = [
             SELECT Name, Address__c, Phone__c, Email__c, GSTIN__c, State__c,
                    Bank_Name__c, Bank_Account_No__c, Bank_IFSC__c,
                    Bank_Account_Holder__c, Terms_And_Conditions__c
             FROM Workshop_Profile__c
-            LIMIT 1
+            WHERE Id = :profileId
         ];
         if (profiles.isEmpty()) {
             return;
@@ -139,7 +145,7 @@ public with sharing class InvoicePdfController {
 
     private void loadBill(Id billId) {
         List<Bill__c> bills = [
-            SELECT Invoice_Number__c, Bill_Date__c, Notes__c,
+            SELECT Workshop_Profile__c, Invoice_Number__c, Bill_Date__c, Notes__c,
                    Subtotal__c, Total_Amount__c,
                    Customer__c, Customer__r.Name, Customer__r.Phone__c,
                    Customer__r.Address__c, Customer__r.GSTIN__c, Customer__r.State__c,
@@ -158,6 +164,7 @@ public with sharing class InvoicePdfController {
             return;
         }
         Bill__c bill = bills[0];
+        loadWorkshopProfile(bill.Workshop_Profile__c);
         recordFound = true;
         isEstimate = false;
         applyLabels();
@@ -208,7 +215,7 @@ public with sharing class InvoicePdfController {
 
     private void loadEstimate(Id estimateId) {
         List<Estimate__c> estimates = [
-            SELECT Name, Estimate_Date__c, Notes__c,
+            SELECT Workshop_Profile__c, Name, Estimate_Date__c, Notes__c,
                    Subtotal__c, Total_Amount__c,
                    Customer__c, Customer__r.Name, Customer__r.Phone__c,
                    Customer__r.Address__c, Customer__r.GSTIN__c, Customer__r.State__c,
@@ -227,6 +234,7 @@ public with sharing class InvoicePdfController {
             return;
         }
         Estimate__c estimate = estimates[0];
+        loadWorkshopProfile(estimate.Workshop_Profile__c);
         recordFound = true;
         isEstimate = true;
         applyLabels();
@@ -326,6 +334,21 @@ public with sharing class InvoicePdfController {
         igst = totals.igst;
         grandTotal = totals.grandTotal;
         showIgst = totals.igst > 0;
+        hasGst = totals.cgst + totals.sgst + totals.igst > 0;
+        showUnit = false;
+        for (LineRow row : lines) {
+            showUnit = showUnit || String.isNotBlank(row.unit);
+        }
+        if (!isEstimate && !hasGst) {
+            documentTitle = 'Bill';
+        }
+    }
+
+    // What's left of the table once the optional columns are accounted for.
+    public Integer productColumnWidth {
+        get {
+            return 54 - (showUnit == true ? 6 : 0) - (hasGst == true ? 26 : 0);
+        }
     }
 
     private static String trimJoin(List<String> parts) {

@@ -101,25 +101,29 @@
     <table class="lines-table">
         <colgroup>
             <col style="width: 4%;"/>
-            <col style="width: 21%;"/>
+            <col style="width: {!productColumnWidth}%;"/>
             <col style="width: 9%;"/>
             <col style="width: 6%;"/>
             <col style="width: 12%;"/>
-            <col style="width: 7%;"/>
-            <col style="width: 12%;"/>
-            <col style="width: 14%;"/>
+            <apex:outputPanel rendered="{!showUnit}" layout="none"><col style="width: 6%;"/></apex:outputPanel>
+            <apex:outputPanel rendered="{!hasGst}" layout="none">
+                <col style="width: 12%;"/>
+                <col style="width: 14%;"/>
+            </apex:outputPanel>
             <col style="width: 15%;"/>
         </colgroup>
         <tr>
             <th>Sr</th>
-            <th>Item name</th>
-            <th class="center">HSN/SAC</th>
+            <th>Product Name</th>
+            <th class="center">HSN</th>
             <th class="center">Qty</th>
-            <th class="center">Per Unit Price</th>
-            <th class="center">Unit</th>
-            <th class="center">Taxable Amt</th>
-            <th class="center">GST</th>
-            <th class="center">Amount</th>
+            <th class="center">Price</th>
+            <apex:outputPanel rendered="{!showUnit}" layout="none"><th class="center">Unit</th></apex:outputPanel>
+            <apex:outputPanel rendered="{!hasGst}" layout="none">
+                <th class="center">Taxable Amt</th>
+                <th class="center">GST</th>
+            </apex:outputPanel>
+            <th class="center">Total</th>
         </tr>
         <apex:repeat value="{!lines}" var="line">
             <tr>
@@ -128,12 +132,14 @@
                 <td class="center">{!IF(ISBLANK(line.hsnSacCode), '-', line.hsnSacCode)}</td>
                 <td class="center"><apex:outputText value="{0,number,#,##0.##}"><apex:param value="{!line.quantity}"/></apex:outputText></td>
                 <td class="center"><apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!line.unitPrice}"/></apex:outputText></td>
-                <td class="center">{!IF(ISBLANK(line.unit), '-', line.unit)}</td>
-                <td class="center"><apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!line.taxableAmount}"/></apex:outputText></td>
-                <td class="center">
-                    <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!line.gstAmount}"/></apex:outputText>
-                    (<apex:outputText value="{0,number,#0.0}"><apex:param value="{!line.taxRatePercent}"/></apex:outputText>%)
-                </td>
+                <apex:outputPanel rendered="{!showUnit}" layout="none"><td class="center">{!IF(ISBLANK(line.unit), '-', line.unit)}</td></apex:outputPanel>
+                <apex:outputPanel rendered="{!hasGst}" layout="none">
+                    <td class="center"><apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!line.taxableAmount}"/></apex:outputText></td>
+                    <td class="center">
+                        <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!line.gstAmount}"/></apex:outputText>
+                        (<apex:outputText value="{0,number,#0.0}"><apex:param value="{!line.taxRatePercent}"/></apex:outputText>%)
+                    </td>
+                </apex:outputPanel>
                 <td class="center"><apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!line.lineTotal}"/></apex:outputText></td>
             </tr>
         </apex:repeat>
@@ -156,8 +162,10 @@
             </td>
             <td style="width: 40%; vertical-align: top;">
                 <table class="totals-table">
-                    <tr><td>Sub Total</td><td class="num">Rs. <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!subtotal}"/></apex:outputText></td></tr>
-                    <apex:outputPanel rendered="{!NOT(showIgst)}" layout="none">
+                    <apex:outputPanel rendered="{!hasGst}" layout="none">
+                        <tr><td>Sub Total</td><td class="num">Rs. <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!subtotal}"/></apex:outputText></td></tr>
+                    </apex:outputPanel>
+                    <apex:outputPanel rendered="{!AND(hasGst, NOT(showIgst))}" layout="none">
                         <tr><td>SGST</td><td class="num">Rs. <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!sgst}"/></apex:outputText></td></tr>
                         <tr><td>CGST</td><td class="num">Rs. <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!cgst}"/></apex:outputText></td></tr>
                     </apex:outputPanel>

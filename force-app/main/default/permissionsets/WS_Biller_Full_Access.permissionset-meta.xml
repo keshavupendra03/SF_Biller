@@ -165,6 +165,14 @@
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
+        <apexClass>PaperBillController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>PaperBillControllerTest</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
         <apexClass>PartController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
@@ -209,6 +217,14 @@
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
+        <apexClass>ServiceBookController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>ServiceBookControllerTest</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
         <apexClass>VehicleController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
@@ -238,6 +254,18 @@
     </classAccesses>
     <classAccesses>
         <apexClass>WorkshopProfileControllerTest</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>WorkshopProfileService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>WorkshopProfileServiceTest</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>WorkshopProfileTriggerHandler</apexClass>
         <enabled>true</enabled>
     </classAccesses>
     <description>Full access to SF WSBiller custom objects, their fields, and tabs.</description>
@@ -353,6 +381,11 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>Bill__c.Workshop_Profile__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>Customer__c.Address__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -459,6 +492,11 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>Estimate__c.Version_Number__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Estimate__c.Workshop_Profile__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -648,6 +686,11 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>Job_Slip__c.Workshop_Profile__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>Job_Status_Stage__c.Is_Active__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -714,6 +757,16 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>Part__c.Unit__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Service_Entry__c.Unique_Key__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Service_Entry__c.Work_Done__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -804,6 +857,11 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>Workshop_Profile__c.GSTIN__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Workshop_Profile__c.Invoice_Prefix__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -984,6 +1042,16 @@
         <allowEdit>true</allowEdit>
         <allowRead>true</allowRead>
         <modifyAllRecords>true</modifyAllRecords>
+        <object>Service_Entry__c</object>
+        <viewAllFields>false</viewAllFields>
+        <viewAllRecords>true</viewAllRecords>
+    </objectPermissions>
+    <objectPermissions>
+        <allowCreate>true</allowCreate>
+        <allowDelete>true</allowDelete>
+        <allowEdit>true</allowEdit>
+        <allowRead>true</allowRead>
+        <modifyAllRecords>true</modifyAllRecords>
         <object>Surveyor__c</object>
         <viewAllFields>false</viewAllFields>
         <viewAllRecords>true</viewAllRecords>
@@ -1067,6 +1135,10 @@
         <visibility>Visible</visibility>
     </tabSettings>
     <tabSettings>
+        <tab>Easy_Bill</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+    <tabSettings>
         <tab>Estimate_Detail</tab>
         <visibility>Visible</visibility>
     </tabSettings>
@@ -1144,6 +1216,14 @@
     </tabSettings>
     <tabSettings>
         <tab>Quick_Bill</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>Quick_Estimate</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>Service_Book</tab>
         <visibility>Visible</visibility>
     </tabSettings>
     <tabSettings>

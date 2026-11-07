@@ -68,6 +68,25 @@
             <p class="slds-text-color_weak slds-p-vertical_medium">No customers found.</p>
         </template>
 
+        <template if:true={slipCompanies}>
+            <section role="dialog" tabindex="-1" aria-modal="true" aria-label="Print job slip" class="slds-modal slds-fade-in-open">
+                <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                        <h2 class="slds-text-heading_medium">Print job slip for which company?</h2>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                        <template for:each={slipCompanies} for:item="company">
+                            <lightning-button key={company.id} data-id={company.id} class="slip-company" label={company.name} icon-name="utility:print" onclick={handleChooseSlipCompany} stretch></lightning-button>
+                        </template>
+                    </div>
+                    <footer class="slds-modal__footer">
+                        <lightning-button data-id="cancel-slip-company" label="Cancel" onclick={handleCancelSlipCompany}></lightning-button>
+                    </footer>
+                </div>
+            </section>
+            <div class="slds-backdrop slds-backdrop_open" role="presentation"></div>
+        </template>
+
         <template if:true={blankSlipRecordId}>
             <c-document-preview record-id={blankSlipRecordId} page-name="JobSlipPdf" heading="Blank Job Slip" onclose={handleCloseJobSlip}></c-document-preview>
         </template>
