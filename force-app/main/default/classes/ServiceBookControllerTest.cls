@@ -51,10 +51,11 @@ private class ServiceBookControllerTest {
 
         System.assertEquals(2, [SELECT COUNT() FROM Service_Entry__c]);
         System.assertEquals('Oil changed', first.workDone);
-        System.assertEquals('Brake pads replaced', first.visits[0].workDone);
-        System.assertEquals(DAY_5, first.visits[0].entryDate);
+        System.assertEquals('Brake pads replaced', first.visitDays[0].workDone, 'Day 5 carried on the same visit.');
+        System.assertEquals(DAY_5, first.visitDays[0].entryDate);
         System.assertEquals('Brake pads replaced', later.workDone);
-        System.assertEquals('Oil changed', later.visits[0].workDone);
+        System.assertEquals('Oil changed', later.visitDays[0].workDone);
+        System.assertEquals(DAY_1, later.visitStart);
     }
 
     @isTest
@@ -369,7 +370,7 @@ private class ServiceBookControllerTest {
             List<ServiceBookController.ServiceCard> found = ServiceBookController.search(term, DAY_5);
             System.assertEquals(1, found.size(), term);
             System.assertEquals(car.Id, found[0].vehicleId, term);
-            System.assertEquals('Oil changed', found[0].visits[0].workDone, term);
+            System.assertEquals('Oil changed', found[0].visitDays[0].workDone, term);
         }
         Test.stopTest();
     }
@@ -421,7 +422,9 @@ private class ServiceBookControllerTest {
         Test.stopTest();
 
         System.assertEquals('Washed', found.workDone);
-        System.assertEquals(0, found.visits.size());
+        System.assertEquals(0, found.visitDays.size());
+        System.assertEquals(0, found.otherVisits.size());
+        System.assertEquals(true, found.hasEntryForDate);
     }
 
     @isTest
@@ -435,5 +438,137 @@ private class ServiceBookControllerTest {
 
         System.assertEquals('Tata', byModel[0].make);
         System.assertEquals('Punch', byMake[0].model);
+    }
+
+    // ---- visits over several days ----------------------------------------
+
+    private static final Date DAY_3 = Date.newInstance(2026, 11, 3);
+    private static final Date DAY_30 = Date.newInstance(2026, 11, 30);
+
+    private static ServiceBookController.SaveRequest newVisit(Id vehicleId, Date entryDate, String text) {
+        ServiceBookController.SaveRequest request = work(vehicleId, entryDate, text);
+        request.startNewVisit = true;
+        return request;
+    }
+
+    @isTest
+    static void laterDays_joinTheSameVisit_andEveryDayShowsTheWholeVisit() {
+        Vehicle__c car = insertCar();
+
+        Test.startTest();
+        ServiceBookController.saveWork(work(car.Id, DAY_1, 'Denting'));
+        ServiceBookController.saveWork(work(car.Id, DAY_3, 'Painting'));
+        ServiceBookController.ServiceCard day5 = ServiceBookController.saveWork(work(car.Id, DAY_5, 'Polish'));
+        ServiceBookController.ServiceCard day1 = ServiceBookController.getDay(DAY_1)[0];
+        Test.stopTest();
+
+        System.assertEquals(DAY_1, day5.visitStart);
+        System.assertEquals(2, day5.visitDays.size());
+        System.assertEquals('Denting', day5.visitDays[0].workDone, 'Oldest first.');
+        System.assertEquals('Painting', day5.visitDays[1].workDone);
+        System.assertEquals(0, day5.otherVisits.size());
+        System.assertEquals(null, day5.previousVisitStart);
+        System.assertEquals(2, day1.visitDays.size(), 'Looking back at day 1 also shows the days after it.');
+    }
+
+    @isTest
+    static void aNewVisit_keepsEarlierWorkAsAnotherVisit() {
+        Vehicle__c car = insertCar();
+        ServiceBookController.saveWork(work(car.Id, DAY_1, 'Oil changed'));
+        ServiceBookController.saveWork(work(car.Id, DAY_3, 'Filter'));
+
+        Test.startTest();
+        ServiceBookController.ServiceCard later = ServiceBookController.saveWork(newVisit(car.Id, DAY_30, 'Brake pads'));
+        Test.stopTest();
+
+        System.assertEquals(DAY_30, later.visitStart);
+        System.assertEquals(0, later.visitDays.size());
+        System.assertEquals(DAY_1, later.previousVisitStart);
+        System.assertEquals(1, later.otherVisits.size());
+        System.assertEquals(DAY_1, later.otherVisits[0].startDate);
+        System.assertEquals(DAY_3, later.otherVisits[0].endDate);
+        System.assertEquals(2, later.otherVisits[0].days.size());
+    }
+
+    @isTest
+    static void aDayWithNothingWrittenYet_showsTheVisitItWouldJoin() {
+        Vehicle__c car = insertCar();
+        ServiceBookController.saveWork(work(car.Id, DAY_1, 'Denting'));
+
+        Test.startTest();
+        ServiceBookController.ServiceCard card = ServiceBookController.getVehicleCard(car.Id, DAY_5);
+        Test.stopTest();
+
+        System.assertEquals(false, card.hasEntryForDate);
+        System.assertEquals(DAY_1, card.visitStart);
+        System.assertEquals('Denting', card.visitDays[0].workDone);
+    }
+
+    @isTest
+    static void startNewVisit_isIgnoredOnceTheDayIsWritten() {
+        Vehicle__c car = insertCar();
+        ServiceBookController.saveWork(work(car.Id, DAY_1, 'Denting'));
+        ServiceBookController.saveWork(work(car.Id, DAY_5, 'Painting'));
+
+        Test.startTest();
+        ServiceBookController.ServiceCard card = ServiceBookController.saveWork(newVisit(car.Id, DAY_5, 'Painting and polish'));
+        Test.stopTest();
+
+        System.assertEquals(DAY_1, card.visitStart, 'Splitting a visit is changeVisit, not a side effect of typing.');
+        System.assertEquals('Painting and polish', card.workDone);
+    }
+
+    @isTest
+    static void changeVisit_splitsFromThatDayOn_andJoiningPutsItBack() {
+        Vehicle__c car = insertCar();
+        ServiceBookController.saveWork(work(car.Id, DAY_1, 'Denting'));
+        ServiceBookController.saveWork(work(car.Id, DAY_3, 'Painting'));
+        ServiceBookController.saveWork(work(car.Id, DAY_5, 'Polish'));
+
+        Test.startTest();
+        ServiceBookController.ServiceCard split = ServiceBookController.changeVisit(car.Id, DAY_3, true);
+        ServiceBookController.ServiceCard day5AfterSplit = ServiceBookController.getVehicleCard(car.Id, DAY_5);
+        ServiceBookController.ServiceCard joined = ServiceBookController.changeVisit(car.Id, DAY_3, false);
+        Test.stopTest();
+
+        System.assertEquals(DAY_3, split.visitStart);
+        System.assertEquals(1, split.visitDays.size(), 'Day 5 went with day 3.');
+        System.assertEquals(DAY_5, split.visitDays[0].entryDate);
+        System.assertEquals(DAY_1, split.previousVisitStart);
+        System.assertEquals(DAY_3, day5AfterSplit.visitStart);
+        System.assertEquals(DAY_1, joined.visitStart);
+        System.assertEquals(2, joined.visitDays.size());
+        System.assertEquals(0, joined.otherVisits.size());
+    }
+
+    @isTest
+    static void changeVisit_onADayWithNothingWritten_changesNothing() {
+        Vehicle__c car = insertCar();
+        ServiceBookController.saveWork(work(car.Id, DAY_1, 'Denting'));
+
+        Test.startTest();
+        ServiceBookController.ServiceCard card = ServiceBookController.changeVisit(car.Id, DAY_5, true);
+        Test.stopTest();
+
+        System.assertEquals(DAY_1, card.visitStart);
+        System.assertEquals(1, [SELECT COUNT() FROM Service_Entry__c]);
+    }
+
+    @isTest
+    static void entriesFromBeforeVisits_countAsAVisitEach() {
+        Vehicle__c car = insertCar();
+        insert new List<Service_Entry__c>{
+            new Service_Entry__c(Vehicle__c = car.Id, Entry_Date__c = DAY_1, Work_Done__c = 'Old one', Unique_Key__c = car.Id + '|1'),
+            new Service_Entry__c(Vehicle__c = car.Id, Entry_Date__c = DAY_3, Work_Done__c = 'Old two', Unique_Key__c = car.Id + '|3')
+        };
+
+        Test.startTest();
+        ServiceBookController.ServiceCard card = ServiceBookController.getVehicleCard(car.Id, DAY_3);
+        Test.stopTest();
+
+        System.assertEquals(DAY_3, card.visitStart);
+        System.assertEquals(0, card.visitDays.size());
+        System.assertEquals(1, card.otherVisits.size());
+        System.assertEquals(DAY_1, card.previousVisitStart);
     }
 }

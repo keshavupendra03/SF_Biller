@@ -33,7 +33,31 @@
             </div>
         </template>
 
-        <label class="sc-work-label" for="work">Work Done</label>
+        <template lwc:if={showVisitBar}>
+            <div class="sc-visit-bar" data-id="visit-bar">
+                <span class="sc-visit-text" data-id="visit-text">{visitBarText}</span>
+                <template lwc:if={continuesAVisit}>
+                    <lightning-button data-id="start-new-visit" label="Start new visit" icon-name="utility:add" onclick={handleStartNewVisit}></lightning-button>
+                </template>
+                <template lwc:if={joinableVisitStart}>
+                    <lightning-button data-id="join-visit" label={joinVisitLabel} icon-name="utility:undo" onclick={handleJoinVisit}></lightning-button>
+                </template>
+            </div>
+        </template>
+
+        <!-- The rest of this visit, so it's all in view without opening anything. -->
+        <template lwc:if={hasEarlierVisitDays}>
+            <ul class="sc-visit-days" data-id="earlier-days">
+                <template for:each={earlierVisitDays} for:item="day">
+                    <li key={day.entryDate} class="sc-visit-day">
+                        <button type="button" class="slds-button slds-text-link sc-day-date" data-id="visit-date" data-date={day.entryDate} onclick={handleOpenVisit}>{day.dateLabel}</button>
+                        <p class="sc-visit-work">{day.workDone}</p>
+                    </li>
+                </template>
+            </ul>
+        </template>
+
+        <label class="sc-work-label" for="work" data-id="work-label">{workLabel}</label>
         <textarea
             id="work"
             class="sc-work"
@@ -44,6 +68,17 @@
             onkeydown={handleWorkKeydown}
             onblur={saveNow}
         ></textarea>
+
+        <template lwc:if={hasLaterVisitDays}>
+            <ul class="sc-visit-days" data-id="later-days">
+                <template for:each={laterVisitDays} for:item="day">
+                    <li key={day.entryDate} class="sc-visit-day">
+                        <button type="button" class="slds-button slds-text-link sc-day-date" data-id="visit-date" data-date={day.entryDate} onclick={handleOpenVisit}>{day.dateLabel}</button>
+                        <p class="sc-visit-work">{day.workDone}</p>
+                    </li>
+                </template>
+            </ul>
+        </template>
 
         <div class="sc-foot">
             <p class={saveStateClass} data-id="save-state" aria-live="polite">{saveStateLabel}</p>
@@ -63,10 +98,15 @@
             <button type="button" class="slds-button slds-text-link sc-visits-toggle" data-id="toggle-visits" onclick={handleToggleVisits}>{visitsLabel}</button>
             <template lwc:if={showVisits}>
                 <ul class="sc-visits" data-id="visits">
-                    <template for:each={visits} for:item="visit">
-                        <li key={visit.entryDate} class="sc-visit">
-                            <button type="button" class="slds-button slds-text-link" data-id="visit-date" data-date={visit.entryDate} onclick={handleOpenVisit}>{visit.dateLabel}</button>
-                            <p class="sc-visit-work">{visit.workDone}</p>
+                    <template for:each={otherVisitGroups} for:item="visit">
+                        <li key={visit.startDate} class="sc-visit">
+                            <p class="sc-visit-range">{visit.label}</p>
+                            <template for:each={visit.days} for:item="day">
+                                <div key={day.entryDate} class="sc-visit-day">
+                                    <button type="button" class="slds-button slds-text-link sc-day-date" data-id="visit-date" data-date={day.entryDate} onclick={handleOpenVisit}>{day.dateLabel}</button>
+                                    <p class="sc-visit-work">{day.workDone}</p>
+                                </div>
+                            </template>
                         </li>
                     </template>
                 </ul>

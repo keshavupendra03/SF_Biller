@@ -85,6 +85,18 @@
                     </div>
                 </div>
 
+                <template lwc:if={hasVisitWork}>
+                    <div class="pb-visit-work" data-id="visit-work">
+                        <p class="pb-section-label">Work done in this visit <span class="pb-visit-note">(for reference, not printed)</span></p>
+                        <template for:each={visitWork} for:item="day">
+                            <div key={day.entryDate} class="pb-visit-day">
+                                <span class="pb-visit-date">{day.dateLabel}</span>
+                                <span class="pb-visit-text">{day.workDone}</span>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
                 <!-- Items -->
                 <div class="pb-items">
                     <c-line-item-grid variant="paper" include-gst={includeGst} warn-stock={billTakesStock} onlineschange={handleLinesChange} onfinish={focusSave}></c-line-item-grid>

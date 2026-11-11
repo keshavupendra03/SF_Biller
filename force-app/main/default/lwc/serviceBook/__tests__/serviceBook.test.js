@@ -4,6 +4,7 @@ import getDay from '@salesforce/apex/ServiceBookController.getDay';
 import search from '@salesforce/apex/ServiceBookController.search';
 import saveWork from '@salesforce/apex/ServiceBookController.saveWork';
 import saveCardDetails from '@salesforce/apex/ServiceBookController.saveCardDetails';
+import changeVisit from '@salesforce/apex/ServiceBookController.changeVisit';
 import getVehicleCard from '@salesforce/apex/ServiceBookController.getVehicleCard';
 import searchCarModels from '@salesforce/apex/ServiceBookController.searchCarModels';
 import searchCustomers from '@salesforce/apex/BillController.searchCustomers';
@@ -14,6 +15,7 @@ jest.mock('@salesforce/apex/ServiceBookController.getDay', () => ({ default: jes
 jest.mock('@salesforce/apex/ServiceBookController.search', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/ServiceBookController.saveWork', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/ServiceBookController.saveCardDetails', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/ServiceBookController.changeVisit', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/ServiceBookController.getVehicleCard', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/ServiceBookController.searchCarModels', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/BillController.searchCustomers', () => ({ default: jest.fn() }), { virtual: true });
@@ -36,10 +38,16 @@ jest.mock('lightning/navigation', () => {
 
 const CAR = {
     vehicleId: 'veh1', customerId: 'cust1', customerName: 'Ramesh Kumar', phone: '9000011111',
-    carModel: 'Maruti Swift', registrationNumber: 'MP09AB1234', workDone: 'Oil changed\nWashed',
-    visits: [{ entryDate: '2026-10-20', workDone: 'Brake pads replaced' }]
+    carModel: 'Maruti Swift', registrationNumber: 'MP09AB1234', workDone: 'Oil changed\nWashed', hasEntryForDate: true,
+    // Same visit, an earlier day.
+    visitStart: '2026-10-20',
+    visitDays: [{ entryDate: '2026-10-20', workDone: 'Brake pads replaced' }],
+    otherVisits: [{ startDate: '2026-09-01', endDate: '2026-09-02', days: [
+        { entryDate: '2026-09-01', workDone: 'Clutch plate' },
+        { entryDate: '2026-09-02', workDone: 'Clutch bearing' }
+    ] }]
 };
-const NOT_TODAY = { ...CAR, workDone: null };
+const NOT_TODAY = { ...CAR, workDone: null, hasEntryForDate: false };
 
 function flushPromises() {
     return new Promise((resolve) => setTimeout(resolve, 0));
@@ -217,7 +225,7 @@ describe('c-service-book', () => {
         const card = cards(element)[0];
         expect(inCard(card, '[data-id="card-number"]').textContent).toBe('MP09AB1234');
         expect(card.shadowRoot.activeElement).toBe(inCard(card, '[data-id="work"]'));
-        expect(inCard(card, '[data-id="visits"]').textContent).toContain('Brake pads replaced');
+        expect(inCard(card, '[data-id="earlier-days"]').textContent).toContain('Brake pads replaced');
         expect($(element, '[data-id="search"]').value).toBe('');
 
         await wait(900);
@@ -227,7 +235,7 @@ describe('c-service-book', () => {
         await wait(900);
         await flushPromises();
         expect(saveWork).toHaveBeenCalledWith({
-            request: { entryDate: todayIso(), workDone: 'Clutch adjusted', vehicleId: 'veh1' }
+            request: { entryDate: todayIso(), workDone: 'Clutch adjusted', startNewVisit: false, vehicleId: 'veh1' }
         });
     });
 
@@ -495,7 +503,7 @@ describe('c-service-book', () => {
 
         expect(inCard(card, '[data-id="card-number"]').textContent).toBe('MP09AB1234');
         expect(inCard(card, '[data-id="work"]').value).toBe('Oil changed\nWashed');
-        expect(inCard(card, '[data-id="visits"]').textContent).toContain('Brake pads replaced');
+        expect(inCard(card, '[data-id="earlier-days"]').textContent).toContain('Brake pads replaced');
     });
 
     it('picking a customer with one car on a new card opens that car', async () => {
@@ -592,7 +600,7 @@ describe('c-service-book', () => {
         expect(inCard(card, '[data-id="work"]').value).toBe('Clutch adjusted');
     });
 
-    it('other visits show on the card, and their date opens that day', async () => {
+    it('other visits are one link away, grouped by visit, and a date opens that day', async () => {
         getDay.mockResolvedValue([CAR]);
         const element = await createScreen();
         const card = cards(element)[0];
@@ -601,11 +609,106 @@ describe('c-service-book', () => {
 
         inCard(card, '[data-id="toggle-visits"]').click();
         await flushPromises();
-        expect(inCard(card, '[data-id="visits"]').textContent).toContain('Brake pads replaced');
+        const other = inCard(card, '[data-id="visits"]').textContent;
+        expect(other).toContain('1 Sept 2026 to 2 Sept 2026');
+        expect(other).toContain('Clutch plate');
+        expect(other).toContain('Clutch bearing');
 
-        inCard(card, '[data-id="visit-date"]').click();
+        const dates = card.shadowRoot.querySelectorAll('[data-id="visits"] [data-id="visit-date"]');
+        dates[1].click();
         await flushPromises();
-        expect(getDay).toHaveBeenLastCalledWith({ entryDate: '2026-10-20' });
+        expect(getDay).toHaveBeenLastCalledWith({ entryDate: '2026-09-02' });
+    });
+
+    describe('a visit over several days', () => {
+        it('shows every day of the visit on the card without opening anything', async () => {
+            getDay.mockResolvedValue([CAR]);
+            const element = await createScreen();
+            const card = cards(element)[0];
+
+            expect(inCard(card, '[data-id="earlier-days"]').textContent).toContain('20 Oct 2026');
+            expect(inCard(card, '[data-id="earlier-days"]').textContent).toContain('Brake pads replaced');
+            expect(inCard(card, '[data-id="work-label"]').textContent).toContain('Work Done on');
+            expect(inCard(card, '[data-id="visit-text"]').textContent).toBe('Same visit, started 20 Oct 2026');
+            expect(inCard(card, '[data-id="start-new-visit"]')).not.toBeNull();
+        });
+
+        it('a day looked back at also shows the days after it', async () => {
+            getDay.mockResolvedValue([{ ...CAR, visitStart: todayIso(), visitDays: [{ entryDate: '2099-01-01', workDone: 'Later work' }] }]);
+            const element = await createScreen();
+
+            expect(inCard(cards(element)[0], '[data-id="later-days"]').textContent).toContain('Later work');
+            expect(inCard(cards(element)[0], '[data-id="earlier-days"]')).toBeNull();
+        });
+
+        it('Start new visit on a written day moves it, and the undo button puts it back', async () => {
+            const asNewVisit = { ...CAR, visitStart: todayIso(), visitDays: [], previousVisitStart: '2026-10-20' };
+            changeVisit.mockResolvedValueOnce(asNewVisit).mockResolvedValueOnce(CAR);
+            getDay.mockResolvedValue([CAR]);
+            const element = await createScreen();
+            const card = cards(element)[0];
+
+            inCard(card, '[data-id="start-new-visit"]').click();
+            await flushPromises();
+            expect(changeVisit).toHaveBeenCalledWith({ vehicleId: 'veh1', entryDate: todayIso(), startNew: true });
+            expect(inCard(card, '[data-id="visit-text"]').textContent).toBe('New visit');
+            expect(inCard(card, '[data-id="earlier-days"]')).toBeNull();
+            expect(inCard(card, '[data-id="join-visit"]').label).toBe('Add to visit from 20 Oct 2026');
+
+            inCard(card, '[data-id="join-visit"]').click();
+            await flushPromises();
+            expect(changeVisit).toHaveBeenLastCalledWith({ vehicleId: 'veh1', entryDate: todayIso(), startNew: false });
+            expect(inCard(card, '[data-id="earlier-days"]').textContent).toContain('Brake pads replaced');
+        });
+
+        it('on a day with nothing written yet, Start new visit is sent with the first save', async () => {
+            saveWork.mockResolvedValue({ ...CAR, workDone: 'Fresh work', visitStart: todayIso(), visitDays: [] });
+            search.mockResolvedValue([NOT_TODAY]);
+            const element = await createScreen();
+            await typeSearch(element, 'swift');
+            press(element, 'Enter');
+            await flushPromises();
+            const card = cards(element)[0];
+
+            inCard(card, '[data-id="start-new-visit"]').click();
+            await flushPromises();
+            expect(changeVisit).not.toHaveBeenCalled();
+            expect(inCard(card, '[data-id="earlier-days"]')).toBeNull();
+            expect(inCard(card, '[data-id="visit-text"]').textContent).toBe('New visit');
+
+            await typeWork(card, 'Fresh work');
+            await wait(900);
+            await flushPromises();
+            expect(saveWork.mock.calls[0][0].request.startNewVisit).toBe(true);
+        });
+
+        it('a car with no earlier work has no visit bar', async () => {
+            getDay.mockResolvedValue([{ ...CAR, visitStart: todayIso(), visitDays: [], otherVisits: [] }]);
+            const element = await createScreen();
+
+            expect(inCard(cards(element)[0], '[data-id="visit-bar"]')).toBeNull();
+            expect(inCard(cards(element)[0], '[data-id="work-label"]').textContent).toBe('Work Done');
+        });
+
+        it('search results show the whole visit, and count older visits', async () => {
+            search.mockResolvedValue([CAR]);
+            const element = await createScreen();
+            await typeSearch(element, 'swift');
+
+            const result = $(element, '[data-id="result"]').textContent;
+            expect(result).toContain('Brake pads replaced');
+            expect(result).toContain('Oil changed');
+            expect(result).toContain('and 1 older visit');
+            expect(result).not.toContain('Clutch plate');
+        });
+
+        it('Bill passes the date, so Easy Bill can show this visit', async () => {
+            getDay.mockResolvedValue([CAR]);
+            const element = await createScreen();
+
+            inCard(cards(element)[0], '[data-id="make-bill"]').click();
+            expect(mockNavigate.mock.calls[0][0].state.c__entryDate).toBe(todayIso());
+        });
     });
 
     it('Bill and Estimate open Easy Bill with the customer and car, saving first', async () => {

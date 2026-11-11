@@ -4,6 +4,12 @@
  * car again another day makes a new entry for that day, so the car appears on
  * both days and either card can show its other visits.
  *
+ * A visit can run over several days (work done today and more in two days), so
+ * each day's entry records the first day of its visit in Visit_Start__c. A later
+ * day joins the car's latest visit unless staff start a new one, and a card shows
+ * every day of its visit at once, which is what they need in front of them when
+ * billing. Older visits sit behind a "Show other visits" link.
+ *
  * One Service_Entry__c per car per day, enforced by Unique_Key__c, so two people
  * writing about the same car on the same day share one entry. An entry only
  * exists once something is written, and clearing the text removes it again, so
@@ -25,6 +31,12 @@ public with sharing class ServiceBookController {
         @AuraEnabled public String workDone { get; set; }
     }
 
+    public class VisitGroup {
+        @AuraEnabled public Date startDate { get; set; }
+        @AuraEnabled public Date endDate { get; set; }
+        @AuraEnabled public List<Visit> days { get; set; }
+    }
+
     public class ServiceCard {
         @AuraEnabled public Id vehicleId { get; set; }
         // Blank while the car has no customer details, which rules out billing.
@@ -35,8 +47,15 @@ public with sharing class ServiceBookController {
         @AuraEnabled public String registrationNumber { get; set; }
         // What was written for the date asked about. Blank if nothing yet.
         @AuraEnabled public String workDone { get; set; }
+        @AuraEnabled public Boolean hasEntryForDate { get; set; }
+        // The visit that date belongs to, or would join if something is written.
+        @AuraEnabled public Date visitStart { get; set; }
+        // That visit's other days, oldest first.
+        @AuraEnabled public List<Visit> visitDays { get; set; }
+        // Set when that date starts a visit but an earlier one could be joined.
+        @AuraEnabled public Date previousVisitStart { get; set; }
         // Every other visit of this car, newest first.
-        @AuraEnabled public List<Visit> visits { get; set; }
+        @AuraEnabled public List<VisitGroup> otherVisits { get; set; }
     }
 
     public class CarModelOption {
@@ -47,6 +66,9 @@ public with sharing class ServiceBookController {
     public class SaveRequest {
         @AuraEnabled public Date entryDate { get; set; }
         @AuraEnabled public String workDone { get; set; }
+        // Only read when this day's entry is first written. Otherwise the day
+        // joins the car's latest visit.
+        @AuraEnabled public Boolean startNewVisit { get; set; }
         // Set for a car already known...
         @AuraEnabled public Id vehicleId { get; set; }
         // ...otherwise the car number typed on a new card. All optional but that.
@@ -118,7 +140,9 @@ public with sharing class ServiceBookController {
             card.customerId = customer.Id;
             card.customerName = customer.Name;
             card.phone = shownPhone(customer.Phone__c);
-            card.visits = new List<Visit>();
+            card.visitDays = new List<Visit>();
+            card.otherVisits = new List<VisitGroup>();
+            card.hasEntryForDate = false;
             cards.add(card);
         }
         return cards;
@@ -156,17 +180,78 @@ public with sharing class ServiceBookController {
         Id vehicleId = request.vehicleId != null ? request.vehicleId : resolveNewVehicle(request);
         String key = vehicleId + '|' + String.valueOf(entryDate);
 
+        List<Service_Entry__c> existing = [SELECT Id FROM Service_Entry__c WHERE Unique_Key__c = :key];
         if (isBlank) {
-            delete [SELECT Id FROM Service_Entry__c WHERE Unique_Key__c = :key];
+            delete existing;
+        } else if (!existing.isEmpty()) {
+            update new Service_Entry__c(Id = existing[0].Id, Work_Done__c = request.workDone.trim());
         } else {
+            Date visitStart = entryDate;
+            if (request.startNewVisit != true) {
+                Service_Entry__c previous = latestBefore(vehicleId, entryDate);
+                if (previous != null) {
+                    visitStart = visitKey(previous);
+                }
+            }
             upsert new Service_Entry__c(
                 Vehicle__c = vehicleId,
                 Entry_Date__c = entryDate,
                 Work_Done__c = request.workDone.trim(),
-                Unique_Key__c = key
+                Unique_Key__c = key,
+                Visit_Start__c = visitStart
             ) Unique_Key__c;
         }
         return getVehicleCard(vehicleId, entryDate);
+    }
+
+    /**
+     * Moves a day, and the later days of its visit with it, into a visit of its
+     * own (startNew), or back into the visit before it. Does nothing for a day
+     * with nothing written yet: the screen sends that choice with the first save.
+     */
+    @AuraEnabled
+    public static ServiceCard changeVisit(Id vehicleId, Date entryDate, Boolean startNew) {
+        List<Service_Entry__c> entries = [
+            SELECT Id, Entry_Date__c, Visit_Start__c FROM Service_Entry__c
+            WHERE Vehicle__c = :vehicleId
+            ORDER BY Entry_Date__c
+        ];
+        Service_Entry__c day;
+        for (Service_Entry__c entry : entries) {
+            if (entry.Entry_Date__c == entryDate) {
+                day = entry;
+            }
+        }
+        if (day != null) {
+            Date currentVisit = visitKey(day);
+            Date newVisit = entryDate;
+            if (startNew != true) {
+                Service_Entry__c previous = latestBefore(vehicleId, entryDate);
+                newVisit = previous == null ? entryDate : visitKey(previous);
+            }
+            List<Service_Entry__c> moved = new List<Service_Entry__c>();
+            for (Service_Entry__c entry : entries) {
+                if (visitKey(entry) == currentVisit && entry.Entry_Date__c >= entryDate) {
+                    moved.add(new Service_Entry__c(Id = entry.Id, Visit_Start__c = newVisit));
+                }
+            }
+            update moved;
+        }
+        return getVehicleCard(vehicleId, entryDate);
+    }
+
+    private static Service_Entry__c latestBefore(Id vehicleId, Date entryDate) {
+        List<Service_Entry__c> earlier = [
+            SELECT Entry_Date__c, Visit_Start__c FROM Service_Entry__c
+            WHERE Vehicle__c = :vehicleId AND Entry_Date__c < :entryDate
+            ORDER BY Entry_Date__c DESC LIMIT 1
+        ];
+        return earlier.isEmpty() ? null : earlier[0];
+    }
+
+    // Entries written before visits existed have no start: each was its own visit.
+    private static Date visitKey(Service_Entry__c entry) {
+        return entry.Visit_Start__c != null ? entry.Visit_Start__c : entry.Entry_Date__c;
     }
 
     /** Fills in what a card was missing: its customer, mobile number or model. */
@@ -292,10 +377,10 @@ public with sharing class ServiceBookController {
     private static List<ServiceCard> buildCards(List<Vehicle__c> vehicles, Date entryDate) {
         Map<Id, List<Service_Entry__c>> entriesByVehicle = new Map<Id, List<Service_Entry__c>>();
         for (Service_Entry__c entry : [
-            SELECT Vehicle__c, Entry_Date__c, Work_Done__c
+            SELECT Vehicle__c, Entry_Date__c, Work_Done__c, Visit_Start__c
             FROM Service_Entry__c
             WHERE Vehicle__c IN :vehicles
-            ORDER BY Entry_Date__c DESC
+            ORDER BY Entry_Date__c
         ]) {
             if (!entriesByVehicle.containsKey(entry.Vehicle__c)) {
                 entriesByVehicle.put(entry.Vehicle__c, new List<Service_Entry__c>());
@@ -314,22 +399,65 @@ public with sharing class ServiceBookController {
             }
             card.registrationNumber = vehicle.Name;
             card.carModel = String.join(nonBlank(vehicle.Make__c, vehicle.Model__c), ' ');
-            card.visits = new List<Visit>();
-            if (entriesByVehicle.containsKey(vehicle.Id)) {
-                for (Service_Entry__c entry : entriesByVehicle.get(vehicle.Id)) {
-                    if (entry.Entry_Date__c == entryDate) {
-                        card.workDone = entry.Work_Done__c;
-                    } else {
-                        Visit visit = new Visit();
-                        visit.entryDate = entry.Entry_Date__c;
-                        visit.workDone = entry.Work_Done__c;
-                        card.visits.add(visit);
-                    }
-                }
-            }
+            List<Service_Entry__c> entries = entriesByVehicle.containsKey(vehicle.Id)
+                ? entriesByVehicle.get(vehicle.Id)
+                : new List<Service_Entry__c>();
+            fillVisits(card, entries, entryDate);
             cards.add(card);
         }
         return cards;
+    }
+
+    // entries are oldest first.
+    private static void fillVisits(ServiceCard card, List<Service_Entry__c> entries, Date entryDate) {
+        Service_Entry__c onTheDay;
+        Service_Entry__c latestBefore;
+        for (Service_Entry__c entry : entries) {
+            if (entry.Entry_Date__c == entryDate) {
+                onTheDay = entry;
+            } else if (entry.Entry_Date__c < entryDate) {
+                latestBefore = entry;
+            }
+        }
+        card.hasEntryForDate = onTheDay != null;
+        card.workDone = onTheDay != null ? onTheDay.Work_Done__c : null;
+
+        // A day with nothing written yet would join the latest visit before it.
+        Date currentVisit = onTheDay != null ? visitKey(onTheDay) : (latestBefore != null ? visitKey(latestBefore) : null);
+        card.visitStart = currentVisit != null ? currentVisit : entryDate;
+        if (card.visitStart == entryDate && latestBefore != null && visitKey(latestBefore) != entryDate) {
+            card.previousVisitStart = visitKey(latestBefore);
+        }
+
+        card.visitDays = new List<Visit>();
+        Map<Date, VisitGroup> others = new Map<Date, VisitGroup>();
+        List<Date> otherOrder = new List<Date>();
+        for (Service_Entry__c entry : entries) {
+            if (entry.Entry_Date__c == entryDate) {
+                continue;
+            }
+            Visit day = new Visit();
+            day.entryDate = entry.Entry_Date__c;
+            day.workDone = entry.Work_Done__c;
+            Date key = visitKey(entry);
+            if (key == currentVisit) {
+                card.visitDays.add(day);
+                continue;
+            }
+            if (!others.containsKey(key)) {
+                VisitGroup visit = new VisitGroup();
+                visit.startDate = key;
+                visit.days = new List<Visit>();
+                others.put(key, visit);
+                otherOrder.add(key);
+            }
+            others.get(key).days.add(day);
+            others.get(key).endDate = entry.Entry_Date__c;
+        }
+        card.otherVisits = new List<VisitGroup>();
+        for (Integer i = otherOrder.size() - 1; i >= 0; i--) {
+            card.otherVisits.add(others.get(otherOrder[i]));
+        }
     }
 
     private static List<String> nonBlank(String first, String second) {

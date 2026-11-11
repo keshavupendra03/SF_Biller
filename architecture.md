@@ -55,7 +55,8 @@ itself has no lookup to it.
 Thirty-second): don't read it with a bare `LIMIT 1`; use
 `WorkshopProfileService.primaryId()` or the document's own company.
 
-`Service_Entry__c` was added 2026-11-04 (§F, Thirty-third): the Service Book.
+`Service_Entry__c` was added 2026-11-04 (§F, Thirty-third): the Service Book. It
+gained `Visit_Start__c` on 2026-11-09 (§F, Thirty-fourth).
 
 `Job_Slip__c` + `Job_Slip_Line__c` were added 2026-11-01 (§F, Twenty-sixth) —
 the workshop's paper vehicle-intake slip, stored and printable.
@@ -2201,3 +2202,39 @@ own page lists these cars.
 - Details save when the cursor leaves the boxes, not on leaving each one (a 150ms
   check of where focus went), or tabbing name to mobile would save half a customer.
 
+**Thirty-fourth (2026-11-09): Service Book visits that run over several days.**
+User request: a car often stays two or three days, with work written on each, and
+the card only showed today's text, so the earlier days needed a click on "Show
+other visit", which a busy, non-CRM user won't make before billing. Now a later day
+**joins the car's latest visit by default**, with one button to start a new one.
+
+- One new field, `Service_Entry__c.Visit_Start__c` (Date, optional): the date the
+  entry's visit began. Blank means the visit began that day, so entries from before
+  this change each count as their own visit and need no backfill. Chose a date over
+  a `Visit__c` parent object: the entry already is the car-per-day record, and a
+  date is all that's needed to group days, split, and join.
+- `saveWork` sets it only when it first creates a day's entry: the latest earlier
+  entry's visit, unless the card sent `startNewVisit`. Later edits never move a
+  day. `changeVisit` moves a written day **and the later days of its visit** (to a
+  new visit starting that day, or back into the visit before it), so a visit
+  is always a run of consecutive entries.
+- The card shows the whole visit around the Work Done box without a click: earlier
+  days above, later days below when looking back at an old date, plus a bar
+  "Same visit, started X" with **Start new visit**, or "New visit" with **Add to
+  visit from X** to undo. On a day with nothing written, Start new visit is only a
+  flag sent with the first save, so looking at a car still saves nothing. Older
+  visits stay behind the link, grouped as "X to Y".
+- Bill/Estimate also pass `c__entryDate`, and Easy Bill shows that visit's work in a
+  box above the items, marked "for reference, not printed". It sits in the on-screen
+  sheet only; the PDF is rendered from the saved bill, so it can't print. Work lines
+  are still not copied into the bill (same reason as Thirty-third).
+- No time-gap rule: a car back after months still joins its last visit until
+  someone taps Start new visit. The bar shows the start date, so a stale visit is
+  visible. A rule (e.g. new visit after N days) is easy to add to `saveWork` if the
+  workshop wants one.
+
+Platform issue: none new. A deploy attempt failed with `HTTP 405 Only POST allowed`
+from `/services/Soap/...` for both the anonymous Apex and the deploy; it was a
+network blip (the same minute, another service failed DNS), and the identical
+commands succeeded on retry. If you see that HTML 405 page from `sf`, check the
+connection before suspecting the metadata.

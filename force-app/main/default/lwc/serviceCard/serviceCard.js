@@ -3,6 +3,7 @@ import { NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import saveWork from '@salesforce/apex/ServiceBookController.saveWork';
 import saveCardDetails from '@salesforce/apex/ServiceBookController.saveCardDetails';
+import changeVisit from '@salesforce/apex/ServiceBookController.changeVisit';
 import getVehicleCard from '@salesforce/apex/ServiceBookController.getVehicleCard';
 import searchCarModels from '@salesforce/apex/ServiceBookController.searchCarModels';
 import search from '@salesforce/apex/ServiceBookController.search';
@@ -29,6 +30,10 @@ function formatDate(iso) {
  * there's no Save button to forget, including when they move to another date.
  * The car number is all a card needs. Customer and model boxes stay on the card
  * until they're filled, and a bill needs a customer.
+ *
+ * Every day of the card's visit is shown on it, oldest first, so nothing needs
+ * opening at billing time. A later day joins the car's latest visit unless
+ * "Start new visit" is pressed, and that can be undone the same way.
  */
 export default class ServiceCard extends NavigationMixin(LightningElement) {
     @api entryDate;
@@ -38,6 +43,8 @@ export default class ServiceCard extends NavigationMixin(LightningElement) {
     _card;
     workDone = '';
     showVisits = false;
+    // Chosen before anything is written for the day; sent with the first save.
+    startNewVisit = false;
     draft = { customerId: null, customerName: '', phone: '', make: '', model: '', registrationNumber: '' };
     customerVehicles = [];
 
@@ -118,17 +125,106 @@ export default class ServiceCard extends NavigationMixin(LightningElement) {
         return !this._card.vehicleId;
     }
 
-    get visits() {
-        return (this._card.visits || []).map((visit) => ({ ...visit, dateLabel: formatDate(visit.entryDate) }));
+    // ---- the visit ------------------------------------------------------
+
+    get hasEntryForDate() {
+        return !!this._card.hasEntryForDate;
+    }
+
+    // A new visit chosen for a day with nothing written yet hides the visit it
+    // would otherwise have joined.
+    get isPendingNewVisit() {
+        return this.startNewVisit && !this.hasEntryForDate;
+    }
+
+    get shownVisitDays() {
+        if (this.isPendingNewVisit) {
+            return [];
+        }
+        return (this._card.visitDays || []).map((day) => ({ ...day, dateLabel: formatDate(day.entryDate) }));
+    }
+
+    get earlierVisitDays() {
+        return this.shownVisitDays.filter((day) => day.entryDate < this.entryDate);
+    }
+
+    get laterVisitDays() {
+        return this.shownVisitDays.filter((day) => day.entryDate > this.entryDate);
+    }
+
+    get hasEarlierVisitDays() {
+        return this.earlierVisitDays.length > 0;
+    }
+
+    get hasLaterVisitDays() {
+        return this.laterVisitDays.length > 0;
+    }
+
+    get continuesAVisit() {
+        return !this.isNewCar && !this.isPendingNewVisit && !!this._card.visitStart && this._card.visitStart < this.entryDate;
+    }
+
+    // The visit this day could be put back into, if it starts one.
+    get joinableVisitStart() {
+        if (this.isPendingNewVisit) {
+            return this._card.visitStart < this.entryDate ? this._card.visitStart : null;
+        }
+        return this.continuesAVisit ? null : this._card.previousVisitStart || null;
+    }
+
+    get showVisitBar() {
+        return !this.isNewCar && (this.continuesAVisit || !!this.joinableVisitStart);
+    }
+
+    get visitBarText() {
+        return this.continuesAVisit ? `Same visit, started ${formatDate(this._card.visitStart)}` : 'New visit';
+    }
+
+    get joinVisitLabel() {
+        return `Add to visit from ${formatDate(this.joinableVisitStart)}`;
+    }
+
+    get workLabel() {
+        return this.shownVisitDays.length ? `Work Done on ${formatDate(this.entryDate)}` : 'Work Done';
+    }
+
+    get otherVisitGroups() {
+        return (this._card.otherVisits || []).map((visit) => ({
+            ...visit,
+            label: visit.startDate === visit.endDate
+                ? formatDate(visit.startDate)
+                : `${formatDate(visit.startDate)} to ${formatDate(visit.endDate)}`,
+            days: visit.days.map((day) => ({ ...day, dateLabel: formatDate(day.entryDate) }))
+        }));
     }
 
     get hasVisits() {
-        return this.visits.length > 0;
+        return this.otherVisitGroups.length > 0;
     }
 
     get visitsLabel() {
-        const count = this.visits.length;
+        const count = this.otherVisitGroups.length;
         return `${this.showVisits ? 'Hide' : 'Show'} ${count} other ${count === 1 ? 'visit' : 'visits'}`;
+    }
+
+    handleStartNewVisit() {
+        this.moveToVisit(true);
+    }
+
+    handleJoinVisit() {
+        this.moveToVisit(false);
+    }
+
+    moveToVisit(startNew) {
+        if (!this.hasEntryForDate) {
+            this.startNewVisit = startNew;
+            return;
+        }
+        changeVisit({ vehicleId: this._card.vehicleId, entryDate: this.entryDate, startNew })
+            .then((card) => {
+                this._card = card;
+            })
+            .catch((error) => this.showError(error));
     }
 
     get workRows() {
@@ -235,6 +331,12 @@ export default class ServiceCard extends NavigationMixin(LightningElement) {
                 this.saveState = 'saved';
                 if (card && this.isNewCar) {
                     this.becomeCard(card);
+                } else if (card) {
+                    // Picks up the visit the day joined.
+                    this._card = card;
+                }
+                if (card && card.hasEntryForDate) {
+                    this.startNewVisit = false;
                 }
             })
             .catch((error) => {
@@ -252,7 +354,7 @@ export default class ServiceCard extends NavigationMixin(LightningElement) {
     }
 
     buildRequest() {
-        const request = { entryDate: this.entryDate, workDone: this.workDone };
+        const request = { entryDate: this.entryDate, workDone: this.workDone, startNewVisit: this.startNewVisit };
         if (this.isNewCar) {
             return { ...request, ...this.draft };
         }
@@ -387,7 +489,7 @@ export default class ServiceCard extends NavigationMixin(LightningElement) {
         const sent = this.draft;
         saveCardDetails({ request: { ...sent, vehicleId: this._card.vehicleId, entryDate: this.entryDate } })
             .then((card) => {
-                this._card = { ...card, visits: this._card.visits };
+                this._card = card;
                 this.saveState = 'saved';
                 // Only clears if nothing more was typed while it was saving.
                 if (this.draft === sent) {
@@ -438,7 +540,7 @@ export default class ServiceCard extends NavigationMixin(LightningElement) {
         this.workDone = [onFile, typed].filter((p) => p).join('\n');
         this.becomeCard(card);
         this._focusWorkIfLost = true;
-        this.showVisits = card.visits.length > 0;
+        this.showVisits = (card.otherVisits || []).length > 0;
         if (typed) {
             this.markDirty();
         }
@@ -482,6 +584,8 @@ export default class ServiceCard extends NavigationMixin(LightningElement) {
                 c__documentType: documentType,
                 c__customerId: this._card.customerId,
                 c__vehicleId: this._card.vehicleId,
+                // Easy Bill shows this visit's work alongside the bill.
+                c__entryDate: this.entryDate,
                 // Makes each visit a new page reference, so Easy Bill fills in
                 // again even for the same car twice in a row.
                 c__opened: String(Date.now())

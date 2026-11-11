@@ -8,6 +8,7 @@ import getCustomer from '@salesforce/apex/PaperBillController.getCustomer';
 import amountInWords from '@salesforce/apex/PaperBillController.amountInWords';
 import saveDocument from '@salesforce/apex/PaperBillController.saveDocument';
 import searchParts from '@salesforce/apex/BillController.searchParts';
+import getVehicleCard from '@salesforce/apex/ServiceBookController.getVehicleCard';
 
 jest.mock('@salesforce/apex/WorkshopProfileController.listProfiles', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/BillController.searchCustomers', () => ({ default: jest.fn() }), { virtual: true });
@@ -18,6 +19,7 @@ jest.mock('@salesforce/apex/VehicleMakeModelController.searchModels', () => ({ d
 jest.mock('@salesforce/apex/PaperBillController.getCustomer', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/PaperBillController.amountInWords', () => ({ default: jest.fn(() => Promise.resolve('')) }), { virtual: true });
 jest.mock('@salesforce/apex/PaperBillController.saveDocument', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/ServiceBookController.getVehicleCard', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPdfDownload', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPublicLink', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/client/formFactor', () => ({ default: 'Large' }), { virtual: true });
@@ -613,5 +615,28 @@ describe('c-paper-bill', () => {
 
         const terms = field(element, '[data-field="termsAndConditions"]').shadowRoot.querySelector('textarea');
         expect(terms.value).toBe('Goods once sold are not returned.');
+    });
+
+    it('opened from a Service Book card, it shows that visit work beside the bill, not printed', async () => {
+        getCustomer.mockResolvedValue(RAMESH);
+        getVehicleCard.mockResolvedValue({
+            workDone: 'Polish',
+            visitDays: [{ entryDate: '2026-11-07', workDone: 'Painting' }, { entryDate: '2026-11-05', workDone: 'Denting' }]
+        });
+        const element = await createScreen();
+        expect($(element, '[data-id="visit-work"]')).toBeNull();
+
+        CurrentPageReference.emit({
+            type: 'standard__navItemPage',
+            attributes: {},
+            state: { c__customerId: 'cust1', c__vehicleId: 'veh1', c__entryDate: '2026-11-09', c__opened: '9' }
+        });
+        await flushPromises();
+
+        expect(getVehicleCard).toHaveBeenCalledWith({ vehicleId: 'veh1', entryDate: '2026-11-09' });
+        const panel = $(element, '[data-id="visit-work"]').textContent;
+        expect(panel).toContain('not printed');
+        expect(panel.indexOf('Denting')).toBeLessThan(panel.indexOf('Painting'));
+        expect(panel.indexOf('Painting')).toBeLessThan(panel.indexOf('Polish'));
     });
 });

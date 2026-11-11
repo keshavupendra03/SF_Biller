@@ -9,6 +9,7 @@ import searchModels from '@salesforce/apex/VehicleMakeModelController.searchMode
 import getCustomer from '@salesforce/apex/PaperBillController.getCustomer';
 import amountInWords from '@salesforce/apex/PaperBillController.amountInWords';
 import saveDocument from '@salesforce/apex/PaperBillController.saveDocument';
+import getVehicleCard from '@salesforce/apex/ServiceBookController.getVehicleCard';
 import { calculateBillTotals } from 'c/gstMath';
 import { disablePullToRefresh } from 'c/disablePullToRefresh';
 
@@ -73,6 +74,11 @@ function formatAmount(value) {
     return (Number(value) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function formatVisitDate(iso) {
+    const [year, month, day] = iso.split('-').map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 function digitsOf(value) {
     return (value || '').replace(/\D/g, '');
 }
@@ -105,6 +111,9 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
     includeGst = false;
     notes = '';
     words = '';
+
+    // Opened from a Service Book card: that visit's work, to bill from. Not printed.
+    visitWork = [];
 
     isSaving = false;
     saved;
@@ -142,6 +151,23 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
                 this.focusGrid();
             })
             .catch((error) => this.showError(error));
+        this.visitWork = [];
+        if (state.c__vehicleId && state.c__entryDate) {
+            getVehicleCard({ vehicleId: state.c__vehicleId, entryDate: state.c__entryDate })
+                .then((card) => {
+                    const days = [...(card.visitDays || [])];
+                    if (card.workDone) {
+                        days.push({ entryDate: state.c__entryDate, workDone: card.workDone });
+                    }
+                    days.sort((a, b) => (a.entryDate < b.entryDate ? -1 : 1));
+                    this.visitWork = days.map((day) => ({ ...day, dateLabel: formatVisitDate(day.entryDate) }));
+                })
+                .catch((error) => this.showError(error));
+        }
+    }
+
+    get hasVisitWork() {
+        return this.visitWork.length > 0;
     }
 
     // The page shows whichever company is chosen. With none on file yet there's
@@ -634,6 +660,7 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         this.includeGst = false;
         this.notes = '';
         this.words = '';
+        this.visitWork = [];
         this.saved = undefined;
         this.showPreview = false;
         this._focusAfterRender = true;

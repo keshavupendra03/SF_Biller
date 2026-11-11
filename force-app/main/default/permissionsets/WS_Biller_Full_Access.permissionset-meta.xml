@@ -766,6 +766,11 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>Service_Entry__c.Visit_Start__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>Service_Entry__c.Work_Done__c</field>
         <readable>true</readable>
     </fieldPermissions>

@@ -6,7 +6,6 @@ import search from '@salesforce/apex/ServiceBookController.search';
 import { disablePullToRefresh } from 'c/disablePullToRefresh';
 
 const SEARCH_DELAY_MS = 300;
-const SHOWN_VISITS = 3;
 
 let nextCardKey = 1;
 
@@ -215,16 +214,22 @@ export default class ServiceBook extends LightningElement {
 
     get decoratedResults() {
         return this.results.map((result, index) => {
-            const visits = result.visits || [];
+            // The visit that would be written into: every day of it, oldest first.
+            const days = [...(result.visitDays || [])];
+            if (result.workDone) {
+                days.push({ entryDate: this.selectedDate, workDone: result.workDone });
+            }
+            days.sort((a, b) => (a.entryDate < b.entryDate ? -1 : 1));
+            const olderCount = (result.otherVisits || []).length;
             return {
                 ...result,
                 index,
                 key: result.vehicleId || result.customerId,
                 rowClass: index === this.highlightIndex ? 'sb-result sb-result_active' : 'sb-result',
                 hasNoCar: !result.vehicleId,
-                shownVisits: visits.slice(0, SHOWN_VISITS).map((visit) => ({ ...visit, dateLabel: formatShort(visit.entryDate) })),
-                moreVisitsLabel: visits.length > SHOWN_VISITS ? `and ${visits.length - SHOWN_VISITS} older` : '',
-                hasNoVisits: !!result.vehicleId && visits.length === 0 && !result.workDone
+                shownVisits: days.map((day) => ({ ...day, dateLabel: formatShort(day.entryDate) })),
+                moreVisitsLabel: olderCount ? `and ${olderCount} older ${olderCount === 1 ? 'visit' : 'visits'}` : '',
+                hasNoVisits: !!result.vehicleId && days.length === 0 && olderCount === 0
             };
         });
     }
@@ -327,7 +332,7 @@ export default class ServiceBook extends LightningElement {
 
     addNewCard(draft, startAtTop) {
         const key = `new-${nextCardKey++}`;
-        this.cards = [{ key, visits: [], draft }, ...this.cards];
+        this.cards = [{ key, visitDays: [], otherVisits: [], draft }, ...this.cards];
         this.clearSearch();
         this._focusCardKey = { key, isNew: startAtTop };
     }

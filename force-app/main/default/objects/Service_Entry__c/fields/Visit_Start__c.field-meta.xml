@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Visit_Start__c</fullName>
+    <label>Visit Start</label>
+    <description>First day of the visit this day's work belongs to. Blank means the visit started that day.</description>
+    <type>Date</type>
+</CustomField>
