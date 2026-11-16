@@ -339,4 +339,62 @@ private class PaperBillControllerTest {
         System.assertEquals('Estimate', pdf.documentTitle);
         System.assertEquals(false, pdf.hasGst);
     }
+
+    @isTest
+    static void billedToAPickedParty_theBillCarriesIt_andThePageUpdatesTheParty() {
+        Bill_To_Party__c icici = new Bill_To_Party__c(Name = 'ICICI Lombard', Address__c = 'MG Road, Indore');
+        insert icici;
+        PaperBillController.PaperRequest r = request();
+        r.customerName = 'Ramesh Kumar';
+        r.customerPhone = '9000011111';
+        r.billToPartyId = icici.Id;
+        r.billToParty = new BillController.NewBillToPartyInput();
+        r.billToParty.name = 'ICICI Lombard';
+        r.billToParty.address = 'Vijay Nagar, Indore';
+        r.billToParty.gstin = '23AAACI7904G1ZV';
+
+        Test.startTest();
+        PaperBillController.SavedDocument saved = PaperBillController.saveDocument(r);
+        Test.stopTest();
+
+        Bill__c bill = [SELECT Bill_To_Party__c, Customer__r.Name FROM Bill__c WHERE Id = :saved.recordId];
+        System.assertEquals(icici.Id, bill.Bill_To_Party__c);
+        System.assertEquals('Ramesh Kumar', bill.Customer__r.Name, 'The car owner stays the customer.');
+        System.assertEquals('ICICI Lombard', saved.customerName, 'The saved screen names who the bill is to.');
+        Bill_To_Party__c party = [SELECT Address__c, GSTIN__c FROM Bill_To_Party__c WHERE Id = :icici.Id];
+        System.assertEquals('Vijay Nagar, Indore', party.Address__c);
+        System.assertEquals('23AAACI7904G1ZV', party.GSTIN__c);
+    }
+
+    @isTest
+    static void anEstimateForATypedNewParty_savesTheParty_withNoCustomerNamed() {
+        PaperBillController.PaperRequest r = request();
+        r.documentType = 'estimate';
+        r.billToParty = new BillController.NewBillToPartyInput();
+        r.billToParty.name = 'Sharma Transport';
+        r.billToParty.state = 'Madhya Pradesh';
+
+        Test.startTest();
+        PaperBillController.SavedDocument saved = PaperBillController.saveDocument(r);
+        Test.stopTest();
+
+        Estimate__c estimate = [SELECT Bill_To_Party__r.Name, Bill_To_Party__r.State__c, Customer__r.Name FROM Estimate__c WHERE Id = :saved.recordId];
+        System.assertEquals('Sharma Transport', estimate.Bill_To_Party__r.Name);
+        System.assertEquals('Madhya Pradesh', estimate.Bill_To_Party__r.State__c);
+        System.assertEquals(QuickBillController.WALK_IN_NAME, estimate.Customer__r.Name);
+        System.assertEquals('Sharma Transport', saved.customerName);
+    }
+
+    @isTest
+    static void noParty_leavesTheBillToTheCustomer() {
+        PaperBillController.PaperRequest r = request();
+        r.customerName = 'Ramesh Kumar';
+
+        Test.startTest();
+        PaperBillController.SavedDocument saved = PaperBillController.saveDocument(r);
+        Test.stopTest();
+
+        System.assertEquals(null, [SELECT Bill_To_Party__c FROM Bill__c WHERE Id = :saved.recordId].Bill_To_Party__c);
+        System.assertEquals(0, [SELECT COUNT() FROM Bill_To_Party__c]);
+    }
 }

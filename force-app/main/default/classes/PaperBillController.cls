@@ -25,6 +25,10 @@ public with sharing class PaperBillController {
         @AuraEnabled public String customerAddress { get; set; }
         @AuraEnabled public String customerGstin { get; set; }
         @AuraEnabled public String customerState { get; set; }
+        // Billing a company (insurance, fleet, firm) instead of the customer:
+        // a picked party's Id, and what the page shows for it.
+        @AuraEnabled public Id billToPartyId { get; set; }
+        @AuraEnabled public BillController.NewBillToPartyInput billToParty { get; set; }
         @AuraEnabled public Id vehicleId { get; set; }
         @AuraEnabled public String registrationNumber { get; set; }
         @AuraEnabled public String make { get; set; }
@@ -74,6 +78,7 @@ public with sharing class PaperBillController {
         }
         Id customerId = resolveCustomer(request);
         Id vehicleId = resolveVehicle(customerId, request);
+        Id billToPartyId = BillToPartyService.resolve(request.billToPartyId, request.billToParty, true);
 
         // Parts first: an item typed on a no-GST bill must still remember its
         // typed rate for later bills (same order as QuickBillController).
@@ -90,13 +95,14 @@ public with sharing class PaperBillController {
             estimate.workshopProfileId = companyId;
             estimate.customerId = customerId;
             estimate.vehicleId = vehicleId;
+            estimate.billToPartyId = billToPartyId;
             estimate.estimateDate = request.documentDate;
             estimate.notes = request.notes;
             estimate.lineItems = request.lineItems;
             EstimateController.EstimateSummary summary = EstimateController.createEstimate(estimate);
             saved.recordId = summary.estimateId;
             saved.documentNumber = summary.estimateNumber;
-            saved.customerName = summary.customerName;
+            saved.customerName = summary.billToPartyName != null ? summary.billToPartyName : summary.customerName;
             saved.totalAmount = summary.totalAmount;
             return saved;
         }
@@ -104,13 +110,14 @@ public with sharing class PaperBillController {
         bill.workshopProfileId = companyId;
         bill.customerId = customerId;
         bill.vehicleId = vehicleId;
+        bill.billToPartyId = billToPartyId;
         bill.billDate = request.documentDate;
         bill.notes = request.notes;
         bill.lineItems = request.lineItems;
         BillController.BillSummary summary = BillController.createBill(bill);
         saved.recordId = summary.billId;
         saved.documentNumber = summary.invoiceNumber;
-        saved.customerName = summary.customerName;
+        saved.customerName = summary.billToPartyName != null ? summary.billToPartyName : summary.customerName;
         saved.totalAmount = summary.totalAmount;
         return saved;
     }

@@ -74,6 +74,23 @@
     color: #555;
 }
 
+.pb-section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    column-gap: 0.75rem;
+}
+
+.pb-party-toggle {
+    font-size: 0.75rem;
+}
+
+/* On the screen only: InvoicePdf.page prints just the buyer's name. */
+.pb-not-printed > span {
+    color: #888;
+}
+
 .pb-labelled {
     display: grid;
     grid-template-columns: 6.5rem minmax(0, 1fr);

@@ -1,0 +1,26 @@
+.party-selected {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--slds-g-color-border-base-1, #c9c9c9);
+    border-radius: 0.25rem;
+    background-color: var(--slds-g-color-neutral-base-95, #f3f3f3);
+}
+
+.party-name {
+    font-weight: 700;
+}
+
+.new-party {
+    padding: 0.5rem 0.75rem 0.75rem;
+    border-left: 3px solid var(--slds-g-color-brand-base-50, #0176d3);
+    background-color: var(--slds-g-color-neutral-base-95, #f3f3f3);
+    border-radius: 0 0.25rem 0.25rem 0;
+}
+
+.new-note {
+    display: flex;
+    align-items: center;
+    font-size: 0.75rem;
+    color: var(--slds-g-color-neutral-base-30, #444);
+}

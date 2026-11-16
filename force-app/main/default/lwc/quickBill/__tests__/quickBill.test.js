@@ -15,6 +15,7 @@ jest.mock('@salesforce/apex/DocumentPdfService.getPdfDownload', () => ({ default
 jest.mock('@salesforce/apex/DocumentPdfService.getPublicLink', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VehicleMakeModelController.searchMakes', () => ({ default: jest.fn(() => Promise.resolve([])) }), { virtual: true });
 jest.mock('@salesforce/apex/VehicleMakeModelController.searchModels', () => ({ default: jest.fn(() => Promise.resolve([])) }), { virtual: true });
+jest.mock('@salesforce/apex/DirectoryController.listBillToParties', () => ({ default: jest.fn(() => Promise.resolve([])) }), { virtual: true });
 
 const mockScanner = {
     isAvailable: jest.fn(() => false),
@@ -606,6 +607,135 @@ describe('c-quick-bill', () => {
 
             await typeCell(element, 0, 'quantity', '3');
             expect($(element, '[data-id="stock-note"]')).toBeNull();
+        });
+    });
+
+    describe('billing a company or insurance', () => {
+        async function turnOnParty(element) {
+            const toggle = $(element, '[data-id="party-toggle"]');
+            toggle.checked = true;
+            toggle.dispatchEvent(new CustomEvent('change'));
+            await flushPromises();
+        }
+
+        async function choose(element, detail) {
+            $(element, '[data-id="party-picker"]').dispatchEvent(new CustomEvent('partychange', { detail }));
+            await flushPromises();
+        }
+
+        it('is off until asked for, and then needs a party before it can be created', async () => {
+            const element = createQuickBillElement();
+            await switchToWalkIn(element);
+            await typeCell(element, 0, 'description', 'Wheel alignment');
+            await typeCell(element, 0, 'unitPrice', '600');
+            expect($(element, '[data-id="party-picker"]')).toBeNull();
+            expect($(element, '[data-id="create"]').disabled).toBe(false);
+
+            await turnOnParty(element);
+
+            expect($(element, '[data-id="party-picker"]')).not.toBeNull();
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('party');
+            expect($(element, '[data-id="create"]').disabled).toBe(true);
+            expect($(element, '[data-id="walkin-note"]').textContent).toContain('made out to the party');
+        });
+
+        it('a walk-in sale to a picked party sends its Id, and the done screen names the party', async () => {
+            createQuickBill.mockResolvedValue({ ...SUMMARY, billToPartyName: 'Sharma Transport' });
+            const element = createQuickBillElement();
+            await switchToWalkIn(element);
+            await turnOnParty(element);
+            await choose(element, { billToPartyId: 'p2', billToParty: null, name: 'Sharma Transport' });
+            await typeCell(element, 0, 'description', 'Wheel alignment');
+            await typeCell(element, 0, 'unitPrice', '600');
+
+            $(element, '[data-id="create"]').click();
+            await flushPromises();
+
+            const { request } = createQuickBill.mock.calls[0][0];
+            expect(request).toEqual(expect.objectContaining({ isWalkIn: true, billToPartyId: 'p2', billToParty: null }));
+            expect($(element, '.success-card').textContent).toContain('Sharma Transport');
+        });
+
+        it('a customer bill to a typed new party sends the typed party, and says the customer prints as buyer', async () => {
+            findCustomerByPhone.mockResolvedValue(null);
+            createQuickBill.mockResolvedValue(SUMMARY);
+            const element = createQuickBillElement();
+            await flushPromises();
+            type(element, 'lightning-input[data-field="phone"]', '9826011111');
+            type(element, 'lightning-input[data-field="name"]', 'Suresh Patel');
+            await wait(450);
+            await flushPromises();
+            await turnOnParty(element);
+            expect($(element, '[data-id="party-hint"]').textContent).toContain('Buyer’s Name');
+            const typed = { name: 'ICICI Lombard', address: '', contactPhone: '', gstin: '23AAACI7904G1ZV', state: '' };
+            await choose(element, { billToPartyId: null, billToParty: typed, name: 'ICICI Lombard' });
+            await typeCell(element, 0, 'description', 'Bumper repair');
+            await typeCell(element, 0, 'unitPrice', '3500');
+
+            $(element, '[data-id="create"]').click();
+            await flushPromises();
+
+            const { request } = createQuickBill.mock.calls[0][0];
+            expect(request.customerName).toBe('Suresh Patel');
+            expect(request.billToPartyId).toBeNull();
+            expect(request.billToParty).toEqual(typed);
+        });
+
+        it('turning it off again sends no party', async () => {
+            createQuickBill.mockResolvedValue(SUMMARY);
+            const element = createQuickBillElement();
+            await switchToWalkIn(element);
+            await turnOnParty(element);
+            await choose(element, { billToPartyId: 'p2', billToParty: null, name: 'Sharma Transport' });
+            const toggle = $(element, '[data-id="party-toggle"]');
+            toggle.checked = false;
+            toggle.dispatchEvent(new CustomEvent('change'));
+            await typeCell(element, 0, 'description', 'Wheel alignment');
+            await typeCell(element, 0, 'unitPrice', '600');
+
+            $(element, '[data-id="create"]').click();
+            await flushPromises();
+
+            const { request } = createQuickBill.mock.calls[0][0];
+            expect(request.billToPartyId).toBeNull();
+            expect(request.billToParty).toBeNull();
+        });
+
+        it('a new quick bill starts with no party', async () => {
+            createQuickBill.mockResolvedValue(SUMMARY);
+            const element = createQuickBillElement();
+            await switchToWalkIn(element);
+            await turnOnParty(element);
+            await choose(element, { billToPartyId: 'p2', billToParty: null, name: 'Sharma Transport' });
+            await typeCell(element, 0, 'description', 'Wheel alignment');
+            await typeCell(element, 0, 'unitPrice', '600');
+            $(element, '[data-id="create"]').click();
+            await flushPromises();
+
+            $(element, '[data-id="new-document"]').click();
+            await flushPromises();
+
+            expect($(element, '[data-id="party-toggle"]').checked).toBe(false);
+            expect($(element, '[data-id="party-picker"]')).toBeNull();
+        });
+
+        it('the estimate screen offers it with estimate wording, and sends the party', async () => {
+            createQuickEstimate.mockResolvedValue({ estimateId: 'est1', estimateNumber: 'EST-0042', customerName: 'Walk-in Customer', billToPartyName: 'ICICI Lombard', totalAmount: 600 });
+            const element = createElement('c-quick-bill', { is: QuickBill });
+            element.documentType = 'estimate';
+            document.body.appendChild(element);
+            await switchToWalkIn(element);
+            expect($(element, '[data-id="party-toggle"]').label).toBe('Estimate for a company or insurance');
+            await turnOnParty(element);
+            await choose(element, { billToPartyId: 'p1', billToParty: null, name: 'ICICI Lombard' });
+            await typeCell(element, 0, 'description', 'Wheel alignment');
+            await typeCell(element, 0, 'unitPrice', '600');
+
+            $(element, '[data-id="create"]').click();
+            await flushPromises();
+
+            expect(createQuickEstimate.mock.calls[0][0].request.billToPartyId).toBe('p1');
+            expect($(element, '.success-card').textContent).toContain('ICICI Lombard');
         });
     });
 });

@@ -10,6 +10,7 @@ import getCustomer from '@salesforce/apex/PaperBillController.getCustomer';
 import amountInWords from '@salesforce/apex/PaperBillController.amountInWords';
 import saveDocument from '@salesforce/apex/PaperBillController.saveDocument';
 import getVehicleCard from '@salesforce/apex/ServiceBookController.getVehicleCard';
+import listBillToParties from '@salesforce/apex/DirectoryController.listBillToParties';
 import { calculateBillTotals } from 'c/gstMath';
 import { disablePullToRefresh } from 'c/disablePullToRefresh';
 
@@ -23,6 +24,8 @@ const LABELS = {
     bill: {
         noun: 'Bill',
         billTo: 'Bill To',
+        toParty: 'Bill to a company or insurance',
+        toCustomer: 'Bill the customer instead',
         details: 'Invoice Details',
         number: 'Invoice No.',
         words: 'Invoice Amount In Words'
@@ -30,6 +33,8 @@ const LABELS = {
     estimate: {
         noun: 'Estimate',
         billTo: 'Estimated For',
+        toParty: 'Estimate for a company or insurance',
+        toCustomer: 'Estimate for the customer instead',
         details: 'Estimate Details',
         number: 'Estimate No.',
         words: 'Estimate Amount In Words'
@@ -38,6 +43,10 @@ const LABELS = {
 
 const EMPTY_CUSTOMER = { id: null, name: '', phone: '', address: '', gstin: '', state: '' };
 const EMPTY_VEHICLE = { id: null, registrationNumber: '', make: '', model: '', chassisNumber: '' };
+const EMPTY_PARTY = { id: null, name: '', address: '', contactPhone: '', gstin: '', state: '' };
+const PARTY_DETAILS = ['address', 'contactPhone', 'gstin', 'state'];
+const PARTIES_SHOWN = 8;
+const GSTIN_LENGTH = 15;
 const EMPTY_WORKSHOP = {
     name: '', address: '', phone: '', email: '', gstin: '', state: '',
     bankName: '', bankAccountNo: '', bankIfsc: '', bankAccountHolder: '', termsAndConditions: ''
@@ -105,6 +114,14 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
     originalCustomerName;
     vehicle = { ...EMPTY_VEHICLE };
     customerVehicles = [];
+
+    // Billing a company (insurance, fleet, firm) instead of the customer.
+    // The car owner then prints as the Buyer's Name, as on InvoicePdf.page.
+    isBillToParty = false;
+    party = { ...EMPTY_PARTY };
+    _pickedParty;
+    _partyResults = new Map();
+    _focusPartyAfterRender = false;
 
     documentDate = todayText();
     lines = [];
@@ -201,6 +218,13 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         if (this._focusAfterRender) {
             this._focusAfterRender = false;
             this.focusCustomerName();
+        }
+        if (this._focusPartyAfterRender) {
+            this._focusPartyAfterRender = false;
+            const name = this.template.querySelector('[data-id="party-name"]');
+            if (name) {
+                name.focus();
+            }
         }
     }
 
@@ -314,6 +338,38 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         return this.isExistingCustomer && !!this.originalCustomerName && this.customer.name.trim() !== this.originalCustomerName;
     }
 
+    get partyToggleLabel() {
+        return this.isBillToParty ? this.labels.toCustomer : this.labels.toParty;
+    }
+
+    get isExistingParty() {
+        return !!this.party.id;
+    }
+
+    get isChangingParty() {
+        const picked = this._pickedParty;
+        return this.isExistingParty && !!picked && PARTY_DETAILS.some((field) => this.party[field].trim() !== (picked[field] || '').trim());
+    }
+
+    // InvoicePdf.page prints the party from its record, so changing a saved
+    // party's details here changes them on every bill it's on.
+    get partyNote() {
+        if (this.isChangingParty) {
+            return `This changes ${this.party.name}'s details on all its bills.`;
+        }
+        if (this.isExistingParty) {
+            return 'Saved party. Details filled in for you.';
+        }
+        if (this.party.name.trim()) {
+            return 'New party. It is saved for next time.';
+        }
+        return '';
+    }
+
+    get partyNoteClass() {
+        return this.isChangingParty ? 'pb-note' : 'pb-note pb-note_ok';
+    }
+
     get workshopToggleLabel() {
         return this.isEditingWorkshop ? 'Keep workshop details as they are' : 'Change workshop details';
     }
@@ -330,8 +386,14 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         if (this.isEditingWorkshop && !this.workshop.name.trim()) {
             return 'Type your workshop name at the top.';
         }
+        if (this.isBillToParty && !this.party.name.trim()) {
+            return `Type the party name, or choose "${this.labels.toCustomer}".`;
+        }
+        if (this.isBillToParty && this.party.gstin.trim().length > GSTIN_LENGTH) {
+            return 'The party GSTIN should be 15 characters.';
+        }
         if (!c.name.trim() && (c.phone.trim() || c.address.trim() || c.gstin.trim() || c.state.trim())) {
-            return 'Type the customer name.';
+            return this.isBillToParty ? 'Type the buyer’s name.' : 'Type the customer name.';
         }
         if (!v.registrationNumber.trim() && (v.make.trim() || v.model.trim() || v.chassisNumber.trim())) {
             return 'Type the vehicle number, or clear the vehicle details.';
@@ -446,6 +508,74 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
                 .map((c) => ({ value: c.id, label: c.name, sub: c.phone === WALK_IN_PHONE ? '' : c.phone }))
         );
 
+    // ---- bill to party ----------------------------------------------------
+
+    handleToggleParty() {
+        this.isBillToParty = !this.isBillToParty;
+        if (this.isBillToParty) {
+            this._focusPartyAfterRender = true;
+        } else {
+            this._focusAfterRender = true;
+        }
+    }
+
+    handlePartyChange(event) {
+        const field = event.target.dataset.field;
+        const value = event.detail.value;
+        if (field === 'name' && this.isExistingParty) {
+            // A different name is a different party. Its old details go too, so a
+            // saved party's GSTIN can't end up on someone else's tax invoice.
+            this.party = { ...EMPTY_PARTY, name: value };
+            this._pickedParty = undefined;
+            return;
+        }
+        this.party = { ...this.party, [field]: value };
+    }
+
+    // Saved parties show as soon as the box is entered, so one can be picked
+    // without typing anything.
+    searchPartyOptions = (term) =>
+        listBillToParties({ searchTerm: term }).then((results) => {
+            this._partyResults = new Map(results.map((p) => [p.id, p]));
+            return results
+                .slice(0, PARTIES_SHOWN)
+                .map((p) => ({ value: p.id, label: p.name, sub: p.gstin || p.contactPhone || p.state || '' }));
+        });
+
+    handlePartyPick(event) {
+        const picked = this._partyResults.get(event.detail.option.value);
+        if (picked) {
+            this.applyParty(picked);
+        }
+    }
+
+    // A saved party's name typed in full, without picking it, still finds it.
+    handlePartyNameLeave() {
+        const p = this.party;
+        const typed = p.name.trim().toLowerCase();
+        if (this.isExistingParty || !typed || PARTY_DETAILS.some((field) => p[field].trim())) {
+            return;
+        }
+        const known = [...this._partyResults.values()].find((saved) => (saved.name || '').toLowerCase() === typed);
+        if (known) {
+            this.applyParty(known);
+        }
+    }
+
+    applyParty(saved) {
+        this.party = {
+            id: saved.id,
+            name: saved.name || '',
+            address: saved.address || '',
+            contactPhone: saved.contactPhone || '',
+            gstin: saved.gstin || '',
+            state: saved.state || ''
+        };
+        this._pickedParty = { ...this.party };
+    }
+
+    // ---- vehicle ----------------------------------------------------------
+
     handleVehicleChange(event) {
         const field = event.target.dataset.field;
         this.vehicle = { ...this.vehicle, [field]: event.detail.value };
@@ -540,14 +670,18 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         } else if (event.altKey && key === 'g') {
             event.preventDefault();
             this.handleToggleGst();
+        } else if (event.altKey && key === 'p') {
+            event.preventDefault();
+            this.handleToggleParty();
         }
     }
 
     // Enter goes to the next box on the page, in the order they print.
     handleAdvance(event) {
         const field = event.target;
-        // Nobody to name, so jump straight to the items.
-        if (field.dataset.id === 'customer-name' && !this.customer.name.trim()) {
+        // Nobody to name, so jump straight to the items. Not on a party bill,
+        // where the buyer's name is optional and the vehicle comes next.
+        if (field.dataset.id === 'customer-name' && !this.isBillToParty && !this.customer.name.trim()) {
             this.focusGrid();
             return;
         }
@@ -583,6 +717,7 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
     buildRequest() {
         const c = this.customer;
         const v = this.vehicle;
+        const p = this.party;
         return {
             workshopProfileId: this.workshopProfileId || undefined,
             documentType: this.documentType,
@@ -592,6 +727,10 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
             customerAddress: c.address,
             customerGstin: c.gstin,
             customerState: c.state,
+            billToPartyId: this.isBillToParty ? p.id : null,
+            billToParty: this.isBillToParty
+                ? { name: p.name.trim(), address: p.address, contactPhone: p.contactPhone, gstin: p.gstin.trim(), state: p.state }
+                : null,
             vehicleId: v.id,
             registrationNumber: v.registrationNumber,
             make: v.make,
@@ -655,6 +794,9 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         this.originalCustomerName = undefined;
         this.vehicle = { ...EMPTY_VEHICLE };
         this.customerVehicles = [];
+        this.isBillToParty = false;
+        this.party = { ...EMPTY_PARTY };
+        this._pickedParty = undefined;
         this.documentDate = todayText();
         this.lines = [];
         this.includeGst = false;

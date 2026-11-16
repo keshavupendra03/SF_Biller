@@ -1,0 +1,81 @@
+<template>
+    <template lwc:if={selected}>
+        <div class="party-selected" data-id="party-selected">
+            <lightning-icon icon-name="standard:account" size="small" alternative-text="Party" class="slds-m-right_small"></lightning-icon>
+            <div class="slds-grow slds-truncate">
+                <p class="party-name" data-id="party-selected-name">{selected.name}</p>
+                <p class="slds-text-body_small slds-text-color_weak slds-truncate">{selectedDetails}</p>
+            </div>
+            <lightning-button data-id="party-change" variant="base" label="Change" onclick={handleChange}></lightning-button>
+        </div>
+    </template>
+    <template lwc:else>
+        <div class="slds-form-element">
+            <label class="slds-form-element__label" for="party-search"><abbr class="slds-required" title="required">*</abbr>Party name</label>
+            <div class="slds-form-element__control">
+                <div class="slds-combobox_container">
+                    <div class={comboboxClass}>
+                        <div class="slds-combobox__form-element slds-input-has-icon slds-input-has-icon_left" role="none">
+                            <lightning-icon icon-name="utility:search" size="x-small" class="slds-icon_container slds-input__icon slds-input__icon_left"></lightning-icon>
+                            <input
+                                id="party-search"
+                                data-id="party-search"
+                                type="text"
+                                class="slds-input slds-combobox__input"
+                                role="combobox"
+                                aria-autocomplete="list"
+                                aria-controls="party-listbox"
+                                aria-expanded={ariaExpanded}
+                                autocomplete="off"
+                                placeholder="Pick a saved party, or type a new name"
+                                value={term}
+                                oninput={handleInput}
+                                onfocus={handleFocus}
+                                onblur={handleBlur}
+                                onkeydown={handleKeydown}
+                            />
+                        </div>
+                        <div id="party-listbox" class="slds-dropdown slds-dropdown_length-with-icon-7 slds-dropdown_fluid" role="listbox" aria-label="Saved parties">
+                            <ul class="slds-listbox slds-listbox_vertical" role="presentation">
+                                <template for:each={decoratedResults} for:item="party">
+                                    <li key={party.id} role="presentation" class="slds-listbox__item">
+                                        <div class={party.optionClass} role="option" aria-selected={party.ariaSelected} data-id="party-option" data-value={party.id} onmousedown={handleOptionMouseDown}>
+                                            <span class="slds-media__figure slds-listbox__option-icon">
+                                                <lightning-icon icon-name="standard:account" size="small"></lightning-icon>
+                                            </span>
+                                            <span class="slds-media__body">
+                                                <span class="slds-listbox__option-text slds-listbox__option-text_entity">{party.name}</span>
+                                                <span class="slds-listbox__option-meta slds-listbox__option-meta_entity">{party.meta}</span>
+                                            </span>
+                                        </div>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <template lwc:if={isNewParty}>
+            <div class="new-party slds-m-top_x-small" data-id="new-party">
+                <p class="new-note" data-id="new-party-note">
+                    <lightning-icon icon-name="utility:new" size="xx-small" class="slds-m-right_x-small"></lightning-icon>
+                    New party, saved for next time. These details are optional.
+                </p>
+                <lightning-textarea data-field="address" label="Address" value={details.address} onchange={handleDetailChange}></lightning-textarea>
+                <div class="slds-grid slds-wrap slds-gutters_x-small">
+                    <div class="slds-col slds-size_1-of-1 slds-medium-size_1-of-3">
+                        <lightning-input data-field="contactPhone" type="tel" label="Contact No." value={details.contactPhone} onchange={handleDetailChange}></lightning-input>
+                    </div>
+                    <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-3">
+                        <lightning-input data-field="gstin" label="GSTIN" max-length="15" value={details.gstin} onchange={handleDetailChange}></lightning-input>
+                    </div>
+                    <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-3">
+                        <lightning-input data-field="state" label="State" placeholder="23-Madhya Pradesh" value={details.state} onchange={handleDetailChange}></lightning-input>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </template>
+</template>

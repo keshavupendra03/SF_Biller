@@ -282,7 +282,9 @@ public with sharing class InvoicePdfController {
             billToContact = party.Contact_Phone__c;
             billToGstin = party.GSTIN__c;
             billToState = party.State__c;
-            buyersName = customer != null ? customer.Name : null;
+            // A party bill with nobody named goes to the shared walk-in
+            // customer, which isn't a buyer's name worth printing.
+            buyersName = customer == null || isWalkIn(customer) ? null : customer.Name;
         } else if (customer != null) {
             billToName = customer.Name;
             billToAddress = customer.Address__c;
@@ -293,6 +295,10 @@ public with sharing class InvoicePdfController {
             billToState = customer.State__c;
             buyersName = null;
         }
+    }
+
+    private static Boolean isWalkIn(Customer__c customer) {
+        return customer.Name == QuickBillController.WALK_IN_NAME && customer.Phone__c == QuickBillController.WALK_IN_PHONE;
     }
 
     private void loadLines(List<SObject> items) {

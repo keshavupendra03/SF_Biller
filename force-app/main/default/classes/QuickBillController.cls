@@ -10,6 +10,8 @@
  *  - otherwise the phone number is the customer's identity — an existing
  *    customer with that number is reused (blank details are filled in
  *    from what was typed), else a new one is created.
+ * A Bill To Party (a company billed instead of the customer) is optional:
+ * a picked saved party, or a typed one (BillToPartyService).
  * A vehicle is optional; a typed registration number reuses that
  * customer's existing vehicle with the same number, else creates one.
  * The bill itself goes through BillController.createBill, so invoice
@@ -49,6 +51,8 @@ public with sharing class QuickBillController {
         @AuraEnabled public String customerAddress { get; set; }
         @AuraEnabled public String customerGstin { get; set; }
         @AuraEnabled public String customerState { get; set; }
+        @AuraEnabled public Id billToPartyId { get; set; }
+        @AuraEnabled public BillController.NewBillToPartyInput billToParty { get; set; }
         @AuraEnabled public Id vehicleId { get; set; }
         @AuraEnabled public CustomerController.NewVehicleInput newVehicle { get; set; }
         @AuraEnabled public Date documentDate { get; set; }
@@ -89,6 +93,7 @@ public with sharing class QuickBillController {
         bill.customerId = parties.customerId;
         bill.vehicleId = parties.vehicleId;
         bill.newVehicle = parties.newVehicle;
+        bill.billToPartyId = parties.billToPartyId;
         bill.billDate = request.documentDate;
         bill.notes = request.notes;
         bill.lineItems = request.lineItems;
@@ -104,6 +109,7 @@ public with sharing class QuickBillController {
         estimate.customerId = parties.customerId;
         estimate.vehicleId = parties.vehicleId;
         estimate.newVehicle = parties.newVehicle;
+        estimate.billToPartyId = parties.billToPartyId;
         estimate.estimateDate = request.documentDate;
         estimate.notes = request.notes;
         estimate.lineItems = request.lineItems;
@@ -114,6 +120,7 @@ public with sharing class QuickBillController {
         Id customerId;
         Id vehicleId;
         CustomerController.NewVehicleInput newVehicle;
+        Id billToPartyId;
     }
 
     private static ResolvedParties prepare(QuickBillRequest request) {
@@ -123,6 +130,7 @@ public with sharing class QuickBillController {
         Boolean walkIn = request.isWalkIn == true;
         ResolvedParties parties = new ResolvedParties();
         parties.customerId = walkIn ? walkInCustomerId() : resolveCustomer(request);
+        parties.billToPartyId = BillToPartyService.resolve(request.billToPartyId, request.billToParty, false);
 
         PartUpsertService.fillManualPartIds(request.lineItems);
         if (request.includeGst != true) {

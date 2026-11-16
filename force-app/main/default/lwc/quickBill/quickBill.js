@@ -21,6 +21,7 @@ const LABELS = {
         title: 'Quick Bill',
         subtitle: 'Bill a parts sale or any customer in one step.',
         partyTitle: 'Bill To',
+        toParty: 'Bill to a company or insurance',
         created: 'Bill created',
         create: 'Create Bill',
         view: 'View Bill',
@@ -34,6 +35,7 @@ const LABELS = {
         title: 'Quick Estimate',
         subtitle: 'Quote a parts sale or any customer in one step.',
         partyTitle: 'Estimate For',
+        toParty: 'Estimate for a company or insurance',
         created: 'Estimate created',
         create: 'Create Estimate',
         view: 'View Estimate',
@@ -80,6 +82,11 @@ export default class QuickBill extends NavigationMixin(LightningElement) {
 
     selectedVehicleId = null;
     newVehicle = { ...EMPTY_VEHICLE };
+
+    // Billing a company (insurance, fleet, firm) instead of the customer:
+    // what c-bill-to-party-picker last reported.
+    isBillToParty = false;
+    partyChoice = null;
 
     // The filled lines, as reported by c-line-item-grid.
     lines = [];
@@ -156,6 +163,29 @@ export default class QuickBill extends NavigationMixin(LightningElement) {
         if (field === 'phone') {
             this.schedulePhoneLookup();
         }
+    }
+
+    // ---- bill to party ----------------------------------------------------
+
+    get walkInNote() {
+        return this.isBillToParty
+            ? `No customer details needed. The ${this.labels.noun} is made out to the party below.`
+            : `No customer details needed. The ${this.labels.noun} is issued to "Walk-in Customer".`;
+    }
+
+    get partyHint() {
+        return this.isWalkIn
+            ? 'The party’s name, address and GSTIN print in place of the customer.'
+            : 'The party’s name, address and GSTIN print in place of the customer. The customer prints as Buyer’s Name.';
+    }
+
+    handleTogglePartyBox(event) {
+        this.isBillToParty = event.target.checked;
+        this.partyChoice = null;
+    }
+
+    handlePartyChange(event) {
+        this.partyChoice = event.detail;
     }
 
     handleToggleMoreCustomer() {
@@ -364,6 +394,9 @@ export default class QuickBill extends NavigationMixin(LightningElement) {
                 return 'Enter the customer’s name.';
             }
         }
+        if (this.isBillToParty && !(this.partyChoice && this.partyChoice.name)) {
+            return 'Pick a saved party, or type the new party’s name.';
+        }
         if (!this.hasItems) {
             return 'Add at least one part or item.';
         }
@@ -400,6 +433,8 @@ export default class QuickBill extends NavigationMixin(LightningElement) {
             customerState: this.isWalkIn ? null : this.customer.state,
             vehicleId: this.isWalkIn || !this.selectedVehicleId || this.isNewVehicleSelected ? null : this.selectedVehicleId,
             newVehicle: this.isWalkIn ? null : typedVehicle,
+            billToPartyId: this.isBillToParty && this.partyChoice ? this.partyChoice.billToPartyId : null,
+            billToParty: this.isBillToParty && this.partyChoice ? this.partyChoice.billToParty : null,
             documentDate: this.documentDate || null,
             notes: this.notes,
             includeGst: this.includeGst,
@@ -427,7 +462,8 @@ export default class QuickBill extends NavigationMixin(LightningElement) {
                 this.created = {
                     recordId: this.isEstimate ? summary.estimateId : summary.billId,
                     number: this.isEstimate ? summary.estimateNumber : summary.invoiceNumber,
-                    customerName: summary.customerName,
+                    // Whoever it's made out to: the party when there is one.
+                    customerName: summary.billToPartyName || summary.customerName,
                     formattedTotal: formatAmount(summary.totalAmount)
                 };
             })
@@ -471,6 +507,8 @@ export default class QuickBill extends NavigationMixin(LightningElement) {
         this.showMoreCustomer = false;
         this.selectedVehicleId = null;
         this.newVehicle = { ...EMPTY_VEHICLE };
+        this.isBillToParty = false;
+        this.partyChoice = null;
         this.lines = [];
         this.includeGst = false;
         // Walk-in goes straight to the items; Customer starts at the phone box.

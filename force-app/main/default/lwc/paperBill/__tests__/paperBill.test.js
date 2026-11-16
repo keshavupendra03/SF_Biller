@@ -9,6 +9,7 @@ import amountInWords from '@salesforce/apex/PaperBillController.amountInWords';
 import saveDocument from '@salesforce/apex/PaperBillController.saveDocument';
 import searchParts from '@salesforce/apex/BillController.searchParts';
 import getVehicleCard from '@salesforce/apex/ServiceBookController.getVehicleCard';
+import listBillToParties from '@salesforce/apex/DirectoryController.listBillToParties';
 
 jest.mock('@salesforce/apex/WorkshopProfileController.listProfiles', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/BillController.searchCustomers', () => ({ default: jest.fn() }), { virtual: true });
@@ -20,6 +21,7 @@ jest.mock('@salesforce/apex/PaperBillController.getCustomer', () => ({ default: 
 jest.mock('@salesforce/apex/PaperBillController.amountInWords', () => ({ default: jest.fn(() => Promise.resolve('')) }), { virtual: true });
 jest.mock('@salesforce/apex/PaperBillController.saveDocument', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/ServiceBookController.getVehicleCard', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/DirectoryController.listBillToParties', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPdfDownload', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPublicLink', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/client/formFactor', () => ({ default: 'Large' }), { virtual: true });
@@ -638,5 +640,184 @@ describe('c-paper-bill', () => {
         expect(panel).toContain('not printed');
         expect(panel.indexOf('Denting')).toBeLessThan(panel.indexOf('Painting'));
         expect(panel.indexOf('Painting')).toBeLessThan(panel.indexOf('Polish'));
+    });
+
+    describe('billing a company or insurance', () => {
+        const ICICI = { id: 'p1', name: 'ICICI Lombard', address: 'MG Road, Indore', contactPhone: '0731400000', gstin: '23AAACI7904G1ZV', state: 'Madhya Pradesh' };
+        const SHARMA = { id: 'p2', name: 'Sharma Transport', address: '', contactPhone: '9827012345', gstin: '', state: '' };
+
+        beforeEach(() => {
+            listBillToParties.mockResolvedValue([ICICI, SHARMA]);
+        });
+
+        async function turnOnParty(element) {
+            $(element, '[data-id="toggle-party"]').click();
+            await flushPromises();
+        }
+
+        async function pickParty(element, index) {
+            const name = field(element, '[data-id="party-name"]');
+            name.shadowRoot.querySelector('input').dispatchEvent(new CustomEvent('focus'));
+            await flushPromises();
+            name.shadowRoot.querySelectorAll('[data-id="option"]')[index].dispatchEvent(new CustomEvent('mousedown', { bubbles: true, cancelable: true }));
+            await flushPromises();
+        }
+
+        it('keeps the printed layout: the party under Bill To, and the car owner as Buyer\'s Name', async () => {
+            const element = await createScreen();
+            expect($(element, '[data-id="toggle-party"]').textContent).toBe('Bill to a company or insurance');
+            expect(field(element, '[data-id="party-name"]')).toBeNull();
+
+            await turnOnParty(element);
+
+            const sheet = $(element, '[data-id="sheet"]').textContent;
+            expect(sheet).toContain('Bill To');
+            expect(sheet).toContain('GSTIN Number:');
+            expect(sheet).toContain('Buyer\'s Name:');
+            expect(sheet.indexOf('Date:')).toBeLessThan(sheet.indexOf('Buyer\'s Name:'));
+            expect(sheet.indexOf('Buyer\'s Name:')).toBeLessThan(sheet.indexOf('Vehicle No.:'));
+            expect(field(element, '[data-id="customer-name"]').label).toBe('Buyer\'s name');
+            expect($(element, '[data-id="toggle-party"]').textContent).toBe('Bill the customer instead');
+            expect(element.shadowRoot.activeElement).toBe(field(element, '[data-id="party-name"]'));
+        });
+
+        it('lists saved parties as soon as the party box is entered, and picking one fills its details', async () => {
+            const element = await createScreen();
+            await turnOnParty(element);
+
+            await pickParty(element, 0);
+
+            expect(listBillToParties).toHaveBeenCalledWith({ searchTerm: '' });
+            expect(field(element, '[data-id="party-name"]').value).toBe('ICICI Lombard');
+            expect(field(element, '[data-id="party-address"]').value).toBe('MG Road, Indore');
+            expect(field(element, '[data-id="party-gstin"]').value).toBe('23AAACI7904G1ZV');
+            expect(field(element, '[data-id="party-state"]').value).toBe('Madhya Pradesh');
+            expect($(element, '[data-id="party-note"]').textContent).toContain('Saved party');
+        });
+
+        it('warns when a saved party\'s details are being changed', async () => {
+            const element = await createScreen();
+            await turnOnParty(element);
+            await pickParty(element, 0);
+
+            await typeField(element, '[data-id="party-address"]', 'Vijay Nagar, Indore');
+
+            expect($(element, '[data-id="party-note"]').textContent).toContain('changes ICICI Lombard');
+            expect($(element, '[data-id="party-note"]').className).not.toContain('pb-note_ok');
+        });
+
+        it('a different name after a pick is a new party, and drops the old GSTIN', async () => {
+            const element = await createScreen();
+            await turnOnParty(element);
+            await pickParty(element, 0);
+
+            await typeField(element, '[data-id="party-name"]', 'Verma Fleet');
+
+            expect(field(element, '[data-id="party-gstin"]').value).toBe('');
+            expect(field(element, '[data-id="party-address"]').value).toBe('');
+            expect($(element, '[data-id="party-note"]').textContent).toContain('New party');
+        });
+
+        it('a saved name typed in full finds that party when the cursor leaves', async () => {
+            listBillToParties.mockResolvedValue([SHARMA]);
+            const element = await createScreen();
+            await turnOnParty(element);
+            await typeField(element, '[data-id="party-name"]', 'sharma transport');
+            await wait(350);
+
+            field(element, '[data-id="party-name"]').shadowRoot.querySelector('input').dispatchEvent(new CustomEvent('blur'));
+            await flushPromises();
+
+            expect(field(element, '[data-id="party-phone"]').value).toBe('9827012345');
+            expect($(element, '[data-id="party-note"]').textContent).toContain('Saved party');
+        });
+
+        it('saves the picked party with the page\'s details and the car owner as buyer', async () => {
+            saveDocument.mockResolvedValue({ ...SAVED, customerName: 'ICICI Lombard' });
+            const element = await createScreen();
+            await turnOnParty(element);
+            await pickParty(element, 0);
+            await typeField(element, '[data-id="customer-name"]', 'Ramesh Kumar');
+            await typeField(element, '[data-id="customer-phone"]', '9000011111');
+            await addItem(element, 0, 'Bumper repair', '3500');
+
+            $(element, '[data-id="save"]').click();
+            await flushPromises();
+
+            const { request } = saveDocument.mock.calls[0][0];
+            expect(request).toEqual(expect.objectContaining({
+                customerName: 'Ramesh Kumar',
+                customerPhone: '9000011111',
+                billToPartyId: 'p1',
+                billToParty: { name: 'ICICI Lombard', address: 'MG Road, Indore', contactPhone: '0731400000', gstin: '23AAACI7904G1ZV', state: 'Madhya Pradesh' }
+            }));
+            expect($(element, '.pb-saved-card').textContent).toContain('ICICI Lombard');
+        });
+
+        it('needs a party name, checks the GSTIN length, and the buyer is optional', async () => {
+            const element = await createScreen();
+            await turnOnParty(element);
+            await addItem(element, 0, 'Bumper repair', '3500');
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('party name');
+
+            await typeField(element, '[data-id="party-name"]', 'Verma Fleet');
+            await typeField(element, '[data-id="party-gstin"]', '23ABCDE1234F1Z5X');
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('15 characters');
+
+            await typeField(element, '[data-id="party-gstin"]', '23ABCDE1234F1Z5');
+            expect($(element, '[data-id="missing-reason"]')).toBeNull();
+            expect($(element, '[data-id="save"]').disabled).toBe(false);
+        });
+
+        it('Enter on an empty buyer name goes on to the vehicle, not the items', async () => {
+            const element = await createScreen();
+            await turnOnParty(element);
+
+            press(field(element, '[data-id="customer-name"]').shadowRoot.querySelector('input'), 'Enter');
+            await flushPromises();
+
+            expect(element.shadowRoot.activeElement).toBe(field(element, '[data-id="customer-phone"]'));
+        });
+
+        it('Alt+P switches it on and off; switching off sends no party', async () => {
+            saveDocument.mockResolvedValue(SAVED);
+            const element = await createScreen();
+            const screen = $(element, '.pb-screen');
+
+            press(screen, 'p', { altKey: true });
+            await flushPromises();
+            expect(field(element, '[data-id="party-name"]')).not.toBeNull();
+            await typeField(element, '[data-id="party-name"]', 'Verma Fleet');
+
+            press(screen, 'p', { altKey: true });
+            await flushPromises();
+            expect(field(element, '[data-id="party-name"]')).toBeNull();
+            await addItem(element, 0, 'Bumper repair', '3500');
+            $(element, '[data-id="save"]').click();
+            await flushPromises();
+
+            const { request } = saveDocument.mock.calls[0][0];
+            expect(request.billToPartyId).toBeNull();
+            expect(request.billToParty).toBeNull();
+        });
+
+        it('the estimate uses estimate wording, and New starts without a party', async () => {
+            saveDocument.mockResolvedValue(SAVED);
+            const element = await createScreen();
+            $(element, '[data-id="document-type"]').dispatchEvent(new CustomEvent('change', { detail: { value: 'estimate' } }));
+            await flushPromises();
+            expect($(element, '[data-id="toggle-party"]').textContent).toBe('Estimate for a company or insurance');
+
+            await turnOnParty(element);
+            await typeField(element, '[data-id="party-name"]', 'Verma Fleet');
+            await addItem(element, 0, 'Bumper repair', '3500');
+            $(element, '[data-id="save"]').click();
+            await flushPromises();
+            expect(saveDocument.mock.calls[0][0].request.billToParty.name).toBe('Verma Fleet');
+
+            $(element, '[data-id="new"]').click();
+            await flushPromises();
+            expect(field(element, '[data-id="party-name"]')).toBeNull();
+        });
     });
 });

@@ -365,4 +365,43 @@ private class QuickBillControllerTest {
         System.assertEquals(QuickBillController.WALK_IN_NAME, controller.billToName);
         System.assertEquals(null, controller.billToContact);
     }
+
+    @isTest
+    static void walkInSale_toAPickedParty_billsTheParty() {
+        Bill_To_Party__c fleet = new Bill_To_Party__c(Name = 'Sharma Transport', Address__c = 'Nanakheda, Ujjain');
+        insert fleet;
+        QuickBillController.QuickBillRequest r = request();
+        r.isWalkIn = true;
+        r.billToPartyId = fleet.Id;
+
+        Test.startTest();
+        BillController.BillSummary summary = QuickBillController.createQuickBill(r);
+        Test.stopTest();
+
+        System.assertEquals(fleet.Id, summary.billToPartyId);
+        System.assertEquals('Sharma Transport', summary.billToPartyName);
+        System.assertEquals(QuickBillController.WALK_IN_NAME, summary.customerName);
+        System.assertEquals('Nanakheda, Ujjain', [SELECT Address__c FROM Bill_To_Party__c WHERE Id = :fleet.Id].Address__c);
+    }
+
+    @isTest
+    static void estimate_forATypedParty_reusesASavedPartyWithThatName() {
+        Bill_To_Party__c icici = new Bill_To_Party__c(Name = 'ICICI Lombard');
+        insert icici;
+        QuickBillController.QuickBillRequest r = request();
+        r.customerName = 'Ramesh Kumar';
+        r.customerPhone = '9000011111';
+        r.billToParty = new BillController.NewBillToPartyInput();
+        r.billToParty.name = 'icici lombard';
+        r.billToParty.gstin = '23AAACI7904G1ZV';
+
+        Test.startTest();
+        EstimateController.EstimateSummary summary = QuickBillController.createQuickEstimate(r);
+        Test.stopTest();
+
+        System.assertEquals(icici.Id, summary.billToPartyId);
+        System.assertEquals(1, [SELECT COUNT() FROM Bill_To_Party__c]);
+        System.assertEquals('23AAACI7904G1ZV', [SELECT GSTIN__c FROM Bill_To_Party__c WHERE Id = :icici.Id].GSTIN__c,
+            'A detail the party was missing is filled in.');
+    }
 }

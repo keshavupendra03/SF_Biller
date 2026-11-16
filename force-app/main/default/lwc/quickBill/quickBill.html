@@ -48,7 +48,7 @@
                         <template lwc:if={isWalkIn}>
                             <div class="walkin-note slds-m-top_small">
                                 <lightning-icon icon-name="utility:info" size="x-small" class="slds-m-right_x-small"></lightning-icon>
-                                <span>No customer details needed. The {labels.noun} is issued to "Walk-in Customer".</span>
+                                <span data-id="walkin-note">{walkInNote}</span>
                             </div>
                         </template>
 
@@ -132,6 +132,23 @@
                                 </template>
                             </div>
                         </template>
+
+                        <!-- Bill to a party (optional): a company billed instead of the customer -->
+                        <div class="party-block slds-m-top_medium">
+                            <lightning-input
+                                data-id="party-toggle"
+                                type="checkbox"
+                                label={labels.toParty}
+                                checked={isBillToParty}
+                                onchange={handleTogglePartyBox}
+                            ></lightning-input>
+                            <template lwc:if={isBillToParty}>
+                                <div class="slds-m-top_x-small">
+                                    <c-bill-to-party-picker data-id="party-picker" onpartychange={handlePartyChange}></c-bill-to-party-picker>
+                                </div>
+                                <p class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small" data-id="party-hint">{partyHint}</p>
+                            </template>
+                        </div>
                     </div>
                 </lightning-card>
 

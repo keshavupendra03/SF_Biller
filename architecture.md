@@ -2238,3 +2238,39 @@ from `/services/Soap/...` for both the anonymous Apex and the deploy; it was a
 network blip (the same minute, another service failed DNS), and the identical
 commands succeeded on retry. If you see that HTML 405 page from `sf`, check the
 connection before suspecting the metadata.
+
+**Thirty-fifth (2026-11-15): Bill To Party on Easy Bill, Quick Bill and Quick
+Estimate.** User request: type a bill-to party, or pick a saved one, on these
+three screens, keeping Easy Bill looking like the print. Audited first: no schema
+change. `Bill_To_Party__c`, the `Bill_To_Party__c` lookups on `Bill__c` and
+`Estimate__c`, the Bill To Parties list screen, and `InvoicePdf.page` printing the
+party under Bill To with the customer as "Buyer's Name" all existed. Only the old
+New Bill / New Estimate screens used them.
+
+- `BillToPartyService.resolve(partyId, typed, pageIsTheRecord)`, shared by
+  `PaperBillController` and `QuickBillController`. Picked: that party. Typed: a saved
+  party with the same name (case-insensitive) is reused, else a new one is saved for
+  next time. Easy Bill passes `pageIsTheRecord`: a picked party takes the page's
+  details, blanks included, because the PDF prints the party live from its record.
+  Quick Bill only fills details the party is missing. A GSTIN over 15 characters is
+  refused with a plain message instead of a DML "value too large".
+- Easy Bill: a link beside "Bill To" (and Alt+P) swaps the left column to the party:
+  name, address, Contact No., GSTIN Number, State, in the printed order. The customer
+  boxes move to the right column as "Buyer's Name" and "Buyer's Mobile" (marked not
+  printed), after Date, where the PDF prints Buyer's Name. The party box lists saved
+  parties on focus (`minChars 0`), so a regular one is picked without typing.
+  Changing a picked party's **name** detaches it and clears its details, so its
+  GSTIN can't land on another firm's tax invoice. Changing its other details warns
+  "This changes X's details on all its bills".
+- Quick Bill / Quick Estimate: a checkbox in the Bill To card opens the new
+  `c:billToPartyPicker`, an SLDS combobox that lists saved parties on focus. It works
+  with ↑ ↓ / Enter / Tab / Escape, takes a typed new party with optional details, and
+  fires `partychange` with either an Id or the typed party. It works with Walk-in
+  too, for a firm buying parts over the counter.
+- `InvoicePdfController`: a party bill with nobody named is on the shared Walk-in
+  Customer. It used to print "Buyer's Name: Walk-in Customer", and now prints none.
+- The saved screens show the party's name, not the customer's.
+
+Platform issue: none new. A bash `<<'EOF'` heredoc failed with "unexpected EOF while
+looking for matching `''" on a Python script full of `Buyer's`. Write such scripts
+to a file and run the file (already the practice for anything with quotes).

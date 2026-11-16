@@ -293,4 +293,22 @@ private class InvoicePdfControllerTest {
     // verify — the controller assembles correct data for both document
     // types — the actual byte-level PDF rendering needs manual UAT:
     // opening /apex/InvoicePdf?id=<recordId> in a browser.
+
+    @isTest
+    static void billToParty_withNoCustomerNamed_printsNoBuyersName() {
+        Bill_To_Party__c party = new Bill_To_Party__c(Name = 'Sharma Transport');
+        insert party;
+        Bill__c bill = new Bill__c(Customer__c = QuickBillController.walkInCustomerId(), Bill_To_Party__c = party.Id);
+        insert bill;
+
+        Test.setCurrentPageReference(Page.InvoicePdf);
+        ApexPages.currentPage().getParameters().put('id', bill.Id);
+
+        Test.startTest();
+        InvoicePdfController controller = new InvoicePdfController();
+        Test.stopTest();
+
+        System.assertEquals('Sharma Transport', controller.billToName);
+        System.assertEquals(null, controller.buyersName, 'Walk-in Customer is not a buyer worth printing.');
+    }
 }

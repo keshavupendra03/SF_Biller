@@ -29,7 +29,7 @@
                     onchange={handleDocumentTypeChange}
                 ></lightning-radio-group>
                 <c-company-picker value={workshopProfileId} oncompanychange={handleCompanyChange}></c-company-picker>
-                <p class="pb-keyboard-hint">Tab or Enter: next box. Ctrl+S: save. Alt+G: add or remove GST.</p>
+                <p class="pb-keyboard-hint">Tab or Enter: next box. Ctrl+S: save. Alt+G: add or remove GST. Alt+P: bill a company.</p>
             </div>
 
             <div class="pb-sheet" data-id="sheet">
@@ -61,7 +61,22 @@
                 <!-- Bill to, and details -->
                 <div class="pb-two-col">
                     <div>
-                        <p class="pb-section-label">{labels.billTo}</p>
+                        <div class="pb-section-head">
+                            <p class="pb-section-label">{labels.billTo}</p>
+                            <button type="button" tabindex="-1" class="slds-button slds-text-link pb-party-toggle" data-id="toggle-party" onclick={handleToggleParty}>{partyToggleLabel}</button>
+                        </div>
+                        <template lwc:if={isBillToParty}>
+                            <!-- The party prints here; the car owner prints as Buyer's Name on the right. -->
+                            <c-paper-field data-id="party-name" data-field="name" label="Party name" placeholder="Company or insurance: type, or pick a saved one" strong min-chars="0" value={party.name} search={searchPartyOptions} onvaluechange={handlePartyChange} onpick={handlePartyPick} onleave={handlePartyNameLeave} onadvance={handleAdvance}></c-paper-field>
+                            <template lwc:if={partyNote}>
+                                <p class={partyNoteClass} data-id="party-note">{partyNote}</p>
+                            </template>
+                            <c-paper-field data-id="party-address" data-field="address" label="Party address" placeholder="Address" value={party.address} onvaluechange={handlePartyChange} onadvance={handleAdvance}></c-paper-field>
+                            <div class="pb-labelled"><span>Contact No.:</span><c-paper-field data-id="party-phone" data-field="contactPhone" type="tel" label="Party contact number" placeholder="Phone number" value={party.contactPhone} onvaluechange={handlePartyChange} onadvance={handleAdvance}></c-paper-field></div>
+                            <div class="pb-labelled"><span>GSTIN Number:</span><c-paper-field data-id="party-gstin" data-field="gstin" label="Party GSTIN" placeholder="Party GSTIN" value={party.gstin} onvaluechange={handlePartyChange} onadvance={handleAdvance}></c-paper-field></div>
+                            <div class="pb-labelled"><span>State:</span><c-paper-field data-id="party-state" data-field="state" label="Party state" placeholder="State" value={party.state} onvaluechange={handlePartyChange} onadvance={handleAdvance}></c-paper-field></div>
+                        </template>
+                        <template lwc:else>
                         <c-paper-field data-id="customer-name" data-field="name" label="Customer name" placeholder="Customer name" strong value={customer.name} search={searchCustomerOptions} onvaluechange={handleCustomerChange} onpick={handleCustomerPick} onadvance={handleAdvance}></c-paper-field>
                         <template lwc:if={isRenamingCustomer}>
                             <p class="pb-note" data-id="rename-note">This renames {originalCustomerName} on all their bills.</p>
@@ -73,11 +88,19 @@
                         <div class="pb-labelled"><span>Contact No.:</span><c-paper-field data-id="customer-phone" data-field="phone" type="tel" label="Customer mobile number" placeholder="Mobile number" value={customer.phone} search={searchCustomerOptions} onvaluechange={handleCustomerChange} onpick={handleCustomerPick} onleave={handlePhoneLeave} onadvance={handleAdvance}></c-paper-field></div>
                         <div class="pb-labelled"><span>GSTIN Number:</span><c-paper-field data-field="gstin" label="Customer GSTIN" placeholder="Only if the customer has one" value={customer.gstin} onvaluechange={handleCustomerChange} onadvance={handleAdvance}></c-paper-field></div>
                         <div class="pb-labelled"><span>State:</span><c-paper-field data-field="state" label="Customer state" placeholder="State" value={customer.state} onvaluechange={handleCustomerChange} onadvance={handleAdvance}></c-paper-field></div>
+                        </template>
                     </div>
                     <div>
                         <p class="pb-section-label">{labels.details}</p>
                         <div class="pb-labelled"><span>{labels.number}</span><span class="pb-auto-number" data-id="auto-number">Given when you save</span></div>
                         <div class="pb-labelled"><span>Date:</span><c-paper-field data-id="document-date" label="Date" placeholder="dd-mm-yyyy" value={documentDate} onvaluechange={handleDateChange} onadvance={handleAdvance}></c-paper-field></div>
+                        <template lwc:if={isBillToParty}>
+                            <div class="pb-labelled"><span>Buyer's Name:</span><c-paper-field data-id="customer-name" data-field="name" label="Buyer's name" placeholder="Car owner (optional)" value={customer.name} search={searchCustomerOptions} onvaluechange={handleCustomerChange} onpick={handleCustomerPick} onadvance={handleAdvance}></c-paper-field></div>
+                            <template lwc:if={isRenamingCustomer}>
+                                <p class="pb-note" data-id="rename-note">This renames {originalCustomerName} on all their bills.</p>
+                            </template>
+                            <div class="pb-labelled pb-not-printed"><span>Buyer's Mobile:</span><c-paper-field data-id="customer-phone" data-field="phone" type="tel" label="Buyer's mobile number" placeholder="Not printed" value={customer.phone} search={searchCustomerOptions} onvaluechange={handleCustomerChange} onpick={handleCustomerPick} onleave={handlePhoneLeave} onadvance={handleAdvance}></c-paper-field></div>
+                        </template>
                         <div class="pb-labelled"><span>Vehicle No.:</span><c-paper-field data-field="registrationNumber" label="Vehicle number" placeholder="e.g. MP09AB1234" min-chars="0" value={vehicle.registrationNumber} search={searchVehicleOptions} onvaluechange={handleVehicleChange} onpick={handleVehiclePick} onleave={handleVehicleNumberLeave} onadvance={handleAdvance}></c-paper-field></div>
                         <div class="pb-labelled"><span>Make:</span><c-paper-field data-field="make" label="Vehicle make" placeholder="e.g. Tata" value={vehicle.make} search={searchMakeOptions} onvaluechange={handleVehicleChange} onpick={handleMakeModelPick} onadvance={handleAdvance}></c-paper-field></div>
                         <div class="pb-labelled"><span>Model:</span><c-paper-field data-field="model" label="Vehicle model" placeholder="e.g. Punch" value={vehicle.model} search={searchModelOptions} onvaluechange={handleVehicleChange} onpick={handleMakeModelPick} onadvance={handleAdvance}></c-paper-field></div>
