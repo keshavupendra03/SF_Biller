@@ -541,4 +541,29 @@ describe('c-bill-create', () => {
 
         expect(element.shadowRoot.querySelector('[data-id="submit-bill"]').disabled).toBe(false);
     });
+
+    it('a line\'s discount shows on its row and is sent; the total is rounded as the company chooses (G5)', async () => {
+        searchCustomers.mockResolvedValue([{ id: '001xx0000000001', name: 'Ramesh Kumar', phone: '9000011111' }]);
+        createBill.mockResolvedValue({ billId: 'a01xx0000000001', invoiceNumber: 'INV/2026-27/0001', status: 'Unpaid', totalAmount: 1455 });
+        const element = createElement('c-bill-create', { is: BillCreate });
+        document.body.appendChild(element);
+        await selectCustomer(element);
+        await addLineViaModal(element, { description: 'Pad', quantity: 2, unitPrice: 500, taxRatePercent: 18, gstType: 'CGST_SGST', discount: 100 });
+        await addLineViaModal(element, { description: 'Clip', quantity: 1, unitPrice: 333, taxRatePercent: 18, gstType: 'CGST_SGST', discount: 0 });
+
+        expect(element.shadowRoot.textContent).toContain('2 x ₹500 (18% tax), ₹100.00 off');
+        expect(element.shadowRoot.querySelector('[data-id="round-off"]').textContent).toBe('₹+0.06');
+        expect(element.shadowRoot.textContent).toContain('₹1455.00');
+
+        element.shadowRoot.querySelector('c-company-picker').dispatchEvent(
+            new CustomEvent('companychange', { detail: { id: 'wp1', profile: { id: 'wp1', roundOffTotals: false } } })
+        );
+        await flushPromises();
+        expect(element.shadowRoot.querySelector('[data-id="round-off"]')).toBeNull();
+        expect(element.shadowRoot.textContent).toContain('₹1454.94');
+
+        element.shadowRoot.querySelector('[data-id="submit-bill"]').click();
+        await flushPromises();
+        expect(createBill.mock.calls[0][0].request.lineItems.map((line) => line.discount)).toEqual([100, 0]);
+    });
 });

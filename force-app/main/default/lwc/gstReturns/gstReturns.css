@@ -1,0 +1,141 @@
+.gr-period {
+    max-width: 22rem;
+}
+
+.gr-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+}
+
+.gr-status-text {
+    flex: 1 1 100%;
+}
+
+.gr-card {
+    display: block;
+    margin-bottom: 1rem;
+}
+
+.gr-big {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.gr-checkup-title {
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.gr-checkup-title_ok {
+    color: #2e844a;
+}
+
+.gr-checkup-title_warning {
+    color: #8c4b02;
+}
+
+.gr-checkup-title_error {
+    color: #c23934;
+}
+
+.gr-issues {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.gr-issue {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+}
+
+.gr-issue_error {
+    background-color: #fef1ee;
+}
+
+.gr-issue_warning {
+    background-color: #fff8e6;
+}
+
+.gr-issue-icon {
+    margin-top: 0.125rem;
+}
+
+.gr-bill-link {
+    margin-right: 0.375rem;
+    font-weight: 700;
+}
+
+.gr-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.gr-tile {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #dddbda;
+    border-radius: 0.25rem;
+    background-color: #fafaf9;
+}
+
+.gr-tile-label {
+    font-size: 0.75rem;
+    color: #444;
+}
+
+.gr-tile-count {
+    font-weight: 700;
+}
+
+.gr-scroll {
+    overflow-x: auto;
+}
+
+.gr-table {
+    min-width: 32rem;
+}
+
+.gr-num {
+    text-align: right;
+}
+
+.gr-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.gr-confirm {
+    flex: 1 1 100%;
+    padding: 0.75rem;
+    border: 1px solid #0176d3;
+    border-radius: 0.25rem;
+    background-color: #eef4ff;
+}
+
+.gr-confirm-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+/* A return still to file: its badge, then what and when. */
+.gr-due {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0;
+}
+
+.gr-due-text {
+    min-width: 0;
+}

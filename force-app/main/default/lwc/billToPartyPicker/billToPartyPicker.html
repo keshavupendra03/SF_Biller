@@ -72,7 +72,7 @@
                         <lightning-input data-field="gstin" label="GSTIN" max-length="15" value={details.gstin} onchange={handleDetailChange}></lightning-input>
                     </div>
                     <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-3">
-                        <lightning-input data-field="state" label="State" placeholder="23-Madhya Pradesh" value={details.state} onchange={handleDetailChange}></lightning-input>
+                        <lightning-combobox placeholder="Pick the state" options={stateOptions} data-field="state" label="State" value={details.state} onchange={handleDetailChange}></lightning-combobox>
                     </div>
                 </div>
             </div>

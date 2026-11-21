@@ -5,7 +5,9 @@ import findCustomerByPhone from '@salesforce/apex/QuickBillController.findCustom
 import createQuickBill from '@salesforce/apex/QuickBillController.createQuickBill';
 import createQuickEstimate from '@salesforce/apex/QuickBillController.createQuickEstimate';
 import { calculateBillTotals } from 'c/gstMath';
+import { isInFiledMonth, monthLabel } from 'c/gst';
 import { disablePullToRefresh } from 'c/disablePullToRefresh';
+import { STATE_OPTIONS, checkGstinBox, withStateFromGstin, changedValue } from 'c/gst';
 
 const MODE_OPTIONS = [
     { label: 'Customer', value: 'customer' },
@@ -68,12 +70,15 @@ function formatAmount(value) {
  * EstimateController.createEstimate).
  */
 export default class QuickBill extends NavigationMixin(LightningElement) {
+    stateOptions = STATE_OPTIONS;
     // 'bill' or 'estimate'. c/quickEstimate is this screen with 'estimate' set.
     @api documentType = 'bill';
 
     modeOptions = MODE_OPTIONS;
 
     workshopProfileId;
+    // The chosen company's "GST returns filed up to" ("yyyy-mm-dd"), if any.
+    companyFiledUpTo;
     mode = 'customer';
     customer = { ...EMPTY_CUSTOMER };
     showMoreCustomer = false;
@@ -91,6 +96,10 @@ export default class QuickBill extends NavigationMixin(LightningElement) {
     // The filled lines, as reported by c-line-item-grid.
     lines = [];
     includeGst = false;
+    // The chosen company's settings (G5): whole-rupee totals, and whether it
+    // charges GST at all (a composition or unregistered company doesn't).
+    roundOffTotals = true;
+    registrationType;
 
     documentDate = todayIso();
     notes = '';
@@ -151,6 +160,33 @@ export default class QuickBill extends NavigationMixin(LightningElement) {
 
     handleCompanyChange(event) {
         this.workshopProfileId = event.detail.id;
+        const profile = event.detail.profile;
+        this.companyFiledUpTo = profile ? profile.gstFiledUpTo : null;
+        this.roundOffTotals = !profile || profile.roundOffTotals !== false;
+        this.registrationType = profile ? profile.gstRegistrationType : null;
+    }
+
+    // Blank is a regular registration, as on the server (WorkshopProfileService.chargesGst).
+    get chargesGst() {
+        return !this.registrationType || this.registrationType === 'Regular';
+    }
+
+    get billIncludesGst() {
+        return this.includeGst && this.chargesGst;
+    }
+
+    get noGstNote() {
+        if (this.chargesGst) {
+            return '';
+        }
+        return this.registrationType === 'Composition'
+            ? 'Composition company: no GST is charged, and a bill prints as a Bill of Supply.'
+            : 'This company isn\'t registered for GST, so no GST is charged.';
+    }
+
+    // The latest date a bill can have: no future bills.
+    get maxDate() {
+        return this.isEstimate ? undefined : todayIso();
     }
 
     handleModeChange(event) {
@@ -159,7 +195,11 @@ export default class QuickBill extends NavigationMixin(LightningElement) {
 
     handleCustomerFieldChange(event) {
         const field = event.target.dataset.field;
-        this.customer = { ...this.customer, [field]: event.target.value };
+        this.customer = { ...this.customer, [field]: changedValue(event) };
+        if (field === 'gstin') {
+            checkGstinBox(event.target);
+            this.customer = withStateFromGstin(this.customer);
+        }
         if (field === 'phone') {
             this.schedulePhoneLookup();
         }
@@ -299,7 +339,7 @@ export default class QuickBill extends NavigationMixin(LightningElement) {
     }
 
     get isGstExcluded() {
-        return this.hasItems && !this.includeGst;
+        return this.hasItems && this.chargesGst && !this.includeGst;
     }
 
     handleLinesChange(event) {
@@ -329,7 +369,17 @@ export default class QuickBill extends NavigationMixin(LightningElement) {
     // ---- totals ---------------------------------------------------------
 
     get totals() {
-        return calculateBillTotals(this.includeGst ? this.lines : this.lines.map((row) => ({ ...row, taxRatePercent: 0 })));
+        const lines = this.billIncludesGst ? this.lines : this.lines.map((row) => ({ ...row, taxRatePercent: 0 }));
+        return calculateBillTotals(lines, { roundOff: this.roundOffTotals });
+    }
+
+    get hasRoundOff() {
+        return this.totals.roundOff !== 0;
+    }
+
+    get formattedRoundOff() {
+        const value = this.totals.roundOff;
+        return `${value > 0 ? '+' : '-'}${formatAmount(Math.abs(value))}`;
     }
 
     get formattedSubtotal() {
@@ -397,6 +447,12 @@ export default class QuickBill extends NavigationMixin(LightningElement) {
         if (this.isBillToParty && !(this.partyChoice && this.partyChoice.name)) {
             return 'Pick a saved party, or type the new party’s name.';
         }
+        if (!this.isEstimate && this.documentDate && this.documentDate > todayIso()) {
+            return 'A bill can’t be dated in the future.';
+        }
+        if (!this.isEstimate && isInFiledMonth(this.companyFiledUpTo, this.documentDate)) {
+            return `GST is filed up to ${monthLabel(this.companyFiledUpTo)} for this company: date the bill after that.`;
+        }
         if (!this.hasItems) {
             return 'Add at least one part or item.';
         }
@@ -437,7 +493,7 @@ export default class QuickBill extends NavigationMixin(LightningElement) {
             billToParty: this.isBillToParty && this.partyChoice ? this.partyChoice.billToParty : null,
             documentDate: this.documentDate || null,
             notes: this.notes,
-            includeGst: this.includeGst,
+            includeGst: this.billIncludesGst,
             lineItems: this.lines.map((row) => ({
                 partId: row.partId,
                 description: row.description.trim(),
@@ -446,7 +502,8 @@ export default class QuickBill extends NavigationMixin(LightningElement) {
                 taxRatePercent: Number(row.taxRatePercent) || 0,
                 gstType: row.gstType || 'CGST_SGST',
                 hsnSacCode: row.hsnSacCode,
-                unitLabel: row.unitLabel
+                unitLabel: row.unitLabel,
+                discount: Number(row.discount) || 0
             }))
         };
     }

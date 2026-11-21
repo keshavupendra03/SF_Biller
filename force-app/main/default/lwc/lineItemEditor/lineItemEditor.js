@@ -56,8 +56,25 @@ export default class LineItemEditor extends LightningElement {
         return this.partResults.length > 0;
     }
 
+    get maxDiscount() {
+        return (Number(this.line.quantity) || 0) * (Number(this.line.unitPrice) || 0);
+    }
+
+    get discountOk() {
+        const discount = Number(this.line.discount) || 0;
+        return discount >= 0 && discount <= this.maxDiscount;
+    }
+
+    get discountHelp() {
+        return 'Rupees off this line, before GST';
+    }
+
+    get discountError() {
+        return this.discountOk ? '' : `The discount must be between 0 and ₹${this.maxDiscount.toFixed(2)}`;
+    }
+
     get canSave() {
-        return !!this.line.description && Number(this.line.quantity) > 0 && Number(this.line.unitPrice) >= 0;
+        return !!this.line.description && Number(this.line.quantity) > 0 && Number(this.line.unitPrice) >= 0 && this.discountOk;
     }
 
     get saveDisabled() {
@@ -152,7 +169,8 @@ export default class LineItemEditor extends LightningElement {
                     ...this.line,
                     quantity: Number(this.line.quantity),
                     unitPrice: Number(this.line.unitPrice),
-                    taxRatePercent: this.line.taxRatePercent ? Number(this.line.taxRatePercent) : 0
+                    taxRatePercent: this.line.taxRatePercent ? Number(this.line.taxRatePercent) : 0,
+                    discount: Number(this.line.discount) || 0
                 }
             })
         );

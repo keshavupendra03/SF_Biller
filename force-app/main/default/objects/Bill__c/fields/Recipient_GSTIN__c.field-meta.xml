@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Recipient_GSTIN__c</fullName>
+    <description>The buyer's GSTIN as it was when the bill was made (Bill-To-Party first, then customer), so a later change to the customer can't change an already filed bill. Blank means an unregistered buyer (B2C).</description>
+    <label>Recipient GSTIN</label>
+    <type>Text</type>
+    <length>15</length>
+    <required>false</required>
+</CustomField>

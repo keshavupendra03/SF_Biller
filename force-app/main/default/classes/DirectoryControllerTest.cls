@@ -72,8 +72,8 @@ private class DirectoryControllerTest {
 
     @isTest
     static void listBillToParties_filtersByNameOrGstin() {
-        insert new Bill_To_Party__c(Name = 'Aakash Siroliya', GSTIN__c = 'BZJGZ1234F1Z5');
-        insert new Bill_To_Party__c(Name = 'Other Party', GSTIN__c = 'AAAAA0000A1Z5');
+        insert new Bill_To_Party__c(Name = 'Aakash Siroliya', GSTIN__c = '23BZJGZ1234F1ZW');
+        insert new Bill_To_Party__c(Name = 'Other Party', GSTIN__c = '23AAAAA0000A1ZA');
 
         Test.startTest();
         List<DirectoryController.BillToPartyItem> results = DirectoryController.listBillToParties('Aakash');
@@ -87,7 +87,7 @@ private class DirectoryControllerTest {
     static void createBillToParty_insertsRecord() {
         BillController.NewBillToPartyInput input = new BillController.NewBillToPartyInput();
         input.name = 'Acme Logistics';
-        input.gstin = 'AAAAA0000A1Z5';
+        input.gstin = '23AAAAA0000A1ZA';
 
         Test.startTest();
         DirectoryController.BillToPartyItem item = DirectoryController.createBillToParty(input);
@@ -117,7 +117,7 @@ private class DirectoryControllerTest {
 
         BillController.NewBillToPartyInput input = new BillController.NewBillToPartyInput();
         input.name = 'Acme Logistics Pvt Ltd';
-        input.gstin = 'AAAAA0000A1Z5';
+        input.gstin = '23AAAAA0000A1ZA';
 
         Test.startTest();
         DirectoryController.updateBillToParty(party.Id, input);
@@ -125,6 +125,6 @@ private class DirectoryControllerTest {
 
         Bill_To_Party__c updated = [SELECT Name, GSTIN__c FROM Bill_To_Party__c WHERE Id = :party.Id];
         System.assertEquals('Acme Logistics Pvt Ltd', updated.Name);
-        System.assertEquals('AAAAA0000A1Z5', updated.GSTIN__c);
+        System.assertEquals('23AAAAA0000A1ZA', updated.GSTIN__c);
     }
 }

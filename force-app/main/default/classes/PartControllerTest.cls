@@ -44,6 +44,21 @@ private class PartControllerTest {
     }
 
     @isTest
+    static void createPart_aRateThatIsNotAGstRate_isRefused() {
+        PartController.PartInput input = new PartController.PartInput();
+        input.name = 'Brake Pad';
+        input.taxRatePercent = 81;
+
+        try {
+            PartController.createPart(input);
+            System.assert(false, 'Expected 81% to be refused.');
+        } catch (PartController.PartControllerException e) {
+            System.assert(e.getMessage().contains('GST 81% is not a GST rate'), e.getMessage());
+        }
+        System.assertEquals(0, [SELECT COUNT() FROM Part__c]);
+    }
+
+    @isTest
     static void createPart_missingName_throws() {
         PartController.PartInput input = new PartController.PartInput();
         input.price = 500;

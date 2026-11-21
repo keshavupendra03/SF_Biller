@@ -202,7 +202,7 @@ public with sharing class JobController {
         for (Bill__c b : [
             SELECT Invoice_Number__c, Status__c, Total_Amount__c, Bill_Date__c
             FROM Bill__c
-            WHERE Job__c = :jobId AND Is_Latest_Version__c = true
+            WHERE Job__c = :jobId AND Is_Latest_Version__c = true AND Is_Cancelled__c = false
             ORDER BY CreatedDate DESC
         ]) {
             CustomerController.DocumentItem item = new CustomerController.DocumentItem();

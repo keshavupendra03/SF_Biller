@@ -35,7 +35,7 @@
                     <div key={line.key} class="line-row">
                         <p class="slds-text-body_regular">{line.description}</p>
                         <p class="slds-text-body_small slds-text-color_weak">
-                            {line.quantity} {line.unitLabel} x ₹{line.unitPrice} ({line.taxRatePercent}% tax)
+                            {line.quantity} {line.unitLabel} x ₹{line.unitPrice} ({line.taxRatePercent}% tax){line.discountText}
                             <template if:true={line.hsnSacCode}> HSN/SAC: {line.hsnSacCode}</template>
                         </p>
                     </div>
@@ -57,6 +57,11 @@
                 <template if:true={hasIgstLines}>
                     <div class="slds-grid slds-grid_align-spread">
                         <span>IGST</span><span>₹{summary.igst}</span>
+                    </div>
+                </template>
+                <template if:true={hasRoundOff}>
+                    <div class="slds-grid slds-grid_align-spread">
+                        <span>Round off</span><span data-id="round-off">₹{formattedRoundOff}</span>
                     </div>
                 </template>
                 <div class="slds-grid slds-grid_align-spread slds-text-heading_small total-row">
@@ -81,6 +86,9 @@
                     onclick={handlePrint}
                     class="slds-m-bottom_x-small"
                 ></lightning-button>
+            </div>
+            <div class="slds-m-top_large">
+                <c-delete-confirm button-label="Delete Estimate" message={deleteMessage} busy={isDeleting} onconfirm={handleDelete}></c-delete-confirm>
             </div>
         </template>
 

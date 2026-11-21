@@ -7,7 +7,7 @@ private class InvoicePdfControllerTest {
             Name = 'Speedy Motors',
             Address__c = '6 Durga Plaza Dewas Road Ujjain',
             Phone__c = '9039472001',
-            GSTIN__c = '23ABCDE1234F1Z5',
+            GSTIN__c = '23ABCDE1234F1Z8',
             State__c = '23-Madhya Pradesh',
             Bank_Name__c = 'Yes Bank',
             Bank_Account_No__c = '139626900001772',
@@ -18,7 +18,7 @@ private class InvoicePdfControllerTest {
 
     private static Id insertBillWithLines() {
         Customer__c customer = new Customer__c(
-            Name = 'Ramesh Kumar', Phone__c = '9000011111', GSTIN__c = '23ABCDE1234F1Z5'
+            Name = 'Ramesh Kumar', Phone__c = '9000011111', GSTIN__c = '23ABCDE1234F1Z8'
         );
         insert customer;
         Bill__c bill = new Bill__c(Customer__c = customer.Id, Notes__c = 'Front bumper repair');
@@ -310,5 +310,23 @@ private class InvoicePdfControllerTest {
 
         System.assertEquals('Sharma Transport', controller.billToName);
         System.assertEquals(null, controller.buyersName, 'Walk-in Customer is not a buyer worth printing.');
+    }
+
+    @isTest
+    static void aTaxInvoice_printsThePlaceOfSupply() {
+        Customer__c customer = new Customer__c(Name = 'Sharma Traders', Phone__c = '9000011111', GSTIN__c = '27AAPFU0939F1ZV');
+        insert customer;
+        Bill__c bill = new Bill__c(Customer__c = customer.Id);
+        insert bill;
+        insert new Bill_Line_Item__c(Bill__c = bill.Id, Description__c = 'Brake Pad', Quantity__c = 1, Unit_Price__c = 1000, Tax_Rate_Percent__c = 18, Gst_Type__c = 'IGST');
+
+        Test.setCurrentPageReference(Page.InvoicePdf);
+        ApexPages.currentPage().getParameters().put('id', bill.Id);
+        Test.startTest();
+        InvoicePdfController controller = new InvoicePdfController();
+        Test.stopTest();
+
+        System.assertEquals('27-Maharashtra', controller.placeOfSupply);
+        System.assertEquals(true, controller.hasGst);
     }
 }

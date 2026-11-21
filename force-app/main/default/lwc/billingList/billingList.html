@@ -5,7 +5,7 @@
             <div class="slds-grid slds-grid_vertical-align-center">
                 <lightning-button
                     data-id="quick-bill"
-                    label="Quick Bill"
+                    label={kind.quickLabel}
                     icon-name="utility:bolt"
                     onclick={handleQuickBill}
                     class="slds-m-right_x-small"
@@ -16,19 +16,48 @@
                     variant="brand"
                     size="large"
                     onclick={handleNewBill}
-                    alternative-text="New Bill"
+                    alternative-text={kind.newLabel}
                 ></lightning-button-icon>
             </div>
         </div>
 
+        <lightning-radio-group
+            data-id="list-type"
+            type="button"
+            label="Show"
+            variant="label-hidden"
+            options={listOptions}
+            value={listType}
+            onchange={handleListTypeChange}
+            class="slds-m-bottom_small"
+        ></lightning-radio-group>
+
         <c-company-picker allow-all value={companyFilter} oncompanychange={handleCompanyFilter}></c-company-picker>
+
+        <template lwc:if={hasGstReminders}>
+            <div class={gstReminderClass} role="status" data-id="gst-reminder">
+                <div class="slds-media slds-media_center">
+                    <div class="slds-media__figure">
+                        <lightning-icon icon-name="utility:clock" size="x-small" alternative-text="GST returns due"></lightning-icon>
+                    </div>
+                    <div class="slds-media__body">
+                        <template for:each={gstReminders} for:item="reminder">
+                            <p key={reminder.key} data-id="gst-reminder-line">{reminder.text}</p>
+                        </template>
+                    </div>
+                    <div class="slds-media__figure slds-media__figure_reverse">
+                        <lightning-button data-id="open-gst-returns" variant="base" label="GST Returns" onclick={handleOpenGstReturns}></lightning-button>
+                    </div>
+                </div>
+            </div>
+        </template>
 
         <lightning-input
             data-id="search"
             type="search"
             variant="label-hidden"
             label="Search"
-            placeholder="Search by invoice number, customer name, or phone"
+            placeholder={kind.searchPlaceholder}
             value={searchTerm}
             onchange={handleSearchChange}
             class="slds-m-bottom_medium"
@@ -43,26 +72,47 @@
 
         <template if:true={hasBills}>
             <template for:each={decoratedBills} for:item="bill">
-                <button type="button" key={bill.id} class="slds-button slds-button_reset bill-row" data-id={bill.id} onclick={handleSelectBill}>
-                    <span class="bill-row-body">
-                        <span class="slds-text-heading_small">{bill.invoiceNumber}</span>
-                        <span class="slds-text-body_small slds-text-color_weak">{bill.customerName}</span>
-                        <template if:true={bill.companyName}>
-                            <span class="slds-text-body_small slds-text-color_weak" data-id="bill-company">{bill.companyName}</span>
-                        </template>
-                    </span>
-                    <span class="bill-row-amount">
-                        <span class="slds-text-heading_small">₹{bill.totalAmount}</span>
-                        <!-- Record Payment feature disabled (2026-10) — uncomment alongside billingList.js to restore the status badge.
-                        <span class={bill.badgeClass}>{bill.status}</span>
-                        -->
-                    </span>
-                </button>
+                <div key={bill.id} class="bill-row" data-id="row">
+                    <button type="button" class="slds-button slds-button_reset bill-row-main" data-id={bill.id} onclick={handleSelectBill}>
+                        <span class="bill-row-body">
+                            <span class="slds-text-heading_small">{bill.number}</span>
+                            <template if:true={bill.isDeleted}>
+                                <span class="slds-badge slds-theme_error" data-id="deleted-badge">Deleted</span>
+                            </template>
+                            <span class="slds-text-body_small slds-text-color_weak">{bill.name}</span>
+                            <template if:true={bill.buyer}>
+                                <span class="slds-text-body_small slds-text-color_weak" data-id="bill-buyer">{bill.buyer}</span>
+                            </template>
+                            <template if:true={bill.companyName}>
+                                <span class="slds-text-body_small slds-text-color_weak" data-id="bill-company">{bill.companyName}</span>
+                            </template>
+                        </span>
+                        <span class="bill-row-amount">
+                            <span class="slds-text-heading_small">₹{bill.totalAmount}</span>
+                            <!-- Record Payment feature disabled (2026-10) — uncomment alongside billingList.js to restore the status badge.
+                            <span class={bill.badgeClass}>{bill.status}</span>
+                            -->
+                        </span>
+                    </button>
+                    <lightning-button
+                        data-id="easy-bill"
+                        data-record={bill.id}
+                        label="Easy Bill"
+                        title={bill.easyBillLabel}
+                        icon-name="utility:edit"
+                        onclick={handleOpenInEasyBill}
+                        class="bill-row-easy"
+                    ></lightning-button>
+                </div>
             </template>
         </template>
 
         <template if:true={hasNoBills}>
-            <p class="slds-text-color_weak slds-p-vertical_medium">No bills found.</p>
+            <p class="slds-text-color_weak slds-p-vertical_medium">{kind.empty}</p>
+        </template>
+
+        <template if:false={isEstimates}>
+            <lightning-button data-id="toggle-deleted" variant="base" label={deletedToggleLabel} onclick={handleToggleDeleted} class="slds-m-top_small"></lightning-button>
         </template>
     </div>
 </template>

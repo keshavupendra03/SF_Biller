@@ -9,9 +9,23 @@ import searchModels from '@salesforce/apex/VehicleMakeModelController.searchMode
 import getCustomer from '@salesforce/apex/PaperBillController.getCustomer';
 import amountInWords from '@salesforce/apex/PaperBillController.amountInWords';
 import saveDocument from '@salesforce/apex/PaperBillController.saveDocument';
+import getDocument from '@salesforce/apex/PaperBillController.getDocument';
+import cancelBill from '@salesforce/apex/BillController.cancelBill';
+import deleteEstimate from '@salesforce/apex/EstimateController.deleteEstimate';
 import getVehicleCard from '@salesforce/apex/ServiceBookController.getVehicleCard';
 import listBillToParties from '@salesforce/apex/DirectoryController.listBillToParties';
-import { calculateBillTotals } from 'c/gstMath';
+import { calculateBillTotals, splitClaim, lineGross } from 'c/gstMath';
+import {
+    searchStates,
+    stateName,
+    gstinProblem,
+    withStateFromGstin,
+    todayIso,
+    financialYearOf,
+    isInFiledMonth,
+    filedLockText,
+    monthLabel
+} from 'c/gst';
 import { disablePullToRefresh } from 'c/disablePullToRefresh';
 
 const DOCUMENT_OPTIONS = [
@@ -52,6 +66,7 @@ const EMPTY_WORKSHOP = {
     bankName: '', bankAccountNo: '', bankIfsc: '', bankAccountHolder: '', termsAndConditions: ''
 };
 const WALK_IN_PHONE = '0000000000';
+const COMPOSITION_NOTE = 'Composition taxable person, not eligible to collect tax on supplies.';
 const WORDS_DELAY_MS = 400;
 
 // One typed box in the printed format, not a date input: Chrome's date input
@@ -81,6 +96,28 @@ function toIsoDate(text) {
 
 function formatAmount(value) {
     return (Number(value) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// "2026-11-03" from Apex, shown as the page types it: "03-11-2026".
+function isoToText(iso) {
+    if (!iso) {
+        return todayText();
+    }
+    const [year, month, day] = iso.split('-');
+    return `${day}-${month}-${year}`;
+}
+
+// A wrong GSTIN or a state that isn't one, said for whose it is.
+function detailsProblem(details, whose) {
+    const gstinIssue = gstinProblem(details.gstin);
+    if (gstinIssue) {
+        return `The ${whose} GSTIN: ${gstinIssue}`;
+    }
+    const state = (details.state || '').trim();
+    if (state && !stateName(state)) {
+        return `Pick the ${whose} state from the list ("${state}" is not a state).`;
+    }
+    return '';
 }
 
 function formatVisitDate(iso) {
@@ -129,8 +166,31 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
     notes = '';
     words = '';
 
+    // The chosen company's settings (G5): whole-rupee totals, and whether it
+    // charges GST at all (a composition or unregistered company doesn't).
+    roundOffTotals = true;
+    registrationType;
+    showDiscount = false;
+
+    // An insurance claim (G6): the party pays each line's percent, the
+    // customer the rest plus the compulsory excess, on two bills saved together.
+    insuranceSplit = false;
+    compulsoryExcess = '';
+    // Which saved bill the preview shows, when not the main one.
+    previewTarget;
+
     // Opened from a Service Book card: that visit's work, to bill from. Not printed.
     visitWork = [];
+
+    // A saved bill or estimate opened from the Billing list: { recordId,
+    // documentNumber, versionNumber, isLatestVersion }. Saving makes its new
+    // version (architecture.md §C.4); it is never changed in place.
+    opened;
+    isLoadingDocument = false;
+    isDeleting = false;
+    // The chosen company's "GST returns filed up to" ("yyyy-mm-dd"), if any.
+    companyFiledUpTo;
+    _pendingLines;
 
     isSaving = false;
     saved;
@@ -146,14 +206,24 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         this.scheduleFirstFocus();
     }
 
-    // The Service Book opens this page for a customer and car it already knows.
+    // The Billing list opens a saved bill or estimate here (c__editId), and the
+    // Service Book opens this page for a customer and car it already knows.
     @wire(CurrentPageReference)
     wiredPageRef(pageRef) {
         const state = (pageRef && pageRef.state) || {};
+        if (state.c__editId && state.c__opened !== this._openedFrom) {
+            this._openedFrom = state.c__opened;
+            this.loadDocument(state.c__editId);
+            return;
+        }
         if (!state.c__customerId || state.c__opened === this._openedFrom) {
             return;
         }
         this._openedFrom = state.c__opened;
+        // Not on top of an opened bill: its lines would go on this car's bill.
+        if (this.opened) {
+            this.resetPage();
+        }
         if (state.c__documentType === 'estimate' || state.c__documentType === 'bill') {
             this.documentType = state.c__documentType;
         }
@@ -193,8 +263,12 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         const { id, profile } = event.detail;
         this.workshopProfileId = id;
         this._savedWorkshop = { ...EMPTY_WORKSHOP, ...(profile || {}) };
+        this.companyFiledUpTo = profile ? profile.gstFiledUpTo : null;
+        this.roundOffTotals = !profile || profile.roundOffTotals !== false;
+        this.registrationType = profile ? profile.gstRegistrationType : null;
         this.workshop = { ...this._savedWorkshop };
         this.isEditingWorkshop = !profile;
+        this.scheduleWords();
     }
 
     // Lightning takes focus back while its page is still settling, so a single
@@ -215,6 +289,14 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
     }
 
     renderedCallback() {
+        // A saved document's lines wait for the grid, which isn't drawn while
+        // the saved screen is showing.
+        const grid = this._pendingLines && this.template.querySelector('c-line-item-grid');
+        if (grid) {
+            const lines = this._pendingLines;
+            this._pendingLines = undefined;
+            grid.setLines(lines);
+        }
         if (this._focusAfterRender) {
             this._focusAfterRender = false;
             this.focusCustomerName();
@@ -250,20 +332,108 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         return this.isEstimate ? LABELS.estimate : LABELS.bill;
     }
 
+    // Blank is a regular registration, as on the server (WorkshopProfileService.chargesGst).
+    get chargesGst() {
+        return !this.registrationType || this.registrationType === 'Regular';
+    }
+
+    get isComposition() {
+        return this.registrationType === 'Composition';
+    }
+
+    get billIncludesGst() {
+        return this.includeGst && this.chargesGst;
+    }
+
     get billLines() {
-        return this.includeGst ? this.lines : this.lines.map((line) => ({ ...line, taxRatePercent: 0 }));
+        return this.billIncludesGst ? this.lines : this.lines.map((line) => ({ ...line, taxRatePercent: 0 }));
     }
 
     get totals() {
-        return calculateBillTotals(this.billLines);
+        return calculateBillTotals(this.billLines, { roundOff: this.roundOffTotals });
     }
 
-    // Same rule as InvoicePdfController: with no GST there's nothing to call a tax invoice.
+    // Same rule as InvoicePdfController: with no GST there's nothing to call a
+    // tax invoice, and a composition company issues a bill of supply.
     get documentTitle() {
         if (this.isEstimate) {
             return 'Estimate';
         }
+        if (this.isComposition) {
+            return 'Bill of Supply';
+        }
         return this.hasGstAmount ? 'Tax Invoice' : 'Bill';
+    }
+
+    get compositionNote() {
+        return !this.isEstimate && this.isComposition ? COMPOSITION_NOTE : '';
+    }
+
+    get hasRoundOff() {
+        return this.totals.roundOff !== 0;
+    }
+
+    get showSubtotal() {
+        return this.hasGstAmount || this.hasRoundOff;
+    }
+
+    get formattedRoundOff() {
+        const value = this.totals.roundOff;
+        return `${value > 0 ? '+' : '-'}${formatAmount(Math.abs(value))}`;
+    }
+
+    get discountButtonLabel() {
+        return this.showDiscount ? 'Remove discount' : 'Add discount';
+    }
+
+    get discountButtonIcon() {
+        return this.showDiscount ? 'utility:dash' : 'utility:add';
+    }
+
+    // ---- insurance claim split -------------------------------------------
+
+    // A new bill to a party only: an estimate isn't split, and a saved bill's
+    // halves are changed one at a time.
+    get canSplit() {
+        return this.isBillToParty && !this.isEstimate && this.isNewDocument;
+    }
+
+    get showSplit() {
+        return this.canSplit && this.insuranceSplit;
+    }
+
+    get splitButtonLabel() {
+        return this.insuranceSplit ? 'Bill the whole job to the party' : 'Split with the customer (insurance claim)';
+    }
+
+    get excessProblem() {
+        const text = String(this.compulsoryExcess || '').trim();
+        return text && !(Number(text) >= 0) ? 'Type the compulsory excess in rupees, like 1000.' : '';
+    }
+
+    get split() {
+        if (!this.showSplit || !this.lines.length || this.excessProblem) {
+            return null;
+        }
+        return splitClaim(this.billLines, this.compulsoryExcess);
+    }
+
+    get splitTotals() {
+        const split = this.split;
+        if (!split || split.error) {
+            return null;
+        }
+        const options = { roundOff: this.roundOffTotals };
+        const insurer = calculateBillTotals(split.insurerLines, options).grandTotal;
+        const customer = calculateBillTotals(split.customerLines, options).grandTotal;
+        // Each bill is rounded to the rupee on its own, so together they can be
+        // a rupee off the job's rounded total.
+        const apart = Math.round((insurer + customer - this.totals.grandTotal) * 100) / 100;
+        return {
+            insurer: formatAmount(insurer),
+            customer: formatAmount(customer),
+            note: apart !== 0 ? `Each bill is rounded on its own, so together they come to Rs. ${formatAmount(insurer + customer)}.` : ''
+        };
     }
 
     get hasGstAmount() {
@@ -307,11 +477,150 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
     }
 
     get saveLabel() {
-        return this.isSaving ? 'Saving…' : `Save ${this.labels.noun}`;
+        if (this.isSaving) {
+            return 'Saving…';
+        }
+        return this.opened ? 'Save Changes' : `Save ${this.labels.noun}`;
     }
 
     get savedLabel() {
-        return `${this.labels.noun} saved`;
+        if (this.saved && this.saved.pairedNumber) {
+            return 'Claim bills saved';
+        }
+        return this.saved && this.saved.replacedNumber ? `${this.labels.noun} changes saved` : `${this.labels.noun} saved`;
+    }
+
+    // ---- a saved document opened here --------------------------------------
+
+    get isNewDocument() {
+        return !this.opened;
+    }
+
+    get isOpenedDocument() {
+        return !!this.opened;
+    }
+
+    get openedText() {
+        const o = this.opened;
+        const version = o.versionNumber > 1 ? ` (version ${o.versionNumber})` : '';
+        if (o.isCancelled) {
+            return `${this.labels.noun} ${o.documentNumber} was deleted. Its number stays in your GST records as cancelled; it can be looked at and printed, not changed.`;
+        }
+        if (o.isGstFiled) {
+            return `${this.labels.noun} ${o.documentNumber}${version}: ${filedLockText(o.gstFiledUpTo)}`;
+        }
+        if (!o.isLatestVersion) {
+            return `${this.labels.noun} ${o.documentNumber}${version} is an older version. Open the latest one from the Billing list to change it.`;
+        }
+        return `Opened ${this.labels.noun} ${o.documentNumber}${version}. Change anything and save: this one is kept, and the changed ${this.labels.noun.toLowerCase()} is saved with a new number.`;
+    }
+
+    get openedPairText() {
+        const o = this.opened;
+        return o && o.pairedNumber ? `One of two bills for an insurance claim, with ${o.pairedNumber}. Changing this one doesn't change that one.` : '';
+    }
+
+    get autoNumberText() {
+        if (this.opened) {
+            return `New number when you save (now ${this.opened.documentNumber})`;
+        }
+        // An old date joins its own year's series: say so, so it's no surprise.
+        const date = toIsoDate(this.documentDate);
+        if (!this.isEstimate && date && financialYearOf(date) !== financialYearOf(todayIso())) {
+            return `Given when you save (${financialYearOf(date)} series)`;
+        }
+        return 'Given when you save';
+    }
+
+    // Deleted, filed, or replaced since: shown, but not to be changed or deleted.
+    get canChangeOpened() {
+        const o = this.opened;
+        return !!o && o.isLatestVersion && !o.isCancelled && !o.isGstFiled;
+    }
+
+    get deleteOpenedMessage() {
+        const number = this.opened.documentNumber;
+        return this.isEstimate
+            ? `Delete ${number}, with all its earlier versions? This can't be undone.`
+            : `Delete ${number}? For GST its number is kept and shown as cancelled, and its parts go back to stock. This can't be undone.`;
+    }
+
+    handleDeleteOpened() {
+        const number = this.opened.documentNumber;
+        const recordId = this.opened.recordId;
+        this.isDeleting = true;
+        const work = this.isEstimate ? deleteEstimate({ estimateId: recordId }) : cancelBill({ billId: recordId });
+        work.then(() => {
+            this.showToast(`${number} deleted`, this.isEstimate ? '' : 'Its number stays in your GST records as cancelled.', 'success');
+            this.resetPage();
+            this._focusAfterRender = true;
+        })
+            .catch((error) => this.showError(error))
+            .finally(() => {
+                this.isDeleting = false;
+            });
+    }
+
+    get previewRecordId() {
+        if (this.previewTarget) {
+            return this.previewTarget.recordId;
+        }
+        return this.saved ? this.saved.recordId : this.opened && this.opened.recordId;
+    }
+
+    get previewHeading() {
+        if (this.previewTarget) {
+            return this.previewTarget.heading;
+        }
+        return this.saved ? this.saved.documentNumber : this.opened && this.opened.documentNumber;
+    }
+
+    loadDocument(recordId) {
+        this.isLoadingDocument = true;
+        return getDocument({ recordId })
+            .then((doc) => this.applyDocument(doc))
+            .catch((error) => this.showError(error))
+            .finally(() => {
+                this.isLoadingDocument = false;
+            });
+    }
+
+    applyDocument(doc) {
+        this.resetPage();
+        this.opened = {
+            recordId: doc.recordId,
+            documentNumber: doc.documentNumber,
+            versionNumber: doc.versionNumber,
+            isLatestVersion: doc.isLatestVersion,
+            isCancelled: !!doc.isCancelled,
+            isGstFiled: !!doc.isGstFiled,
+            gstFiledUpTo: doc.gstFiledUpTo,
+            pairedNumber: doc.pairedNumber
+        };
+        this.documentType = doc.documentType;
+        this.workshopProfileId = doc.workshopProfileId;
+        if (doc.customer) {
+            this.applyCustomer(doc.customer);
+        }
+        // Exactly the document's vehicle: applyCustomer may have picked the
+        // customer's only car for a document that had none.
+        this.vehicle = { ...EMPTY_VEHICLE };
+        if (doc.vehicle) {
+            this.applyVehicle(doc.vehicle);
+        }
+        if (doc.billToParty) {
+            this.isBillToParty = true;
+            this.applyParty(doc.billToParty);
+        }
+        this.documentDate = isoToText(doc.documentDate);
+        this.notes = doc.notes || '';
+        this.includeGst = !!doc.includeGst;
+        this._pendingLines = doc.lines || [];
+        this.showDiscount = this._pendingLines.some((line) => Number(line.discount) > 0);
+    }
+
+    handleViewOpened() {
+        this.showPreview = true;
     }
 
     get viewLabel() {
@@ -383,14 +692,41 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
     get missingReason() {
         const c = this.customer;
         const v = this.vehicle;
+        if (this.opened && this.opened.isCancelled) {
+            return 'This bill was deleted, so it can\'t be changed.';
+        }
+        if (this.opened && this.opened.isGstFiled) {
+            return `GST is filed up to ${monthLabel(this.opened.gstFiledUpTo)}, so this bill can't be changed.`;
+        }
+        if (this.opened && !this.opened.isLatestVersion) {
+            return 'This is an older version. Open the latest one from the Billing list to change it.';
+        }
         if (this.isEditingWorkshop && !this.workshop.name.trim()) {
             return 'Type your workshop name at the top.';
+        }
+        if (this.isEditingWorkshop) {
+            const workshopProblem = detailsProblem(this.workshop, 'workshop');
+            if (workshopProblem) {
+                return workshopProblem;
+            }
         }
         if (this.isBillToParty && !this.party.name.trim()) {
             return `Type the party name, or choose "${this.labels.toCustomer}".`;
         }
         if (this.isBillToParty && this.party.gstin.trim().length > GSTIN_LENGTH) {
             return 'The party GSTIN should be 15 characters.';
+        }
+        if (this.isBillToParty) {
+            const partyProblem = detailsProblem(this.party, 'party');
+            if (partyProblem) {
+                return partyProblem;
+            }
+        } else {
+            // Only when shown: on a party bill the customer's GSTIN isn't on the page.
+            const customerProblem = detailsProblem(this.customer, 'customer');
+            if (customerProblem) {
+                return customerProblem;
+            }
         }
         if (!c.name.trim() && (c.phone.trim() || c.address.trim() || c.gstin.trim() || c.state.trim())) {
             return this.isBillToParty ? 'Type the buyer’s name.' : 'Type the customer name.';
@@ -400,6 +736,13 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         }
         if (this.documentDate.trim() && !toIsoDate(this.documentDate)) {
             return 'Type the date like 04-11-2026.';
+        }
+        const date = toIsoDate(this.documentDate);
+        if (!this.isEstimate && date && date > todayIso()) {
+            return 'A bill can\'t be dated in the future.';
+        }
+        if (!this.isEstimate && isInFiledMonth(this.companyFiledUpTo, date)) {
+            return `GST is filed up to ${monthLabel(this.companyFiledUpTo)} for this company: date the bill after that.`;
         }
         if (!this.lines.length) {
             return 'Type a product name and price in the table.';
@@ -412,6 +755,20 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         }
         if (this.lines.some((line) => !(Number(line.quantity) > 0))) {
             return 'Type a quantity on every line.';
+        }
+        if (this.lines.some((line) => Number(line.discount) < 0 || Number(line.discount) > lineGross(line))) {
+            return 'A discount is more than its line\'s price, or below zero.';
+        }
+        if (this.showSplit) {
+            if (!this.customer.id && !this.customer.name.trim()) {
+                return 'Type the car owner as Buyer\'s Name: they get a bill for their share.';
+            }
+            if (this.excessProblem) {
+                return this.excessProblem;
+            }
+            if (this.split && this.split.error) {
+                return this.split.error;
+            }
         }
         return '';
     }
@@ -439,7 +796,11 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
     }
 
     handleWorkshopChange(event) {
-        this.workshop = { ...this.workshop, [event.target.dataset.field]: event.detail.value };
+        const field = event.target.dataset.field;
+        this.workshop = { ...this.workshop, [field]: event.detail.value };
+        if (field === 'gstin') {
+            this.workshop = withStateFromGstin(this.workshop);
+        }
     }
 
     handleToggleWorkshop() {
@@ -454,6 +815,9 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         const field = event.target.dataset.field;
         const value = event.detail.value;
         this.customer = { ...this.customer, [field]: value };
+        if (field === 'gstin') {
+            this.customer = withStateFromGstin(this.customer);
+        }
         if (field === 'phone' && this.isExistingCustomer) {
             // A different number is a different person.
             this.customer = { ...this.customer, id: null };
@@ -530,6 +894,28 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
             return;
         }
         this.party = { ...this.party, [field]: value };
+        if (field === 'gstin') {
+            this.party = withStateFromGstin(this.party);
+        }
+    }
+
+    // ---- states ------------------------------------------------------------
+    // Each State box belongs to a group (data-group): customer, party or workshop.
+
+    searchStateOptions = (term) => Promise.resolve(searchStates(term).map((name) => ({ value: name, label: name, sub: '' })));
+
+    handleStatePick(event) {
+        const group = event.target.dataset.group;
+        this[group] = { ...this[group], state: event.detail.option.value };
+    }
+
+    // "MP" or "madhyapradesh" typed without picking becomes the state's name.
+    handleStateLeave(event) {
+        const group = event.target.dataset.group;
+        const name = stateName(this[group].state);
+        if (name && name !== this[group].state) {
+            this[group] = { ...this[group], state: name };
+        }
     }
 
     // Saved parties show as soon as the box is entered, so one can be picked
@@ -635,8 +1021,24 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
     }
 
     handleToggleGst() {
+        if (!this.chargesGst) {
+            return;
+        }
         this.includeGst = !this.includeGst;
         this.scheduleWords();
+    }
+
+    // Turning it off clears the discounts (the grid does, and reports the lines).
+    handleToggleDiscount() {
+        this.showDiscount = !this.showDiscount;
+    }
+
+    handleToggleSplit() {
+        this.insuranceSplit = !this.insuranceSplit;
+    }
+
+    handleExcessChange(event) {
+        this.compulsoryExcess = event.detail.value;
     }
 
     scheduleWords() {
@@ -673,6 +1075,9 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         } else if (event.altKey && key === 'p') {
             event.preventDefault();
             this.handleToggleParty();
+        } else if (event.altKey && key === 'd') {
+            event.preventDefault();
+            this.handleToggleDiscount();
         }
     }
 
@@ -721,6 +1126,7 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         return {
             workshopProfileId: this.workshopProfileId || undefined,
             documentType: this.documentType,
+            previousVersionId: this.opened ? this.opened.recordId : null,
             customerId: c.id,
             customerName: c.name,
             customerPhone: c.phone,
@@ -738,8 +1144,13 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
             chassisNumber: v.chassisNumber,
             documentDate: toIsoDate(this.documentDate),
             notes: this.notes,
-            includeGst: this.includeGst,
+            includeGst: this.includeGst && this.chargesGst,
             workshop: this.isEditingWorkshop ? { ...this.workshop } : null,
+            insuranceSplit: this.showSplit,
+            insurerPercents: this.showSplit
+                ? this.lines.map((line) => (String(line.insurerPercent || '').trim() === '' ? 100 : Number(line.insurerPercent)))
+                : null,
+            compulsoryExcess: this.showSplit ? Number(this.compulsoryExcess) || 0 : null,
             lineItems: this.lines.map((line) => ({
                 partId: line.partId,
                 description: line.description.trim(),
@@ -748,7 +1159,8 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
                 quantity: Number(line.quantity),
                 unitPrice: Number(line.unitPrice),
                 taxRatePercent: Number(line.taxRatePercent) || 0,
-                gstType: line.gstType || 'CGST_SGST'
+                gstType: line.gstType || 'CGST_SGST',
+                discount: Number(line.discount) || 0
             }))
         };
     }
@@ -764,7 +1176,12 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         this.isSaving = true;
         saveDocument({ request: this.buildRequest() })
             .then((saved) => {
-                this.saved = { ...saved, formattedTotal: formatAmount(saved.totalAmount) };
+                this.saved = {
+                    ...saved,
+                    formattedTotal: formatAmount(saved.totalAmount),
+                    formattedPairedTotal: saved.pairedNumber ? formatAmount(saved.pairedTotal) : ''
+                };
+                this.opened = undefined;
                 this.isEditingWorkshop = false;
             })
             .catch((error) => this.showError(error))
@@ -774,11 +1191,19 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
     }
 
     handlePrint() {
+        this.previewTarget = undefined;
+        this.showPreview = true;
+    }
+
+    // The customer's bill of an insurance claim.
+    handlePrintPaired() {
+        this.previewTarget = { recordId: this.saved.pairedRecordId, heading: this.saved.pairedNumber };
         this.showPreview = true;
     }
 
     handleClosePreview() {
         this.showPreview = false;
+        this.previewTarget = undefined;
     }
 
     handleView() {
@@ -790,6 +1215,14 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
     }
 
     handleNew() {
+        this.resetPage();
+        this._focusAfterRender = true;
+    }
+
+    // Everything typed on the page, back to a blank bill. The company stays.
+    resetPage() {
+        this.opened = undefined;
+        this._pendingLines = undefined;
         this.customer = { ...EMPTY_CUSTOMER };
         this.originalCustomerName = undefined;
         this.vehicle = { ...EMPTY_VEHICLE };
@@ -805,7 +1238,16 @@ export default class PaperBill extends NavigationMixin(LightningElement) {
         this.visitWork = [];
         this.saved = undefined;
         this.showPreview = false;
-        this._focusAfterRender = true;
+        this.previewTarget = undefined;
+        this.showDiscount = false;
+        this.insuranceSplit = false;
+        this.compulsoryExcess = '';
+        // A grid already on screen is cleared too (one left drawn while a
+        // saved document is opened over a half-typed bill).
+        const grid = this.template.querySelector('c-line-item-grid');
+        if (grid) {
+            grid.setLines([]);
+        }
     }
 
     showToast(title, message, variant) {

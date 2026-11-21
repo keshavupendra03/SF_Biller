@@ -12,6 +12,8 @@
     .workshop-name { font-size: 16px; font-weight: bold; }
     .section-label { font-weight: bold; color: #555; }
     .party-name { font-weight: bold; }
+    .composition-note { text-align: center; font-size: 11px; margin: -4px 0 8px; }
+    .cancelled { text-align: center; font-size: 20px; font-weight: bold; color: #c23934; border: 2px solid #c23934; margin: 4px auto 8px; padding: 2px 0; width: 200px; letter-spacing: 3px; }
     .two-col td { width: 50%; vertical-align: top; padding-right: 16px; }
     .lines-table { margin-top: 8px; table-layout: fixed; border: 1px solid #1a4fa0; }
     .lines-table th { background-color: #1a4fa0; color: #fff; font-size: 9px; padding: 4px; text-align: left; border: 1px solid #3b6cb5; word-wrap: break-word; }
@@ -58,6 +60,8 @@
 
     <div class="divider"/>
     <div class="title">{!documentTitle}</div>
+    <apex:outputPanel layout="block" styleClass="cancelled" rendered="{!isCancelled == true}">CANCELLED</apex:outputPanel>
+    <apex:outputPanel layout="block" styleClass="composition-note" rendered="{!NOT(ISBLANK(compositionNote))}">{!compositionNote}</apex:outputPanel>
 
     <table class="two-col">
         <tr>
@@ -84,6 +88,9 @@
                 <apex:outputText value="Date: {0}">
                     <apex:param value="{!documentDate}"/>
                 </apex:outputText><br/>
+                <apex:outputText value="Place of Supply: {0}" rendered="{!AND(hasGst, NOT(ISBLANK(placeOfSupply)))}">
+                    <apex:param value="{!placeOfSupply}"/>
+                </apex:outputText><apex:outputPanel rendered="{!AND(hasGst, NOT(ISBLANK(placeOfSupply)))}"><br/></apex:outputPanel>
                 <apex:outputText value="Buyer''s Name: {0}" rendered="{!NOT(ISBLANK(buyersName))}">
                     <apex:param value="{!buyersName}"/>
                 </apex:outputText><br/>
@@ -105,6 +112,7 @@
             <col style="width: 9%;"/>
             <col style="width: 6%;"/>
             <col style="width: 12%;"/>
+            <apex:outputPanel rendered="{!showDiscount}" layout="none"><col style="width: 10%;"/></apex:outputPanel>
             <apex:outputPanel rendered="{!showUnit}" layout="none"><col style="width: 6%;"/></apex:outputPanel>
             <apex:outputPanel rendered="{!hasGst}" layout="none">
                 <col style="width: 12%;"/>
@@ -118,6 +126,7 @@
             <th class="center">HSN</th>
             <th class="center">Qty</th>
             <th class="center">Price</th>
+            <apex:outputPanel rendered="{!showDiscount}" layout="none"><th class="center">{!discountLabel}</th></apex:outputPanel>
             <apex:outputPanel rendered="{!showUnit}" layout="none"><th class="center">Unit</th></apex:outputPanel>
             <apex:outputPanel rendered="{!hasGst}" layout="none">
                 <th class="center">Taxable Amt</th>
@@ -132,6 +141,7 @@
                 <td class="center">{!IF(ISBLANK(line.hsnSacCode), '-', line.hsnSacCode)}</td>
                 <td class="center"><apex:outputText value="{0,number,#,##0.##}"><apex:param value="{!line.quantity}"/></apex:outputText></td>
                 <td class="center"><apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!line.unitPrice}"/></apex:outputText></td>
+                <apex:outputPanel rendered="{!showDiscount}" layout="none"><td class="center"><apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!line.discount}"/></apex:outputText></td></apex:outputPanel>
                 <apex:outputPanel rendered="{!showUnit}" layout="none"><td class="center">{!IF(ISBLANK(line.unit), '-', line.unit)}</td></apex:outputPanel>
                 <apex:outputPanel rendered="{!hasGst}" layout="none">
                     <td class="center"><apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!line.taxableAmount}"/></apex:outputText></td>
@@ -152,6 +162,9 @@
                     <div class="section-label">Description</div>
                     <div>{!notes}</div><br/>
                 </apex:outputPanel>
+                <apex:outputPanel rendered="{!NOT(ISBLANK(pairedNote))}">
+                    <div>{!pairedNote}</div><br/>
+                </apex:outputPanel>
                 <div class="section-label">{!amountInWordsLabel}</div>
                 <div>{!amountInWords}</div>
                 <apex:outputPanel rendered="{!NOT(ISBLANK(termsAndConditions))}">
@@ -171,6 +184,9 @@
                     </apex:outputPanel>
                     <apex:outputPanel rendered="{!showIgst}" layout="none">
                         <tr><td>IGST</td><td class="num">Rs. <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!igst}"/></apex:outputText></td></tr>
+                    </apex:outputPanel>
+                    <apex:outputPanel rendered="{!roundOff != 0}" layout="none">
+                        <tr><td>Round off</td><td class="num">Rs. <apex:outputText value="{0,number,#,##0.00;-#,##0.00}"><apex:param value="{!roundOff}"/></apex:outputText></td></tr>
                     </apex:outputPanel>
                     <tr class="totals-total-row"><td>Total</td><td class="num">Rs. <apex:outputText value="{0,number,#,##0.00}"><apex:param value="{!grandTotal}"/></apex:outputText></td></tr>
                     <!--- Record Payment feature disabled (2026-10) — uncomment to restore Received/Balance/Payment Mode.

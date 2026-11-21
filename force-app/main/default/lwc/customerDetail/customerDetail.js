@@ -6,6 +6,7 @@ import getCustomerDetail from '@salesforce/apex/CustomerController.getCustomerDe
 import updateCustomer from '@salesforce/apex/CustomerController.updateCustomer';
 import createVehicle from '@salesforce/apex/CustomerController.createVehicle';
 import listProfiles from '@salesforce/apex/WorkshopProfileController.listProfiles';
+import { STATE_OPTIONS, checkGstinBox, withStateFromGstin, tidyState, changedValue } from 'c/gst';
 
 const EMPTY_VEHICLE = { registrationNumber: '', make: '', model: '', year: '', color: '', chassisNumber: '' };
 
@@ -24,6 +25,7 @@ function badgeClassForStatus(status) {
 }
 
 export default class CustomerDetail extends NavigationMixin(LightningElement) {
+    stateOptions = STATE_OPTIONS;
     customerId;
     @track detail;
     isLoading = true;
@@ -134,12 +136,17 @@ export default class CustomerDetail extends NavigationMixin(LightningElement) {
                 gstin: this.detail.gstin,
                 state: this.detail.state
             };
+            this.editValues = tidyState(this.editValues);
         }
     }
 
     handleEditFieldChange(event) {
         const field = event.target.dataset.field;
-        this.editValues = { ...this.editValues, [field]: event.target.value };
+        this.editValues = { ...this.editValues, [field]: changedValue(event) };
+        if (field === 'gstin') {
+            checkGstinBox(event.target);
+            this.editValues = withStateFromGstin(this.editValues);
+        }
     }
 
     get canSaveEdit() {

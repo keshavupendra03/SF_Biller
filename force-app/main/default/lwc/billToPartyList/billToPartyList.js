@@ -3,10 +3,12 @@ import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import listBillToParties from '@salesforce/apex/DirectoryController.listBillToParties';
 import createBillToParty from '@salesforce/apex/DirectoryController.createBillToParty';
+import { STATE_OPTIONS, checkGstinBox, withStateFromGstin, changedValue } from 'c/gst';
 
 const EMPTY_PARTY = { name: '', address: '', contactPhone: '', gstin: '', state: '' };
 
 export default class BillToPartyList extends LightningElement {
+    stateOptions = STATE_OPTIONS;
     @track parties = [];
 
     searchTerm = '';
@@ -51,7 +53,11 @@ export default class BillToPartyList extends LightningElement {
 
     handleFieldChange(event) {
         const field = event.target.dataset.field;
-        this.newParty = { ...this.newParty, [field]: event.target.value };
+        this.newParty = { ...this.newParty, [field]: changedValue(event) };
+        if (field === 'gstin') {
+            checkGstinBox(event.target);
+            this.newParty = withStateFromGstin(this.newParty);
+        }
     }
 
     get canSave() {

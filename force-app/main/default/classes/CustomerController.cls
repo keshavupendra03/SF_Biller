@@ -198,7 +198,7 @@ public with sharing class CustomerController {
         for (Bill__c b : [
             SELECT Invoice_Number__c, Status__c, Total_Amount__c, Bill_Date__c, Workshop_Profile__c
             FROM Bill__c
-            WHERE Customer__c = :customerId AND Is_Latest_Version__c = true
+            WHERE Customer__c = :customerId AND Is_Latest_Version__c = true AND Is_Cancelled__c = false
             ORDER BY CreatedDate DESC
         ]) {
             DocumentItem item = new DocumentItem();
@@ -263,18 +263,23 @@ public with sharing class CustomerController {
 
     @AuraEnabled
     public static void updateCustomer(Id customerId, CustomerInput input) {
-        if (customerId == null || input == null || String.isBlank(input.name) || String.isBlank(input.phone)) {
-            throw new CustomerControllerException('Customer name and phone are required.');
+        // A save error (a bad GSTIN, a future date) is shown in its own words.
+        try {
+            if (customerId == null || input == null || String.isBlank(input.name) || String.isBlank(input.phone)) {
+                throw new CustomerControllerException('Customer name and phone are required.');
+            }
+            update new Customer__c(
+                Id = customerId,
+                Name = input.name,
+                Phone__c = input.phone,
+                Address__c = input.address,
+                Email__c = input.email,
+                GSTIN__c = input.gstin,
+                State__c = input.state
+            );
+        } catch (DmlException e) {
+            throw ReadableErrors.of(e);
         }
-        update new Customer__c(
-            Id = customerId,
-            Name = input.name,
-            Phone__c = input.phone,
-            Address__c = input.address,
-            Email__c = input.email,
-            GSTIN__c = input.gstin,
-            State__c = input.state
-        );
     }
 
     @AuraEnabled

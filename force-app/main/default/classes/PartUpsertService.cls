@@ -18,6 +18,8 @@ public with sharing class PartUpsertService {
      * instead of creating a duplicate each.
      */
     public static void fillManualPartIds(List<BillController.LineItemInput> lineItems) {
+        // A part remembers its typed rate for later bills, so it must be a real one.
+        GstRules.requireGstRates(lineItems);
         Map<String, BillController.LineItemInput> firstLineByDescription = new Map<String, BillController.LineItemInput>();
         for (BillController.LineItemInput li : lineItems) {
             if (li.partId == null && String.isNotBlank(li.description) && !firstLineByDescription.containsKey(li.description)) {

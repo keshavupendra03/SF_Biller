@@ -95,7 +95,7 @@
                                         <lightning-input data-field="gstin" label="GSTIN" value={customer.gstin} onchange={handleCustomerFieldChange}></lightning-input>
                                     </div>
                                     <div class="slds-col slds-size_1-of-2">
-                                        <lightning-input data-field="state" label="State" placeholder="23-Madhya Pradesh" value={customer.state} onchange={handleCustomerFieldChange}></lightning-input>
+                                        <lightning-combobox placeholder="Pick the state" options={stateOptions} data-field="state" label="State" value={customer.state} onchange={handleCustomerFieldChange}></lightning-combobox>
                                     </div>
                                 </div>
                             </template>
@@ -154,21 +154,26 @@
 
                 <!-- Items -->
                 <lightning-card title="Items" icon-name="standard:product_item" class="section">
-                    <lightning-input
-                        slot="actions"
-                        data-id="include-gst"
-                        type="toggle"
-                        label="Include GST"
-                        message-toggle-active="On"
-                        message-toggle-inactive="Off"
-                        checked={includeGst}
-                        onchange={handleToggleGst}
-                    ></lightning-input>
+                    <template lwc:if={chargesGst}>
+                        <lightning-input
+                            slot="actions"
+                            data-id="include-gst"
+                            type="toggle"
+                            label="Include GST"
+                            message-toggle-active="On"
+                            message-toggle-inactive="Off"
+                            checked={includeGst}
+                            onchange={handleToggleGst}
+                        ></lightning-input>
+                    </template>
                     <div class="slds-p-horizontal_medium">
+                        <template lwc:if={noGstNote}>
+                            <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small" data-id="no-gst-note">{noGstNote}</p>
+                        </template>
                         <div onkeydown={handleGridKeydown}>
-                            <c-line-item-grid include-gst={includeGst} warn-stock={takesStock} onlineschange={handleLinesChange} onfinish={handleGridFinish}></c-line-item-grid>
+                            <c-line-item-grid include-gst={billIncludesGst} warn-stock={takesStock} onlineschange={handleLinesChange} onfinish={handleGridFinish}></c-line-item-grid>
                         </div>
-                        <p class="keyboard-hint slds-text-body_small slds-text-color_weak">Tab or Enter moves along the line. As you type a name, ↑ ↓ and Enter pick a part. Ctrl+Enter creates the {labels.noun}.</p>
+                        <p class="keyboard-hint slds-text-body_small slds-text-color_weak">Tab or Enter moves along the line. As you type a name, ↑ ↓ and Enter pick a part. The pencil on a line sets its HSN, unit, IGST and discount. Ctrl+Enter creates the {labels.noun}.</p>
                     </div>
                 </lightning-card>
 
@@ -182,6 +187,9 @@
                         </template>
                         <template lwc:if={hasIgst}>
                             <div class="slds-grid slds-grid_align-spread"><span>IGST</span><span>₹{formattedIgst}</span></div>
+                        </template>
+                        <template lwc:if={hasRoundOff}>
+                            <div class="slds-grid slds-grid_align-spread"><span>Round off</span><span data-id="round-off">₹{formattedRoundOff}</span></div>
                         </template>
                         <template lwc:if={isGstExcluded}>
                             <p class="slds-text-body_small slds-text-color_weak" data-id="gst-excluded">GST not included</p>
@@ -197,7 +205,7 @@
                 </button>
                 <template lwc:if={showMoreOptions}>
                     <div class="slds-m-bottom_medium">
-                        <lightning-input data-id="document-date" type="date" label={labels.date} value={documentDate} onchange={handleDocumentDateChange}></lightning-input>
+                        <lightning-input data-id="document-date" type="date" label={labels.date} value={documentDate} max={maxDate} onchange={handleDocumentDateChange}></lightning-input>
                         <lightning-textarea data-id="notes" label="Notes (printed on the PDF)" value={notes} onchange={handleNotesChange}></lightning-textarea>
                     </div>
                 </template>

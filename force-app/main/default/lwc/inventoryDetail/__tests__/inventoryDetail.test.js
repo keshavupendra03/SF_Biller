@@ -102,4 +102,31 @@ describe('c-inventory-detail', () => {
             input: expect.objectContaining({ price: 600 })
         });
     });
+
+    it('the GST rate and unit are picked from lists, keeping a unit typed before the list existed', async () => {
+        getPartDetail.mockResolvedValue(DETAIL);
+        updatePart.mockResolvedValue();
+        const element = createElement('c-inventory-detail', { is: InventoryDetail });
+        document.body.appendChild(element);
+        CurrentPageReference.emit({ state: { c__partId: 'p1' } });
+        await flushPromises();
+        element.shadowRoot.querySelector('[data-id="toggle-edit"]').click();
+        await flushPromises();
+
+        const rate = element.shadowRoot.querySelector('[data-field="taxRatePercent"]');
+        const unit = element.shadowRoot.querySelector('[data-field="unitLabel"]');
+        expect(rate.tagName).toBe('LIGHTNING-COMBOBOX');
+        expect(rate.value).toBe('18');
+        expect(rate.options).toContainEqual({ label: '40%', value: '40' });
+        expect(unit.options[0]).toEqual({ label: 'pcs', value: 'pcs' });
+        expect(unit.options).toContainEqual({ label: 'PCS - Pieces', value: 'PCS' });
+
+        rate.dispatchEvent(new CustomEvent('change', { detail: { value: '28' } }));
+        unit.dispatchEvent(new CustomEvent('change', { detail: { value: 'SET' } }));
+        await flushPromises();
+        element.shadowRoot.querySelector('[data-id="save-edit"]').click();
+        await flushPromises();
+
+        expect(updatePart.mock.calls[0][0].input).toEqual(expect.objectContaining({ taxRatePercent: 28, unitLabel: 'SET' }));
+    });
 });

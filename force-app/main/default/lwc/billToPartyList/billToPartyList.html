@@ -29,7 +29,7 @@
                 <lightning-input data-field="address" label="Address" value={newParty.address} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
                 <lightning-input data-field="contactPhone" label="Contact Phone" value={newParty.contactPhone} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
                 <lightning-input data-field="gstin" label="GSTIN" value={newParty.gstin} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
-                <lightning-input data-field="state" label="State" value={newParty.state} onchange={handleFieldChange} class="slds-m-bottom_small"></lightning-input>
+                <lightning-combobox placeholder="Pick the state" options={stateOptions} data-field="state" label="State" value={newParty.state} onchange={handleFieldChange} class="slds-m-bottom_small"></lightning-combobox>
                 <lightning-button data-id="save" label="Save" variant="brand" disabled={saveDisabled} onclick={handleSave}></lightning-button>
                 <lightning-button label="Cancel" onclick={handleToggleCreateForm} class="slds-m-left_x-small"></lightning-button>
             </div>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Exact_Totals__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Ticked: bill and estimate totals are shown to the paisa. Unticked (the default): totals are rounded to the nearest rupee, shown as a "Round off" line. Stated this way round so companies that existed before the setting round off too: a new checkbox leaves existing records unticked whatever its default (architecture.md §F). Applied when a document's lines are saved (BillTotalsService, EstimateTotalsService), so older documents keep their totals.</description>
+    <label>Exact Totals (No Round Off)</label>
+    <type>Checkbox</type>
+</CustomField>

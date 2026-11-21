@@ -43,11 +43,19 @@ export default class CompanyPicker extends LightningElement {
         return this._value;
     }
     set value(id) {
+        const changed = id !== this._value;
         this._value = id;
+        if (!this._isLoaded) {
+            return;
+        }
         // A form was reset: fall back to the usual starting company.
-        if (!id && this._isLoaded && !this.allowAll) {
+        if (!id && !this.allowAll) {
             // eslint-disable-next-line @lwc/lwc/no-async-operation
             Promise.resolve().then(() => this.selectStartingCompany());
+        } else if (id && changed && this.profiles.some((p) => p.id === id)) {
+            // A saved document was opened after the list loaded: report its
+            // company, so the page shows that company's details.
+            Promise.resolve().then(() => this.select(id));
         }
     }
 

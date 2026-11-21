@@ -14,6 +14,7 @@ public with sharing class InvoiceNumberingService {
     public class InvoiceNumberResult {
         public String invoiceNumber;
         public String financialYear;
+        public Integer sequence;
     }
 
     /**
@@ -41,7 +42,18 @@ public with sharing class InvoiceNumberingService {
     }
 
     public static InvoiceNumberResult assignNextInvoiceNumber(Id workshopProfileId) {
-        String fy = financialYearFor(Date.today());
+        return assignNextInvoiceNumber(workshopProfileId, Date.today());
+    }
+
+    /**
+     * Numbers a bill in the series of the financial year of its own date, so a
+     * bill made on 2 April but dated 25 March joins the year that just ended.
+     * The company row's counter follows the latest year; a bill dated in an
+     * earlier year continues that year's series from its bills instead, under
+     * the same lock, so it can't collide with a bill being numbered at once.
+     */
+    public static InvoiceNumberResult assignNextInvoiceNumber(Id workshopProfileId, Date documentDate) {
+        String fy = financialYearFor(documentDate != null ? documentDate : Date.today());
 
         // FOR UPDATE can't be combined with ORDER BY, so find the row first.
         Id profileId = workshopProfileId != null ? workshopProfileId : WorkshopProfileService.primaryId();
@@ -59,19 +71,66 @@ public with sharing class InvoiceNumberingService {
         }
         Workshop_Profile__c profile = profiles[0];
 
-        Boolean continuingFy = fy.equals(profile.Invoice_Sequence_Financial_Year__c);
-        Integer currentLast = profile.Invoice_Sequence_Last_Number__c == null
-            ? 0
-            : profile.Invoice_Sequence_Last_Number__c.intValue();
-        Integer nextSequence = continuingFy ? currentLast + 1 : 1;
+        String counterFy = profile.Invoice_Sequence_Financial_Year__c;
+        Integer nextSequence;
+        // "2026-27" strings order the same way as the years they name.
+        if (counterFy != null && fy.compareTo(counterFy) < 0) {
+            nextSequence = lastSequenceIn(profile.Id, fy) + 1;
+        } else {
+            Boolean continuingFy = fy.equals(counterFy);
+            Integer currentLast = profile.Invoice_Sequence_Last_Number__c == null
+                ? 0
+                : profile.Invoice_Sequence_Last_Number__c.intValue();
+            nextSequence = continuingFy ? currentLast + 1 : 1;
 
-        profile.Invoice_Sequence_Financial_Year__c = fy;
-        profile.Invoice_Sequence_Last_Number__c = nextSequence;
-        update profile;
+            profile.Invoice_Sequence_Financial_Year__c = fy;
+            profile.Invoice_Sequence_Last_Number__c = nextSequence;
+            update profile;
+        }
 
         InvoiceNumberResult result = new InvoiceNumberResult();
         result.invoiceNumber = WorkshopProfileService.invoicePrefix(profile) + '/' + fy + '/' + String.valueOf(nextSequence).leftPad(4, '0');
         result.financialYear = fy;
+        result.sequence = nextSequence;
         return result;
+    }
+
+    /**
+     * The highest number already used in one company's series for one
+     * financial year. Bills from before Invoice_Sequence__c existed have only
+     * the number itself, so those are read from it. A bill with no company
+     * belongs to the primary one.
+     */
+    @TestVisible
+    private static Integer lastSequenceIn(Id profileId, String fy) {
+        Id orNoCompany = profileId == WorkshopProfileService.primaryId() ? null : profileId;
+        Integer last = 0;
+        AggregateResult highest = [
+            SELECT MAX(Invoice_Sequence__c) highest FROM Bill__c
+            WHERE Financial_Year__c = :fy AND (Workshop_Profile__c = :profileId OR Workshop_Profile__c = :orNoCompany)
+        ];
+        if (highest.get('highest') != null) {
+            last = ((Decimal) highest.get('highest')).intValue();
+        }
+        for (Bill__c bill : [
+            SELECT Invoice_Number__c FROM Bill__c
+            WHERE Financial_Year__c = :fy AND Invoice_Sequence__c = null
+              AND (Workshop_Profile__c = :profileId OR Workshop_Profile__c = :orNoCompany)
+        ]) {
+            Integer sequence = sequenceOf(bill.Invoice_Number__c);
+            if (sequence != null && sequence > last) {
+                last = sequence;
+            }
+        }
+        return last;
+    }
+
+    /** The running number at the end of "INV/2026-27/0042", or null if there isn't one. */
+    public static Integer sequenceOf(String invoiceNumber) {
+        if (String.isBlank(invoiceNumber)) {
+            return null;
+        }
+        String tail = invoiceNumber.substringAfterLast('/');
+        return tail.isNumeric() ? Integer.valueOf(tail) : null;
     }
 }

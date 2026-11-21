@@ -104,4 +104,82 @@ private class InvoiceNumberingServiceTest {
             System.assertEquals(i + 1, sequenceNumbers[i], 'Expected an unbroken 1..100 sequence, found a gap at index ' + i);
         }
     }
+
+    // ---- numbering by the bill's own date (architecture.md §F, Thirty-seventh) ----
+
+    private static Date lastYear() {
+        return Date.today().addYears(-1);
+    }
+
+    private static Bill__c billDated(Date billDate) {
+        Customer__c customer = [SELECT Id FROM Customer__c LIMIT 1];
+        Bill__c bill = new Bill__c(Customer__c = customer.Id, Bill_Date__c = billDate);
+        insert bill;
+        return [SELECT Invoice_Number__c, Financial_Year__c, Invoice_Sequence__c FROM Bill__c WHERE Id = :bill.Id];
+    }
+
+    @isTest
+    static void aBillDatedLastYear_joinsLastYearsSeries_andTodaysCarriesOn() {
+        insert new Customer__c(Name = 'Ramesh', Phone__c = '9000011111');
+        String thisFy = InvoiceNumberingService.financialYearFor(Date.today());
+        String lastFy = InvoiceNumberingService.financialYearFor(lastYear());
+
+        Test.startTest();
+        Bill__c today1 = billDated(Date.today());
+        Bill__c old1 = billDated(lastYear());
+        Bill__c old2 = billDated(lastYear());
+        Bill__c today2 = billDated(Date.today());
+        Test.stopTest();
+
+        System.assertEquals('INV/' + thisFy + '/0001', today1.Invoice_Number__c);
+        System.assertEquals('INV/' + lastFy + '/0001', old1.Invoice_Number__c);
+        System.assertEquals(lastFy, old1.Financial_Year__c);
+        System.assertEquals('INV/' + lastFy + '/0002', old2.Invoice_Number__c);
+        System.assertEquals(2, old2.Invoice_Sequence__c);
+        System.assertEquals('INV/' + thisFy + '/0002', today2.Invoice_Number__c, 'Last year\'s bills don\'t move this year\'s counter.');
+    }
+
+    @isTest
+    static void lastYearsSeries_continuesFromBillsSavedBeforeSequencesWereKept() {
+        insert new Customer__c(Name = 'Ramesh', Phone__c = '9000011111');
+        Customer__c customer = [SELECT Id FROM Customer__c LIMIT 1];
+        String lastFy = InvoiceNumberingService.financialYearFor(lastYear());
+        // A bill numbered before Invoice_Sequence__c existed: only the number says 7.
+        insert new Bill__c(Customer__c = customer.Id, Invoice_Number__c = 'INV/' + lastFy + '/0007', Financial_Year__c = lastFy, Bill_Date__c = lastYear());
+        billDated(Date.today());
+
+        Test.startTest();
+        Bill__c next = billDated(lastYear());
+        Test.stopTest();
+
+        System.assertEquals('INV/' + lastFy + '/0008', next.Invoice_Number__c);
+    }
+
+    @isTest
+    static void lastYearsSeries_isPerCompany() {
+        insert new Customer__c(Name = 'Ramesh', Phone__c = '9000011111');
+        Workshop_Profile__c decor = new Workshop_Profile__c(Name = 'Speedy Decor', Invoice_Prefix__c = 'DEC');
+        insert decor;
+        Customer__c customer = [SELECT Id FROM Customer__c LIMIT 1];
+        String lastFy = InvoiceNumberingService.financialYearFor(lastYear());
+        billDated(Date.today());
+        billDated(lastYear());
+        billDated(lastYear());
+        insert new Bill__c(Customer__c = customer.Id, Workshop_Profile__c = decor.Id, Bill_Date__c = Date.today());
+
+        Test.startTest();
+        Bill__c decorOld = new Bill__c(Customer__c = customer.Id, Workshop_Profile__c = decor.Id, Bill_Date__c = lastYear());
+        insert decorOld;
+        Test.stopTest();
+
+        System.assertEquals('DEC/' + lastFy + '/0001', [SELECT Invoice_Number__c FROM Bill__c WHERE Id = :decorOld.Id].Invoice_Number__c);
+    }
+
+    @isTest
+    static void sequenceOf_readsTheRunningNumber() {
+        System.assertEquals(42, InvoiceNumberingService.sequenceOf('INV/2026-27/0042'));
+        System.assertEquals(10000, InvoiceNumberingService.sequenceOf('DEC/2026-27/10000'));
+        System.assertEquals(null, InvoiceNumberingService.sequenceOf('OLD-NUMBER'));
+        System.assertEquals(null, InvoiceNumberingService.sequenceOf(null));
+    }
 }

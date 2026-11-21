@@ -128,4 +128,21 @@ describe('c-company-picker', () => {
         await flushPromises();
         expect(changes[1]).toEqual({ id: null, profile: null });
     });
+
+    it('a company set after loading (a saved document opened) is reported, so the page shows it', async () => {
+        listProfiles.mockResolvedValue([MOTORS, DECOR]);
+        const { element, changes } = await createPicker();
+        expect(changes[changes.length - 1].id).toBe('wp1');
+
+        element.value = 'wp2';
+        await flushPromises();
+
+        expect(changes[changes.length - 1]).toEqual({ id: 'wp2', profile: DECOR });
+
+        const count = changes.length;
+        element.value = 'wp2';
+        element.value = 'unknown';
+        await flushPromises();
+        expect(changes).toHaveLength(count);
+    });
 });

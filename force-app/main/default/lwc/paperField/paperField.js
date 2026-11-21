@@ -10,7 +10,17 @@ const SEARCH_DELAY_MS = 300;
  * matches under the box: up/down to move, Enter or Tab to pick (fires `pick`).
  */
 export default class PaperField extends LightningElement {
-    @api value = '';
+    @api
+    get value() {
+        return this._value;
+    }
+    set value(value) {
+        this._value = value;
+        // The textarea isn't bound in the template, so a new value set on a box
+        // already drawn (a saved bill opened) doesn't redraw it: copy it now.
+        this.syncTextarea();
+    }
+
     @api label;
     @api placeholder;
     @api type = 'text';
@@ -23,15 +33,20 @@ export default class PaperField extends LightningElement {
     options = [];
     highlightIndex = -1;
 
+    _value = '';
     _timer;
     _seq = 0;
+
+    renderedCallback() {
+        this.syncTextarea();
+    }
 
     // LWC templates can't bind a <textarea> value (it becomes an attribute, which
     // a textarea ignores), so it's set here. Only when different, so the cursor
     // stays put while typing.
-    renderedCallback() {
+    syncTextarea() {
         const box = this.template.querySelector('textarea');
-        const value = this.value || '';
+        const value = this._value || '';
         if (box && box.value !== value) {
             box.value = value;
         }

@@ -176,4 +176,19 @@ describe('c-bill-to-party-picker', () => {
         expect(isOpen(element)).toBe(false);
         expect(box(element).value).toBe('Sha');
     });
+
+    it('a new party\'s GSTIN fills in its state, picked from a list', async () => {
+        listBillToParties.mockResolvedValue([]);
+        const { element, changes } = await createPicker();
+        await typeName(element, 'Verma Fleet');
+
+        expect($(element, '[data-field="state"]').tagName).toBe('LIGHTNING-COMBOBOX');
+        const gstin = $(element, 'lightning-input[data-field="gstin"]');
+        gstin.value = '27AAPFU0939F1ZV';
+        gstin.dispatchEvent(new CustomEvent('change'));
+        await flushPromises();
+
+        expect(changes[changes.length - 1].billToParty).toEqual(expect.objectContaining({ gstin: '27AAPFU0939F1ZV', state: 'Maharashtra' }));
+        expect($(element, '[data-field="state"]').value).toBe('Maharashtra');
+    });
 });

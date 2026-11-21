@@ -33,9 +33,9 @@
                 <lightning-input data-field="openingStock" type="number" label="Opening Stock" value={newPart.openingStock} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
                 <lightning-input data-field="lowStockThreshold" type="number" label="Low Stock Threshold" value={newPart.lowStockThreshold} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
                 <lightning-combobox data-field="gstType" label="GST Type" value={newPart.gstType} options={gstTypeOptions} onchange={handleGstTypeChange} class="slds-m-bottom_x-small"></lightning-combobox>
-                <lightning-input data-field="taxRatePercent" type="number" label="Tax Rate %" value={newPart.taxRatePercent} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                <lightning-combobox data-field="taxRatePercent" label="GST Rate" placeholder="Pick the GST rate" options={rateOptions} value={newPart.taxRatePercent} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-combobox>
                 <lightning-input data-field="hsnCode" label="HSN Code" value={newPart.hsnCode} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
-                <lightning-input data-field="unitLabel" label="Unit (e.g. pcs)" value={newPart.unitLabel} onchange={handleFieldChange} class="slds-m-bottom_small"></lightning-input>
+                <lightning-combobox data-field="unitLabel" label="Unit" placeholder="Pick the unit" options={unitOptions} value={newPart.unitLabel} onchange={handleFieldChange} class="slds-m-bottom_small"></lightning-combobox>
                 <lightning-button data-id="save" label="Save Part" variant="brand" disabled={saveDisabled} onclick={handleSave}></lightning-button>
                 <lightning-button label="Cancel" onclick={handleToggleCreateForm} class="slds-m-left_x-small"></lightning-button>
             </div>

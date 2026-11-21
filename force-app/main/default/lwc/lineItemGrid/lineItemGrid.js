@@ -2,7 +2,7 @@ import { LightningElement, api } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { getBarcodeScanner } from 'lightning/mobileCapabilities';
 import searchParts from '@salesforce/apex/BillController.searchParts';
-import { calculateLine } from 'c/gstMath';
+import { calculateLine, lineGross } from 'c/gstMath';
 
 const DEFAULT_GST_RATE = '18';
 const SEARCH_DELAY_MS = 300;
@@ -21,7 +21,11 @@ function newRow() {
         taxRatePercent: DEFAULT_GST_RATE,
         gstType: 'CGST_SGST',
         hsnSacCode: '',
-        unitLabel: ''
+        unitLabel: '',
+        // Rupees off the line (G5), and the insurance company's share of it
+        // when a claim is split (G6; blank is all of it).
+        discount: '',
+        insurerPercent: ''
     };
 }
 
@@ -55,6 +59,10 @@ function isExactMatch(part, term) {
     return (part.name || '').toLowerCase() === term.toLowerCase() || part.sku === term || part.barcode === term;
 }
 
+function hasDiscount(row) {
+    return (Number(row.discount) || 0) !== 0;
+}
+
 function formatAmount(value) {
     return (Number(value) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -68,6 +76,10 @@ function formatAmount(value) {
  * and 'paper' (drawn like the printed bill's table, with Sr and HSN, and a GST
  * column only while GST is on).
  *
+ * Optional columns, paper variant: `show-discount` (rupees off a line, G5) and
+ * `show-insurer-percent` (the insurance company's share of a line, G6). The
+ * compact variant takes a discount in the line popup instead, having no room.
+ *
  * Fires `lineschange` with the filled lines on every change, and `finish` when
  * Enter is pressed on the empty last line.
  *
@@ -79,7 +91,22 @@ export default class LineItemGrid extends LightningElement {
     @api includeGst = false;
     // Only a bill takes stock; a quote may be for more than is on the shelf.
     @api warnStock = false;
+    @api showInsurerPercent = false;
 
+    // Turning discounts off clears them, so no hidden discount stays on the bill.
+    @api
+    get showDiscount() {
+        return this._showDiscount;
+    }
+    set showDiscount(value) {
+        const wasShown = this._showDiscount;
+        this._showDiscount = !!value;
+        if (wasShown && !this._showDiscount && this.items.some(hasDiscount)) {
+            this.setItems(this.items.map((row) => ({ ...row, discount: '' })));
+        }
+    }
+
+    _showDiscount = false;
     items = [newRow()];
     // The row whose name is being typed, and the parts suggested for it.
     suggestKey = null;
@@ -119,6 +146,29 @@ export default class LineItemGrid extends LightningElement {
         this.focusCell(this.items[0].key, 'description');
     }
 
+    // A saved document's lines, opened to be changed (Easy Bill). Replaces
+    // whatever is in the grid, and reports them like any change.
+    @api
+    setLines(lines) {
+        this.suggestKey = null;
+        this.partResults = [];
+        this.setItems(
+            (lines || []).map((line) => ({
+                ...newRow(),
+                partId: line.partId || null,
+                description: line.description || '',
+                quantity: asText(line.quantity),
+                unitPrice: asText(line.unitPrice),
+                taxRatePercent: asText(line.taxRatePercent),
+                gstType: line.gstType || 'CGST_SGST',
+                hsnSacCode: line.hsnSacCode || '',
+                unitLabel: line.unitLabel || '',
+                discount: hasDiscount(line) ? asText(line.discount) : '',
+                insurerPercent: asText(line.insurerPercent)
+            }))
+        );
+    }
+
     // ---- view state -----------------------------------------------------
 
     get isPaper() {
@@ -137,11 +187,84 @@ export default class LineItemGrid extends LightningElement {
         return this.isPaper ? 'item-grid item-grid_paper' : 'item-grid';
     }
 
+    get showDiscountCell() {
+        return this.isPaper && this.showDiscount;
+    }
+
+    get showInsurerCell() {
+        return this.isPaper && this.showInsurerPercent;
+    }
+
     get lineClass() {
         if (!this.isPaper) {
             return 'item-line';
         }
         return this.includeGst ? 'item-line item-line_paper item-line_paper-gst' : 'item-line item-line_paper';
+    }
+
+    // The paper columns change with GST, discount and insurer share, so the
+    // grid is laid out here and handed to the CSS as custom properties: one
+    // layout for a phone (an item over two or three lines) and one for wider.
+    get lineStyle() {
+        if (!this.isPaper) {
+            return '';
+        }
+        const gst = this.includeGst;
+        const phone = [
+            ['sr', '1.5rem'],
+            ['hsn', 'minmax(0, 1fr)'],
+            ['qty', gst ? '2.5rem' : '2.75rem'],
+            ['price', gst ? '3.5rem' : '4rem']
+        ];
+        if (gst) {
+            phone.push(['gst', '2.5rem']);
+        }
+        phone.push(['amount', gst ? '4.5rem' : '5rem']);
+        const names = phone.map(([name]) => name);
+        const rows = [['sr', ...names.slice(1, -1).map(() => 'name'), 'actions'], names];
+        if (this.showDiscountCell || this.showInsurerCell) {
+            // Under the item: discount below HSN and qty, insurer % below the rest.
+            rows.push(
+                names.map((name, i) => {
+                    if (i === 0) {
+                        return 'sr';
+                    }
+                    if (i === names.length - 1) {
+                        return '.';
+                    }
+                    if (this.showDiscountCell && this.showInsurerCell) {
+                        return i <= 2 ? 'disc' : 'ins';
+                    }
+                    return this.showDiscountCell ? 'disc' : 'ins';
+                })
+            );
+        }
+
+        const wide = [
+            ['sr', '2.5rem'],
+            ['name', 'minmax(0, 1fr)'],
+            ['hsn', '6rem'],
+            ['qty', gst ? '4.5rem' : '5rem'],
+            ['price', gst ? '6.5rem' : '7rem']
+        ];
+        if (gst) {
+            wide.push(['gst', '4.5rem']);
+        }
+        if (this.showDiscountCell) {
+            wide.push(['disc', '6rem']);
+        }
+        if (this.showInsurerCell) {
+            wide.push(['ins', '4.5rem']);
+        }
+        wide.push(['amount', '8rem'], ['actions', '2rem']);
+
+        const areas = (list) => list.map((row) => `'${row.join(' ')}'`).join(' ');
+        return [
+            `--phone-columns: ${phone.map(([, width]) => width).join(' ')}`,
+            `--phone-areas: ${areas(rows)}`,
+            `--wide-columns: ${wide.map(([, width]) => width).join(' ')}`,
+            `--wide-areas: ${areas([wide.map(([name]) => name)])}`
+        ].join('; ');
     }
 
     get headerClass() {
@@ -165,6 +288,12 @@ export default class LineItemGrid extends LightningElement {
         if (this.includeGst) {
             fields.push('taxRatePercent');
         }
+        if (this.showDiscountCell) {
+            fields.push('discount');
+        }
+        if (this.showInsurerCell) {
+            fields.push('insurerPercent');
+        }
         return fields;
     }
 
@@ -178,6 +307,10 @@ export default class LineItemGrid extends LightningElement {
             const stock = row.currentStock;
             const isShort = this.warnStock && !!row.partId && stock !== null && stock !== undefined && Number(row.quantity) > Number(stock);
             const showSuggestions = row.key === this.suggestKey && this.partResults.length > 0;
+            const discount = Number(row.discount) || 0;
+            const tooMuchOff = hasPrice(row) && (discount < 0 || discount > lineGross(row));
+            const percent = asText(row.insurerPercent).trim();
+            const badPercent = this.showInsurerCell && percent !== '' && (Number(percent) < 0 || Number(percent) > 100);
             return {
                 ...row,
                 number,
@@ -185,13 +318,19 @@ export default class LineItemGrid extends LightningElement {
                 showDetails: !this.isPaper && !isBlankRow(row),
                 formattedAmount: hasPrice(row) ? `₹${formatAmount(calculateLine(this.toBillLine(row)).total)}` : '',
                 stockNote: isShort ? `Only ${stock} in stock` : '',
+                discountNote: tooMuchOff ? `The discount must be between 0 and ₹${formatAmount(lineGross(row))}` : '',
+                percentNote: badPercent ? 'The insurance share must be between 0 and 100%' : '',
+                // Compact has no discount box, so the line says what's off.
+                offNote: !this.isPaper && discount > 0 && !tooMuchOff ? `₹${formatAmount(discount)} off` : '',
                 showSuggestions,
                 suggestions: showSuggestions ? this.decoratedPartResults : [],
                 nameLabel: `Item ${number} name`,
                 hsnLabel: `Item ${number} HSN`,
                 quantityLabel: `Item ${number} quantity`,
                 priceLabel: `Item ${number} price`,
-                gstLabel: `Item ${number} GST percent`
+                gstLabel: `Item ${number} GST percent`,
+                discountLabel: `Item ${number} discount in rupees`,
+                insurerLabel: `Item ${number} insurance company's share in percent`
             };
         });
     }
@@ -244,13 +383,14 @@ export default class LineItemGrid extends LightningElement {
     }
 
     handleItemEditorSave(event) {
-        const { quantity, unitPrice, taxRatePercent, ...rest } = event.detail;
+        const { quantity, unitPrice, taxRatePercent, discount, ...rest } = event.detail;
         this.updateRow(this.editingItem.key, {
             ...rest,
             key: this.editingItem.key,
             quantity: asText(quantity),
             unitPrice: asText(unitPrice),
-            taxRatePercent: asText(taxRatePercent)
+            taxRatePercent: asText(taxRatePercent),
+            discount: Number(discount) ? asText(discount) : ''
         });
         this.editingItem = undefined;
     }

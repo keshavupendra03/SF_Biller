@@ -12,6 +12,7 @@ import getBillSummary from '@salesforce/apex/BillController.getBillSummary';
 import getEstimateSummary from '@salesforce/apex/EstimateController.getEstimateSummary';
 import { calculateLine, calculateBillTotals } from 'c/gstMath';
 import { disablePullToRefresh } from 'c/disablePullToRefresh';
+import { STATE_OPTIONS, checkGstinBox, withStateFromGstin, changedValue } from 'c/gst';
 
 // Record Payment feature disabled (2026-10) — uncomment to restore the
 // "Record a payment now" toggle on this screen. Apex
@@ -27,7 +28,7 @@ import { disablePullToRefresh } from 'c/disablePullToRefresh';
 const EMPTY_BILL_TO_PARTY = { name: '', address: '', contactPhone: '', gstin: '', state: '' };
 const EMPTY_NEW_CUSTOMER = { name: '', phone: '', address: '', email: '', gstin: '', state: '' };
 const EMPTY_VEHICLE = { registrationNumber: '', make: '', model: '', year: '', color: '', chassisNumber: '' };
-const EMPTY_LINE = { partId: null, description: '', quantity: 1, unitPrice: 0, taxRatePercent: 18, gstType: 'CGST_SGST', hsnSacCode: '', unitLabel: '' };
+const EMPTY_LINE = { partId: null, description: '', quantity: 1, unitPrice: 0, taxRatePercent: 18, gstType: 'CGST_SGST', hsnSacCode: '', unitLabel: '', discount: 0 };
 
 function todayIso() {
     return new Date().toISOString().slice(0, 10);
@@ -36,6 +37,9 @@ function todayIso() {
 let nextLineKey = 1;
 
 export default class BillCreate extends NavigationMixin(LightningElement) {
+    roundOffTotals = true;
+    registrationType;
+    stateOptions = STATE_OPTIONS;
     // paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
 
     @track customerResults = [];
@@ -182,12 +186,29 @@ export default class BillCreate extends NavigationMixin(LightningElement) {
     get decoratedLines() {
         return this.lines.map((line) => ({
             ...line,
-            lineTotal: calculateLine(line).total.toFixed(2)
+            lineTotal: calculateLine(line).total.toFixed(2),
+            discountText: Number(line.discount) > 0 ? `, ₹${Number(line.discount).toFixed(2)} off` : ''
         }));
     }
 
+    // The chosen company's settings (G5): whole-rupee totals, and whether it
+    // charges GST at all. The server applies both on save; this is the preview.
     get totals() {
-        return calculateBillTotals(this.lines);
+        const lines = this.chargesGst ? this.lines : this.lines.map((line) => ({ ...line, taxRatePercent: 0 }));
+        return calculateBillTotals(lines, { roundOff: this.roundOffTotals });
+    }
+
+    get chargesGst() {
+        return !this.registrationType || this.registrationType === 'Regular';
+    }
+
+    get hasRoundOff() {
+        return this.totals.roundOff !== 0;
+    }
+
+    get formattedRoundOff() {
+        const value = this.totals.roundOff;
+        return `${value > 0 ? '+' : '-'}${Math.abs(value).toFixed(2)}`;
     }
 
     get formattedSubtotal() {
@@ -239,6 +260,9 @@ export default class BillCreate extends NavigationMixin(LightningElement) {
 
     handleCompanyChange(event) {
         this.workshopProfileId = event.detail.id;
+        const profile = event.detail.profile;
+        this.roundOffTotals = !profile || profile.roundOffTotals !== false;
+        this.registrationType = profile ? profile.gstRegistrationType : null;
     }
 
     handleBack() {
@@ -378,7 +402,11 @@ export default class BillCreate extends NavigationMixin(LightningElement) {
 
     handleBillToPartyFieldChange(event) {
         const field = event.target.dataset.field;
-        this.newBillToParty = { ...this.newBillToParty, [field]: event.target.value };
+        this.newBillToParty = { ...this.newBillToParty, [field]: changedValue(event) };
+        if (field === 'gstin') {
+            checkGstinBox(event.target);
+            this.newBillToParty = withStateFromGstin(this.newBillToParty);
+        }
     }
 
     loadVehicleOptions(customerId) {
@@ -512,7 +540,8 @@ export default class BillCreate extends NavigationMixin(LightningElement) {
                 taxRatePercent: Number(line.taxRatePercent),
                 gstType: line.gstType,
                 hsnSacCode: line.hsnSacCode,
-                unitLabel: line.unitLabel
+                unitLabel: line.unitLabel,
+                discount: Number(line.discount) || 0
             })),
             // Record Payment feature disabled (2026-10) — uncomment to restore recording an initial payment at creation time.
             initialPaymentAmount: null,
@@ -605,7 +634,8 @@ export default class BillCreate extends NavigationMixin(LightningElement) {
                     taxRatePercent: li.taxRatePercent,
                     gstType: li.gstType || 'CGST_SGST',
                     hsnSacCode: li.hsnSacCode,
-                    unitLabel: li.unitLabel
+                    unitLabel: li.unitLabel,
+                    discount: li.discount || 0
                 }));
             })
             .catch((error) => this.showError(error));
@@ -638,7 +668,8 @@ export default class BillCreate extends NavigationMixin(LightningElement) {
             taxRatePercent: li.taxRatePercent,
             gstType: li.gstType || 'CGST_SGST',
             hsnSacCode: li.hsnSacCode,
-            unitLabel: li.unitLabel
+            unitLabel: li.unitLabel,
+            discount: li.discount || 0
         }));
         // this.recordPaymentNow = false;
         // this.paymentAmount = 0;

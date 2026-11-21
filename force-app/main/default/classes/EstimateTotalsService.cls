@@ -17,30 +17,37 @@ public with sharing class EstimateTotalsService {
         }
 
         for (Estimate_Line_Item__c item : [
-            SELECT Estimate__c, Description__c, Quantity__c, Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c
+            SELECT Estimate__c, Description__c, Quantity__c, Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c, Discount__c
             FROM Estimate_Line_Item__c
             WHERE Estimate__c IN :estimateIds
         ]) {
-            inputsByEstimate.get(item.Estimate__c).add(new GstCalculatorService.GstLineItemInput(
-                item.Description__c,
-                item.Quantity__c,
-                item.Unit_Price__c,
-                item.Tax_Rate_Percent__c,
-                GstCalculatorService.supplyTypeFromGstType(item.Gst_Type__c)
-            ));
+            inputsByEstimate.get(item.Estimate__c).add(GstCalculatorService.inputFor(item));
         }
 
-        List<Estimate__c> estimatesToUpdate = new List<Estimate__c>();
+        // Round-off is the company's choice, made when the lines are saved.
+        Map<Id, Estimate__c> records = new Map<Id, Estimate__c>([SELECT Workshop_Profile__c FROM Estimate__c WHERE Id IN :estimateIds]);
+        Set<Id> companyIds = new Set<Id>();
+        for (Estimate__c record : records.values()) {
+            companyIds.add(record.Workshop_Profile__c);
+        }
+        Map<Id, Boolean> roundsOff = WorkshopProfileService.roundsOff(companyIds);
+
+        List<Estimate__c> toUpdate = new List<Estimate__c>();
         for (Id estimateId : estimateIds) {
             GstCalculatorService.GstBillResult totals =
                 GstCalculatorService.calculateBill(inputsByEstimate.get(estimateId));
-            estimatesToUpdate.add(new Estimate__c(
+            Estimate__c record = records.get(estimateId);
+            Decimal roundOff = record != null && roundsOff.get(record.Workshop_Profile__c) == true
+                ? GstCalculatorService.roundOff(totals.grandTotal)
+                : 0;
+            toUpdate.add(new Estimate__c(
                 Id = estimateId,
                 Subtotal__c = totals.subtotal,
                 GST_Amount__c = totals.gst,
-                Total_Amount__c = totals.grandTotal
+                Round_Off__c = roundOff,
+                Total_Amount__c = totals.grandTotal + roundOff
             ));
         }
-        update estimatesToUpdate;
+        update toUpdate;
     }
 }

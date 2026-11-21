@@ -46,7 +46,7 @@ private class QuickBillControllerTest {
         QuickBillController.QuickBillRequest r = request();
         r.customerName = 'Suresh Patel';
         r.customerPhone = '98260 11111';
-        r.customerGstin = '23ABCDE1234F1Z5';
+        r.customerGstin = '23ABCDE1234F1Z8';
         r.newVehicle = new CustomerController.NewVehicleInput();
         r.newVehicle.registrationNumber = 'MP09CD5678';
         r.newVehicle.make = 'Maruti';
@@ -58,7 +58,7 @@ private class QuickBillControllerTest {
 
         Customer__c created = [SELECT Name, Phone__c, GSTIN__c FROM Customer__c WHERE Id = :summary.customerId];
         System.assertEquals('Suresh Patel', created.Name);
-        System.assertEquals('23ABCDE1234F1Z5', created.GSTIN__c);
+        System.assertEquals('23ABCDE1234F1Z8', created.GSTIN__c);
         Vehicle__c vehicle = [SELECT Name, Customer__c FROM Vehicle__c WHERE Id = :summary.vehicleId];
         System.assertEquals('MP09CD5678', vehicle.Name);
         System.assertEquals(summary.customerId, vehicle.Customer__c);
@@ -90,7 +90,7 @@ private class QuickBillControllerTest {
         Customer__c after = [SELECT Name, Address__c, State__c FROM Customer__c WHERE Id = :existing.Id];
         System.assertEquals('Ramesh Kumar', after.Name, 'An existing customer\'s name is never overwritten.');
         System.assertEquals('Old Address', after.Address__c, 'Saved details are never overwritten.');
-        System.assertEquals('23-Madhya Pradesh', after.State__c, 'Blank details are filled in.');
+        System.assertEquals('Madhya Pradesh', after.State__c, 'Blank details are filled in.');
     }
 
     @isTest

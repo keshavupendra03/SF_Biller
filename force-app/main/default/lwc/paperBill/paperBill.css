@@ -63,6 +63,14 @@
     color: #1a4fa0;
 }
 
+/* As InvoicePdf prints it under "Bill of Supply". */
+.pb-composition-note {
+    margin: -0.25rem 0 0.5rem;
+    text-align: center;
+    font-size: 0.75rem;
+    font-style: italic;
+}
+
 .pb-two-col {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -72,6 +80,35 @@
 .pb-section-label {
     font-weight: 700;
     color: #555;
+}
+
+/* A saved bill opened to be changed: above the sheet, never printed. */
+.pb-opened {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    max-width: 62rem;
+    margin: 0 auto 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-left: 4px solid #0176d3;
+    border-radius: 0.25rem;
+    background-color: #eef4ff;
+}
+
+.pb-opened-delete {
+    flex: 1 1 100%;
+}
+
+.pb-opened-text {
+    flex: 1 1 16rem;
+    font-size: 0.8125rem;
+}
+
+.pb-opened-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .pb-section-head {
@@ -121,6 +158,26 @@
     margin-top: 0.75rem;
 }
 
+.pb-item-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 1rem;
+}
+
+.pb-split {
+    margin-top: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px dashed #1a4fa0;
+    border-radius: 0.25rem;
+    background-color: #f3f7fd;
+}
+
+.pb-split-help {
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+    color: #444;
+}
+
 .pb-bottom {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -139,6 +196,11 @@
     padding-top: 0.25rem;
     border-top: 1px solid #999;
     font-size: 1rem;
+    font-weight: 700;
+}
+
+.pb-total-row_split {
+    color: #1a4fa0;
     font-weight: 700;
 }
 
@@ -187,6 +249,12 @@
     border-radius: 0.5rem;
     background-color: #fff;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.pb-saved-pair {
+    padding: 0.75rem;
+    border-radius: 0.25rem;
+    background-color: #f3f7fd;
 }
 
 .pb-saved-total {

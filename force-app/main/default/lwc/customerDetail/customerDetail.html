@@ -26,7 +26,7 @@
                     <lightning-input data-field="address" label="Address" value={editValues.address} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
                     <lightning-input data-field="email" label="Email" value={editValues.email} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
                     <lightning-input data-field="gstin" label="GSTIN" value={editValues.gstin} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
-                    <lightning-input data-field="state" label="State" value={editValues.state} onchange={handleEditFieldChange} class="slds-m-bottom_small"></lightning-input>
+                    <lightning-combobox placeholder="Pick the state" options={stateOptions} data-field="state" label="State" value={editValues.state} onchange={handleEditFieldChange} class="slds-m-bottom_small"></lightning-combobox>
                     <lightning-button data-id="save-edit" label="Save" variant="brand" disabled={saveEditDisabled} onclick={handleSaveEdit}></lightning-button>
                     <lightning-button label="Cancel" onclick={handleToggleEdit} class="slds-m-left_x-small"></lightning-button>
                 </div>

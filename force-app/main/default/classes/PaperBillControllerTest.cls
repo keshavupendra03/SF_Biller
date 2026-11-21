@@ -115,7 +115,7 @@ private class PaperBillControllerTest {
         PaperBillController.PaperRequest r = request();
         r.customerName = 'Suresh Patel';
         r.customerPhone = '9826011111';
-        r.customerGstin = '23ABCDE1234F1Z5';
+        r.customerGstin = '23ABCDE1234F1Z8';
         r.registrationNumber = 'MP09CD5678';
         r.make = 'Maruti';
         r.model = 'Swift';
@@ -130,7 +130,7 @@ private class PaperBillControllerTest {
             FROM Bill__c WHERE Id = :saved.recordId
         ];
         System.assertEquals('9826011111', bill.Customer__r.Phone__c);
-        System.assertEquals('23ABCDE1234F1Z5', bill.Customer__r.GSTIN__c);
+        System.assertEquals('23ABCDE1234F1Z8', bill.Customer__r.GSTIN__c);
         System.assertEquals('MP09CD5678', bill.Vehicle__r.Name);
         System.assertEquals('CH123', bill.Vehicle__r.Chassis_Number__c);
         System.assertEquals(1, [SELECT COUNT() FROM Vehicle_Make_Model__c WHERE Make__c = 'Maruti' AND Model__c = 'Swift']);
@@ -138,7 +138,7 @@ private class PaperBillControllerTest {
 
     @isTest
     static void pickedCustomerAndVehicle_takeExactlyWhatIsOnThePage() {
-        Customer__c customer = new Customer__c(Name = 'Ramesh K', Phone__c = '9000011111', Address__c = 'Old Address', GSTIN__c = 'OLDGST');
+        Customer__c customer = new Customer__c(Name = 'Ramesh K', Phone__c = '9000011111', Address__c = 'Old Address', GSTIN__c = '23OLDGS1234T1ZV');
         insert customer;
         Vehicle__c vehicle = new Vehicle__c(Name = 'MP09AB1234', Customer__c = customer.Id, Make__c = 'Tata', Chassis_Number__c = 'OLD');
         insert vehicle;
@@ -191,7 +191,7 @@ private class PaperBillControllerTest {
         System.assertEquals(1, [SELECT COUNT() FROM Vehicle__c]);
         Customer__c after = [SELECT Address__c, State__c FROM Customer__c WHERE Id = :customer.Id];
         System.assertEquals('Kept Address', after.Address__c);
-        System.assertEquals('23-Madhya Pradesh', after.State__c);
+        System.assertEquals('Madhya Pradesh', after.State__c);
         Vehicle__c afterVehicle = [SELECT Make__c, Model__c FROM Vehicle__c WHERE Id = :vehicle.Id];
         System.assertEquals('Tata', afterVehicle.Make__c);
         System.assertEquals('Punch', afterVehicle.Model__c);
@@ -396,5 +396,201 @@ private class PaperBillControllerTest {
 
         System.assertEquals(null, [SELECT Bill_To_Party__c FROM Bill__c WHERE Id = :saved.recordId].Bill_To_Party__c);
         System.assertEquals(0, [SELECT COUNT() FROM Bill_To_Party__c]);
+    }
+
+    // ---- opening a saved document, and saving its new version ----------
+
+    private static PaperBillController.SavedDocument saveRameshBill(Boolean includeGst) {
+        PaperBillController.PaperRequest r = request();
+        r.customerName = 'Ramesh Kumar';
+        r.customerPhone = '9000011111';
+        r.registrationNumber = 'MP09AB1234';
+        r.make = 'Tata';
+        r.documentDate = Date.newInstance(2026, 11, 3);
+        r.notes = 'First visit';
+        r.includeGst = includeGst;
+        r.lineItems = new List<BillController.LineItemInput>{ line('Engine Oil 1L', 2, 500), line('Washing', 1, 200) };
+        return PaperBillController.saveDocument(r);
+    }
+
+    @isTest
+    static void getDocument_laysOutASavedBill_forThePage() {
+        PaperBillController.SavedDocument saved = saveRameshBill(true);
+
+        Test.startTest();
+        PaperBillController.LoadedDocument doc = PaperBillController.getDocument(saved.recordId);
+        Test.stopTest();
+
+        System.assertEquals('bill', doc.documentType);
+        System.assertEquals(saved.documentNumber, doc.documentNumber);
+        System.assertEquals(true, doc.isLatestVersion);
+        System.assertEquals(WorkshopProfileService.primaryId(), doc.workshopProfileId);
+        System.assertEquals('Ramesh Kumar', doc.customer.name);
+        System.assertEquals('MP09AB1234', doc.vehicle.registrationNumber);
+        System.assertEquals('Tata', doc.vehicle.make);
+        System.assertEquals(null, doc.billToParty);
+        System.assertEquals(Date.newInstance(2026, 11, 3), doc.documentDate);
+        System.assertEquals('First visit', doc.notes);
+        System.assertEquals(true, doc.includeGst);
+        System.assertEquals(2, doc.lines.size());
+        System.assertEquals('Engine Oil 1L', doc.lines[0].description, 'Lines come back in the order they were typed.');
+        System.assertEquals('8708', doc.lines[0].hsnSacCode);
+        System.assertEquals(2, doc.lines[0].quantity);
+        System.assertEquals(500, doc.lines[0].unitPrice);
+        System.assertEquals(18, doc.lines[0].taxRatePercent);
+        System.assertNotEquals(null, doc.lines[0].partId);
+        System.assertEquals('Washing', doc.lines[1].description);
+    }
+
+    @isTest
+    static void getDocument_noGstBill_takesEachRateFromItsPart_soAddGstStillWorks() {
+        PaperBillController.SavedDocument saved = saveRameshBill(false);
+
+        Test.startTest();
+        PaperBillController.LoadedDocument doc = PaperBillController.getDocument(saved.recordId);
+        Test.stopTest();
+
+        System.assertEquals(false, doc.includeGst);
+        System.assertEquals(18, doc.lines[0].taxRatePercent, 'Saved at 0%, but the part remembers 18%.');
+    }
+
+    @isTest
+    static void getDocument_walkInEstimate_withAParty_hasNoCustomer() {
+        PaperBillController.PaperRequest r = request();
+        r.documentType = 'estimate';
+        r.billToParty = new BillController.NewBillToPartyInput();
+        r.billToParty.name = 'Sharma Transport';
+        PaperBillController.SavedDocument saved = PaperBillController.saveDocument(r);
+
+        Test.startTest();
+        PaperBillController.LoadedDocument doc = PaperBillController.getDocument(saved.recordId);
+        Test.stopTest();
+
+        System.assertEquals('estimate', doc.documentType);
+        System.assert(doc.documentNumber.startsWith('EST-'));
+        System.assertEquals(null, doc.customer, 'The shared Walk-in Customer shows as nobody named.');
+        System.assertEquals('Sharma Transport', doc.billToParty.name);
+        System.assertEquals(null, doc.vehicle);
+    }
+
+    @isTest
+    static void savingAnOpenedBill_makesANewVersion_keepsTheOld_andMovesStockOnce() {
+        Part__c oil = new Part__c(Name = 'Engine Oil 1L', Price__c = 500, Tax_Rate_Percent__c = 18, Current_Stock__c = 10);
+        insert oil;
+        PaperBillController.PaperRequest first = request();
+        first.customerName = 'Ramesh Kumar';
+        first.customerPhone = '9000011111';
+        first.lineItems[0].partId = oil.Id;
+        PaperBillController.SavedDocument original = PaperBillController.saveDocument(first);
+        System.assertEquals(8, [SELECT Current_Stock__c FROM Part__c WHERE Id = :oil.Id].Current_Stock__c);
+
+        PaperBillController.LoadedDocument doc = PaperBillController.getDocument(original.recordId);
+        PaperBillController.PaperRequest changed = request();
+        changed.previousVersionId = original.recordId;
+        changed.customerId = doc.customer.id;
+        changed.customerName = doc.customer.name;
+        changed.customerPhone = doc.customer.phone;
+        BillController.LineItemInput oilLine = line('Engine Oil 1L', 3, 500);
+        oilLine.partId = oil.Id;
+        changed.lineItems = new List<BillController.LineItemInput>{ oilLine };
+
+        Test.startTest();
+        PaperBillController.SavedDocument version = PaperBillController.saveDocument(changed);
+        Test.stopTest();
+
+        System.assertNotEquals(original.recordId, version.recordId);
+        System.assertNotEquals(original.documentNumber, version.documentNumber, 'A new version gets its own number (architecture.md C.4).');
+        System.assertEquals(original.documentNumber, version.replacedNumber);
+        Bill__c newBill = [SELECT Previous_Version__c, Version_Number__c, Is_Latest_Version__c, Customer__r.Name FROM Bill__c WHERE Id = :version.recordId];
+        System.assertEquals(original.recordId, newBill.Previous_Version__c);
+        System.assertEquals(2, newBill.Version_Number__c);
+        System.assertEquals(true, newBill.Is_Latest_Version__c);
+        System.assertEquals('Ramesh Kumar', newBill.Customer__r.Name);
+        System.assertEquals(false, [SELECT Is_Latest_Version__c FROM Bill__c WHERE Id = :original.recordId].Is_Latest_Version__c,
+            'The old version is kept, only marked as replaced.');
+        System.assertEquals(7, [SELECT Current_Stock__c FROM Part__c WHERE Id = :oil.Id].Current_Stock__c,
+            'The old 2 go back and the new 3 come off: 10 - 3.');
+    }
+
+    @isTest
+    static void savingAnOldVersion_isRefused_soABillCannotForkIntoTwo() {
+        PaperBillController.SavedDocument original = saveRameshBill(false);
+        PaperBillController.PaperRequest changed = request();
+        changed.previousVersionId = original.recordId;
+        PaperBillController.saveDocument(changed);
+        Integer billsBefore = [SELECT COUNT() FROM Bill__c];
+
+        PaperBillController.PaperRequest again = request();
+        again.previousVersionId = original.recordId;
+        Test.startTest();
+        try {
+            PaperBillController.saveDocument(again);
+            System.assert(false, 'Expected the outdated version to be refused.');
+        } catch (PaperBillController.PaperBillControllerException e) {
+            System.assert(e.getMessage().contains(original.documentNumber), e.getMessage());
+            System.assert(e.getMessage().contains('latest version'), e.getMessage());
+        }
+        Test.stopTest();
+        System.assertEquals(billsBefore, [SELECT COUNT() FROM Bill__c]);
+    }
+
+    @isTest
+    static void anOpenedEstimate_staysAnEstimate_andCarriesThePartyAndCompany() {
+        Workshop_Profile__c decor = new Workshop_Profile__c(Name = 'Speedy Decor', Invoice_Prefix__c = 'SD');
+        insert decor;
+        PaperBillController.PaperRequest first = request();
+        first.documentType = 'estimate';
+        first.workshopProfileId = decor.Id;
+        PaperBillController.SavedDocument original = PaperBillController.saveDocument(first);
+
+        PaperBillController.PaperRequest changed = request();
+        changed.documentType = 'bill';
+        changed.previousVersionId = original.recordId;
+        changed.billToParty = new BillController.NewBillToPartyInput();
+        changed.billToParty.name = 'ICICI Lombard';
+
+        Test.startTest();
+        PaperBillController.SavedDocument version = PaperBillController.saveDocument(changed);
+        Test.stopTest();
+
+        Estimate__c estimate = [
+            SELECT Previous_Version__c, Workshop_Profile__c, Bill_To_Party__r.Name FROM Estimate__c WHERE Id = :version.recordId
+        ];
+        System.assertEquals(original.recordId, estimate.Previous_Version__c, 'The record decides the type, not the request.');
+        System.assertEquals(decor.Id, estimate.Workshop_Profile__c, 'A new version stays with its company.');
+        System.assertEquals('ICICI Lombard', estimate.Bill_To_Party__r.Name);
+        System.assertEquals(0, [SELECT COUNT() FROM Bill__c]);
+    }
+
+    @isTest
+    static void aVehicleClearedFromThePage_isNotOnTheNewVersion() {
+        PaperBillController.SavedDocument original = saveRameshBill(false);
+        PaperBillController.LoadedDocument doc = PaperBillController.getDocument(original.recordId);
+        PaperBillController.PaperRequest changed = request();
+        changed.previousVersionId = original.recordId;
+        changed.customerId = doc.customer.id;
+        changed.customerName = doc.customer.name;
+
+        Test.startTest();
+        PaperBillController.SavedDocument version = PaperBillController.saveDocument(changed);
+        Test.stopTest();
+
+        System.assertEquals(null, [SELECT Vehicle__c FROM Bill__c WHERE Id = :version.recordId].Vehicle__c);
+    }
+
+    @isTest
+    static void aRateThatIsNotAGstRate_isRefused_beforeAnyPartIsMade() {
+        PaperBillController.PaperRequest r = request();
+        r.lineItems[0].taxRatePercent = 81;
+
+        Test.startTest();
+        try {
+            PaperBillController.saveDocument(r);
+            System.assert(false, 'Expected 81% to be refused.');
+        } catch (GstRules.GstRulesException e) {
+            System.assert(e.getMessage().contains('81%'), e.getMessage());
+        }
+        Test.stopTest();
+        System.assertEquals(0, [SELECT COUNT() FROM Part__c], 'No part is made remembering a wrong rate.');
     }
 }

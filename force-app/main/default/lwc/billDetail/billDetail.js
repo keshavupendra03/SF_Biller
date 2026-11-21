@@ -3,6 +3,8 @@ import { NavigationMixin, CurrentPageReference } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import getBillSummary from '@salesforce/apex/BillController.getBillSummary';
+import cancelBill from '@salesforce/apex/BillController.cancelBill';
+import { monthLabel, filedLockText } from 'c/gst';
 // Record Payment feature disabled (2026-10) — uncomment to restore. The
 // Apex side (BillController.recordPayment, Bill__c.Status__c via
 // PaymentTriggerHandler) was deliberately left untouched, so restoring
@@ -30,6 +32,7 @@ export default class BillDetail extends NavigationMixin(LightningElement) {
     isLoading = true;
 
     showPreview = false;
+    isDeleting = false;
     // showRecordPayment = false;
     // paymentAmount = 0;
     // paymentMethod = 'Cash';
@@ -79,6 +82,44 @@ export default class BillDetail extends NavigationMixin(LightningElement) {
     //     return STATUS_BADGE_CLASS[this.summary?.status] || 'slds-badge';
     // }
 
+    // A deleted bill, or one in a month whose GST is filed, is only looked at.
+    get canChange() {
+        return this.hasSummary && !this.summary.isCancelled && !this.summary.isGstFiled && this.summary.isLatestVersion !== false;
+    }
+
+    get editDisabled() {
+        return this.isLoading || !this.canChange;
+    }
+
+    get cancelledText() {
+        return `Deleted on ${this.summary.cancelledOn}. Its number stays in your GST records as cancelled.`;
+    }
+
+    get filedText() {
+        return this.summary.gstFiledUpTo ? filedLockText(this.summary.gstFiledUpTo) : '';
+    }
+
+    get deleteMessage() {
+        return `Delete ${this.summary.invoiceNumber}? For GST its number is kept and shown as cancelled, and its parts go back to stock. This can't be undone.`;
+    }
+
+    get filedMonth() {
+        return this.summary.gstFiledUpTo ? monthLabel(this.summary.gstFiledUpTo) : '';
+    }
+
+    handleDelete() {
+        this.isDeleting = true;
+        cancelBill({ billId: this.billId })
+            .then((summary) => {
+                this.summary = summary;
+                this.showToast(`${summary.invoiceNumber} deleted`, 'Its number stays in your GST records as cancelled.', 'success');
+            })
+            .catch((error) => this.showError(error))
+            .finally(() => {
+                this.isDeleting = false;
+            });
+    }
+
     get billToLabel() {
         return this.summary?.billToPartyName || this.summary?.customerName;
     }
@@ -91,8 +132,31 @@ export default class BillDetail extends NavigationMixin(LightningElement) {
         return (this.summary?.lineItems || []).map((li, index) => ({
             ...li,
             key: index,
-            gstLabel: li.gstType === 'IGST' ? 'IGST' : 'CGST+SGST'
+            gstLabel: li.gstType === 'IGST' ? 'IGST' : 'CGST+SGST',
+            discountText: Number(li.discount) > 0 ? `, ₹${Number(li.discount).toFixed(2)} off` : ''
         }));
+    }
+
+    get hasRoundOff() {
+        return this.hasSummary && (Number(this.summary.roundOff) || 0) !== 0;
+    }
+
+    get formattedRoundOff() {
+        const value = Number(this.summary.roundOff) || 0;
+        return `${value > 0 ? '+' : '-'}${Math.abs(value).toFixed(2)}`;
+    }
+
+    // One of an insurance claim's two bills (G6): the insurer's has the party.
+    get pairedLabel() {
+        return this.summary.billToPartyId ? 'Insurance claim. The customer\'s share is on' : 'Insurance claim. The insurance company\'s share is on';
+    }
+
+    handleOpenPaired() {
+        this[NavigationMixin.Navigate]({
+            type: 'standard__navItemPage',
+            attributes: { apiName: 'Bill_Detail' },
+            state: { c__recordId: this.summary.pairedBillId, c__fromCustomerId: this.fromCustomerId }
+        });
     }
 
     get hasIgstLines() {

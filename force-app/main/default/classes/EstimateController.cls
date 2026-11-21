@@ -51,30 +51,37 @@ public with sharing class EstimateController {
         @AuraEnabled public Decimal sgst { get; set; }
         @AuraEnabled public Decimal igst { get; set; }
         @AuraEnabled public Decimal totalAmount { get; set; }
+        @AuraEnabled public Decimal roundOff { get; set; }
         @AuraEnabled public List<BillController.LineItemInput> lineItems { get; set; }
     }
 
     @AuraEnabled
     public static EstimateSummary createEstimate(CreateEstimateRequest request) {
-        validate(request);
-        PartUpsertService.fillManualPartIds(request.lineItems);
-        Id billToPartyId = resolveBillToPartyId(request.billToPartyId, request.newBillToParty);
-        Id vehicleId = resolveVehicleId(request.customerId, request.vehicleId, request.newVehicle);
+        // A save error (a bad GSTIN, a future date) is shown in its own words.
+        try {
+            validate(request);
+            PartUpsertService.fillManualPartIds(request.lineItems);
+            BillController.prepareLines(request.workshopProfileId, request.lineItems);
+            Id billToPartyId = resolveBillToPartyId(request.billToPartyId, request.newBillToParty);
+            Id vehicleId = resolveVehicleId(request.customerId, request.vehicleId, request.newVehicle);
 
-        Estimate__c estimate = new Estimate__c(
-            Workshop_Profile__c = request.workshopProfileId != null ? request.workshopProfileId : WorkshopProfileService.primaryId(),
-            Customer__c = request.customerId,
-            Job__c = request.jobId,
-            Bill_To_Party__c = billToPartyId,
-            Vehicle__c = vehicleId,
-            Notes__c = request.notes,
-            Estimate_Date__c = request.estimateDate != null ? request.estimateDate : Date.today()
-        );
-        insert estimate;
+            Estimate__c estimate = new Estimate__c(
+                Workshop_Profile__c = request.workshopProfileId != null ? request.workshopProfileId : WorkshopProfileService.primaryId(),
+                Customer__c = request.customerId,
+                Job__c = request.jobId,
+                Bill_To_Party__c = billToPartyId,
+                Vehicle__c = vehicleId,
+                Notes__c = request.notes,
+                Estimate_Date__c = request.estimateDate != null ? request.estimateDate : Date.today()
+            );
+            insert estimate;
 
-        insertLineItems(estimate.Id, request.lineItems);
+            insertLineItems(estimate.Id, request.lineItems);
 
-        return buildSummary(estimate.Id);
+            return buildSummary(estimate.Id);
+        } catch (DmlException e) {
+            throw ReadableErrors.of(e);
+        }
     }
 
     /**
@@ -86,39 +93,65 @@ public with sharing class EstimateController {
      */
     @AuraEnabled
     public static EstimateSummary createNewVersion(Id previousEstimateId, CreateEstimateRequest request) {
-        validate(request);
-        PartUpsertService.fillManualPartIds(request.lineItems);
+        // A save error (a bad GSTIN, a future date) is shown in its own words.
+        try {
+            validate(request);
+            PartUpsertService.fillManualPartIds(request.lineItems);
 
-        Estimate__c previous = [
-            SELECT Version_Number__c, Root_Estimate__c, Job__c, Vehicle__c, Workshop_Profile__c FROM Estimate__c WHERE Id = :previousEstimateId
-        ];
-        Id rootId = previous.Root_Estimate__c != null ? previous.Root_Estimate__c : previousEstimateId;
+            Estimate__c previous = [
+                SELECT Version_Number__c, Root_Estimate__c, Job__c, Vehicle__c, Workshop_Profile__c FROM Estimate__c WHERE Id = :previousEstimateId
+            ];
+            BillController.prepareLines(previous.Workshop_Profile__c, request.lineItems);
+            Id rootId = previous.Root_Estimate__c != null ? previous.Root_Estimate__c : previousEstimateId;
 
-        Id billToPartyId = resolveBillToPartyId(request.billToPartyId, request.newBillToParty);
-        Id vehicleId = request.vehicleId != null || request.newVehicle != null
-            ? resolveVehicleId(request.customerId, request.vehicleId, request.newVehicle)
-            : previous.Vehicle__c;
+            Id billToPartyId = resolveBillToPartyId(request.billToPartyId, request.newBillToParty);
+            Id vehicleId = request.vehicleId != null || request.newVehicle != null
+                ? resolveVehicleId(request.customerId, request.vehicleId, request.newVehicle)
+                : previous.Vehicle__c;
 
-        // A later version stays with its company, whatever the request says.
-        Estimate__c newVersion = new Estimate__c(
-            Workshop_Profile__c = previous.Workshop_Profile__c,
-            Customer__c = request.customerId,
-            Job__c = request.jobId != null ? request.jobId : previous.Job__c,
-            Bill_To_Party__c = billToPartyId,
-            Vehicle__c = vehicleId,
-            Notes__c = request.notes,
-            Estimate_Date__c = request.estimateDate != null ? request.estimateDate : Date.today(),
-            Previous_Version__c = previousEstimateId,
-            Root_Estimate__c = rootId,
-            Version_Number__c = (previous.Version_Number__c == null ? 1 : previous.Version_Number__c) + 1
-        );
-        insert newVersion;
+            // A later version stays with its company, whatever the request says.
+            Estimate__c newVersion = new Estimate__c(
+                Workshop_Profile__c = previous.Workshop_Profile__c,
+                Customer__c = request.customerId,
+                Job__c = request.jobId != null ? request.jobId : previous.Job__c,
+                Bill_To_Party__c = billToPartyId,
+                Vehicle__c = vehicleId,
+                Notes__c = request.notes,
+                Estimate_Date__c = request.estimateDate != null ? request.estimateDate : Date.today(),
+                Previous_Version__c = previousEstimateId,
+                Root_Estimate__c = rootId,
+                Version_Number__c = (previous.Version_Number__c == null ? 1 : previous.Version_Number__c) + 1
+            );
+            insert newVersion;
 
-        insertLineItems(newVersion.Id, request.lineItems);
+            insertLineItems(newVersion.Id, request.lineItems);
 
-        update new Estimate__c(Id = previousEstimateId, Is_Latest_Version__c = false);
+            update new Estimate__c(Id = previousEstimateId, Is_Latest_Version__c = false);
 
-        return buildSummary(newVersion.Id);
+            return buildSummary(newVersion.Id);
+        } catch (DmlException e) {
+            throw ReadableErrors.of(e);
+        }
+    }
+
+    /**
+     * Deletes an estimate with all its versions and lines (architecture.md
+     * §D.1, G2). An estimate isn't a GST document, so unlike a bill nothing of
+     * it needs keeping. A bill made from it keeps its own copy of everything
+     * and only loses the link.
+     */
+    @AuraEnabled
+    public static void deleteEstimate(Id estimateId) {
+        Estimate__c estimate = [SELECT Root_Estimate__c FROM Estimate__c WHERE Id = :estimateId];
+        Id rootId = estimate.Root_Estimate__c != null ? estimate.Root_Estimate__c : estimateId;
+        List<Estimate__c> versions = [SELECT Id FROM Estimate__c WHERE Id = :rootId OR Root_Estimate__c = :rootId];
+        try {
+            // Lines first: their link to the estimate doesn't allow deleting it under them.
+            delete [SELECT Id FROM Estimate_Line_Item__c WHERE Estimate__c IN :versions];
+            delete versions;
+        } catch (DmlException e) {
+            throw ReadableErrors.of(e);
+        }
     }
 
     @AuraEnabled
@@ -142,10 +175,61 @@ public with sharing class EstimateController {
         return summaries;
     }
 
+    public class EstimateListItem {
+        @AuraEnabled public Id id { get; set; }
+        @AuraEnabled public String estimateNumber { get; set; }
+        @AuraEnabled public String customerName { get; set; }
+        @AuraEnabled public String billToPartyName { get; set; }
+        @AuraEnabled public String companyName { get; set; }
+        @AuraEnabled public Decimal totalAmount { get; set; }
+        @AuraEnabled public String status { get; set; }
+        @AuraEnabled public Date estimateDate { get; set; }
+    }
+
+    /**
+     * The Billing screen's Estimates list, the same shape as
+     * BillController.listBills: latest versions only, newest first, optionally
+     * searched by number, customer name or phone, or party name, and filtered
+     * to one company.
+     */
+    @AuraEnabled
+    public static List<EstimateListItem> listEstimates(String searchTerm, Id workshopProfileId) {
+        String term = '%' + String.escapeSingleQuotes(String.isBlank(searchTerm) ? '' : searchTerm) + '%';
+        String soql = 'SELECT Name, Customer__r.Name, Bill_To_Party__r.Name, Total_Amount__c, Status__c, Estimate_Date__c, Workshop_Profile__c'
+            + ' FROM Estimate__c WHERE Is_Latest_Version__c = true';
+        if (String.isNotBlank(searchTerm)) {
+            soql += ' AND (Name LIKE :term OR Customer__r.Name LIKE :term OR Customer__r.Phone__c LIKE :term'
+                + ' OR Bill_To_Party__r.Name LIKE :term)';
+        }
+        if (workshopProfileId != null) {
+            // An estimate with no company recorded belongs to the primary company.
+            Id orNoCompany = workshopProfileId == WorkshopProfileService.primaryId() ? null : workshopProfileId;
+            soql += ' AND (Workshop_Profile__c = :workshopProfileId OR Workshop_Profile__c = :orNoCompany)';
+        }
+        List<Estimate__c> estimates = Database.query(soql + ' ORDER BY CreatedDate DESC LIMIT 200');
+        Map<Id, String> companyNames = WorkshopProfileService.companyNames();
+
+        List<EstimateListItem> results = new List<EstimateListItem>();
+        for (Estimate__c e : estimates) {
+            EstimateListItem item = new EstimateListItem();
+            item.id = e.Id;
+            item.estimateNumber = e.Name;
+            item.customerName = e.Customer__r != null ? e.Customer__r.Name : null;
+            item.billToPartyName = e.Bill_To_Party__r != null ? e.Bill_To_Party__r.Name : null;
+            item.companyName = companyNames.get(e.Workshop_Profile__c);
+            item.totalAmount = e.Total_Amount__c;
+            item.status = e.Status__c;
+            item.estimateDate = e.Estimate_Date__c;
+            results.add(item);
+        }
+        return results;
+    }
+
     private static void validate(CreateEstimateRequest request) {
         if (request == null || request.customerId == null) {
             throw new EstimateControllerException('A customer is required.');
         }
+        GstRules.requireGstRates(request.lineItems);
         if (request.lineItems == null || request.lineItems.isEmpty()) {
             throw new EstimateControllerException('An estimate needs at least one line item.');
         }
@@ -233,7 +317,8 @@ public with sharing class EstimateController {
                 Tax_Rate_Percent__c = li.taxRatePercent == null ? 0 : li.taxRatePercent,
                 Gst_Type__c = String.isBlank(li.gstType) ? 'CGST_SGST' : li.gstType,
                 HSN_SAC_Code__c = li.hsnSacCode,
-                Unit__c = li.unitLabel
+                Unit__c = li.unitLabel,
+                Discount__c = li.discount == null ? 0 : li.discount
             ));
         }
         insert items;
@@ -245,7 +330,7 @@ public with sharing class EstimateController {
                    Customer__c, Customer__r.Name, Bill_To_Party__c, Bill_To_Party__r.Name,
                    Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c,
                    Vehicle__r.Chassis_Number__c, Notes__c,
-                   Subtotal__c, Total_Amount__c, Workshop_Profile__c
+                   Subtotal__c, Total_Amount__c, Workshop_Profile__c, Round_Off__c
             FROM Estimate__c
             WHERE Id = :estimateId
         ];
@@ -253,14 +338,12 @@ public with sharing class EstimateController {
         List<BillController.LineItemInput> lineItemInputs = new List<BillController.LineItemInput>();
         List<GstCalculatorService.GstLineItemInput> gstInputs = new List<GstCalculatorService.GstLineItemInput>();
         for (Estimate_Line_Item__c item : [
-            SELECT Part__c, Description__c, Quantity__c, Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c, HSN_SAC_Code__c, Unit__c
+            SELECT Part__c, Description__c, Quantity__c, Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c, HSN_SAC_Code__c, Unit__c, Discount__c
             FROM Estimate_Line_Item__c
             WHERE Estimate__c = :estimateId
+            ORDER BY CreatedDate, Id
         ]) {
-            gstInputs.add(new GstCalculatorService.GstLineItemInput(
-                item.Description__c, item.Quantity__c, item.Unit_Price__c, item.Tax_Rate_Percent__c,
-                GstCalculatorService.supplyTypeFromGstType(item.Gst_Type__c)
-            ));
+            gstInputs.add(GstCalculatorService.inputFor(item));
             BillController.LineItemInput li = new BillController.LineItemInput();
             li.partId = item.Part__c;
             li.description = item.Description__c;
@@ -270,6 +353,7 @@ public with sharing class EstimateController {
             li.gstType = item.Gst_Type__c;
             li.hsnSacCode = item.HSN_SAC_Code__c;
             li.unitLabel = item.Unit__c;
+            li.discount = item.Discount__c;
             lineItemInputs.add(li);
         }
         GstCalculatorService.GstBillResult breakdown = GstCalculatorService.calculateBill(gstInputs);
@@ -297,6 +381,7 @@ public with sharing class EstimateController {
         summary.sgst = breakdown.sgst;
         summary.igst = breakdown.igst;
         summary.totalAmount = estimate.Total_Amount__c;
+        summary.roundOff = estimate.Round_Off__c == null ? 0 : estimate.Round_Off__c;
         summary.lineItems = lineItemInputs;
         return summary;
     }

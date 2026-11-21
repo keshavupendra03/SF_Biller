@@ -2,11 +2,13 @@ import { createElement } from 'lwc';
 import { CurrentPageReference } from 'lightning/navigation';
 import BillDetail from 'c/billDetail';
 import getBillSummary from '@salesforce/apex/BillController.getBillSummary';
+import cancelBill from '@salesforce/apex/BillController.cancelBill';
 // Record Payment feature disabled (2026-10) — uncomment alongside billDetail.js/.html to restore.
 // import recordPayment from '@salesforce/apex/BillController.recordPayment';
 
 jest.mock('@salesforce/apex/BillController.getBillSummary', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/BillController.recordPayment', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/BillController.cancelBill', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPublicLink', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPdfDownload', () => ({ default: jest.fn() }), { virtual: true });
 
@@ -214,5 +216,90 @@ describe('c-bill-detail', () => {
             attributes: { apiName: 'New_Bill' },
             state: { c__recordId: 'a01xx0000000001', c__fromCustomerId: 'cust1' }
         });
+    });
+
+    describe('deleting', () => {
+        function confirmDelete(element) {
+            const confirm = element.shadowRoot.querySelector('c-delete-confirm');
+            confirm.dispatchEvent(new CustomEvent('confirm'));
+        }
+
+        it('Delete Bill asks, then cancels the bill and shows it as deleted', async () => {
+            getBillSummary.mockResolvedValue(SUMMARY);
+            cancelBill.mockResolvedValue({ ...SUMMARY, isCancelled: true, cancelledOn: '2026-11-21' });
+            const element = createDetail('a01xx0000000001');
+            await flushPromises();
+            const confirm = element.shadowRoot.querySelector('c-delete-confirm');
+            expect(confirm.buttonLabel).toBe('Delete Bill');
+            expect(confirm.message).toContain('number is kept and shown as cancelled');
+
+            confirmDelete(element);
+            await flushPromises();
+
+            expect(cancelBill).toHaveBeenCalledWith({ billId: 'a01xx0000000001' });
+            expect(element.shadowRoot.querySelector('[data-id="cancelled-note"]').textContent).toContain('Deleted on 2026-11-21');
+            expect(element.shadowRoot.querySelector('c-delete-confirm')).toBeNull();
+            expect(element.shadowRoot.querySelector('[data-id="edit"]').disabled).toBe(true);
+        });
+
+        it('a bill in a month whose GST is filed says so, and can\'t be changed or deleted', async () => {
+            getBillSummary.mockResolvedValue({ ...SUMMARY, isGstFiled: true, gstFiledUpTo: '2026-10-31' });
+            const element = createDetail('a01xx0000000001');
+            await flushPromises();
+
+            expect(element.shadowRoot.querySelector('[data-id="filed-note"]').textContent).toContain('filed up to October 2026');
+            expect(element.shadowRoot.querySelector('c-delete-confirm')).toBeNull();
+            expect(element.shadowRoot.querySelector('[data-id="edit"]').disabled).toBe(true);
+        });
+
+        it('a refused delete shows why, and leaves the bill as it was', async () => {
+            getBillSummary.mockResolvedValue(SUMMARY);
+            cancelBill.mockRejectedValue({ body: { message: 'GST returns are filed up to October 2026' } });
+            const element = createDetail('a01xx0000000001');
+            const toasts = [];
+            element.addEventListener('lightning__showtoast', (event) => toasts.push(event.detail));
+            await flushPromises();
+
+            confirmDelete(element);
+            await flushPromises();
+
+            expect(toasts[0].message).toContain('filed up to October 2026');
+            expect(element.shadowRoot.querySelector('[data-id="cancelled-note"]')).toBeNull();
+        });
+    });
+
+    it('shows a line\'s discount, the round-off, and links an insurance claim\'s other bill (G5/G6)', async () => {
+        getBillSummary.mockResolvedValue({
+            ...SUMMARY,
+            billToPartyId: 'party1',
+            billToPartyName: 'ICICI Lombard',
+            roundOff: -0.3,
+            totalAmount: 12136,
+            pairedBillId: 'a01xx0000000002',
+            pairedInvoiceNumber: 'INV/2026-27/0003',
+            lineItems: [{ ...SUMMARY.lineItems[0], discount: 250 }]
+        });
+        const element = createDetail('a01xx0000000001');
+        await flushPromises();
+
+        expect(element.shadowRoot.textContent).toContain('(18% tax), ₹250.00 off');
+        expect(element.shadowRoot.querySelector('[data-id="round-off"]').textContent).toBe('₹-0.30');
+        expect(element.shadowRoot.querySelector('[data-id="paired-note"]').textContent).toContain('customer\'s share');
+
+        element.shadowRoot.querySelector('[data-id="open-paired"]').click();
+        expect(mockNavigate).toHaveBeenCalledWith(expect.objectContaining({
+            attributes: { apiName: 'Bill_Detail' },
+            state: expect.objectContaining({ c__recordId: 'a01xx0000000002' })
+        }));
+    });
+
+    it('a bill with no round-off or pair shows neither', async () => {
+        getBillSummary.mockResolvedValue({ ...SUMMARY, roundOff: 0 });
+        const element = createDetail('a01xx0000000001');
+        await flushPromises();
+
+        expect(element.shadowRoot.querySelector('[data-id="round-off"]')).toBeNull();
+        expect(element.shadowRoot.querySelector('[data-id="paired-note"]')).toBeNull();
+        expect(element.shadowRoot.textContent).not.toContain(' off');
     });
 });

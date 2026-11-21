@@ -1,0 +1,226 @@
+<template>
+    <div class="slds-p-around_medium page-container">
+        <h1 class="slds-text-heading_medium slds-m-bottom_small">GST Returns</h1>
+
+        <c-company-picker value={companyId} oncompanychange={handleCompanyChange}></c-company-picker>
+        <lightning-combobox
+            data-id="period"
+            label="Return period"
+            options={periodOptions}
+            value={periodValue}
+            onchange={handlePeriodChange}
+            class="gr-period slds-m-bottom_medium"
+        ></lightning-combobox>
+
+        <template lwc:if={showDueCard}>
+            <lightning-card title="Returns to file" icon-name="standard:event" class="gr-card" data-id="due-card">
+                <div class="slds-p-horizontal_medium">
+                    <template lwc:if={hasDueDates}>
+                        <ul class="slds-has-dividers_bottom-space">
+                            <template for:each={dueDates} for:item="due">
+                                <li key={due.key} class="slds-item gr-due" data-id="due">
+                                    <span class={due.badgeClass}>{due.badgeLabel}</span>
+                                    <span class="gr-due-text">{due.text}</span>
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+                    <template lwc:else>
+                        <p data-id="nothing-due">{nothingDueText}</p>
+                    </template>
+                    <p class="slds-text-body_small slds-text-color_weak slds-m-top_x-small">{dueNote} Mark a period as filed below once its returns are filed.</p>
+                </div>
+            </lightning-card>
+        </template>
+
+        <template lwc:if={isLoading}>
+            <lightning-spinner alternative-text="Working out the return" size="small"></lightning-spinner>
+        </template>
+
+        <template lwc:if={hasReturn}>
+            <div class="gr-status slds-m-bottom_medium" data-id="status">
+                <span class={statusClass}>{statusLabel}</span>
+                <span class="slds-text-body_small">{periodText} · {summaryText}</span>
+                <p class="slds-text-body_small slds-text-color_weak gr-status-text">{statusText}</p>
+            </div>
+
+            <template lwc:if={isUnregistered}>
+                <div class="slds-box slds-theme_shade" data-id="unregistered">
+                    <p>This company is set as not registered for GST, so it has no GST returns. Change it on the Workshop Profile if it registers.</p>
+                </div>
+            </template>
+
+            <template lwc:if={isComposition}>
+                <lightning-card title="Composition: CMP-08" icon-name="standard:report" class="gr-card">
+                    <div class="slds-p-horizontal_medium">
+                        <p class="gr-big" data-id="composition-turnover">Rs. {compositionTurnover}</p>
+                        <p class="slds-text-body_small slds-text-color_weak">Turnover for the period. A composition company files CMP-08 on this, at its composition rate; there's no GSTR-1.</p>
+                    </div>
+                </lightning-card>
+            </template>
+
+            <template lwc:if={isRegular}>
+                <!-- The checkup comes first: put things right before filing. -->
+                <lightning-card title="GST checkup" icon-name="standard:task2" class="gr-card">
+                    <div class="slds-p-horizontal_medium">
+                        <p class={checkupClass} data-id="checkup-title">{checkupTitle}</p>
+                        <template lwc:if={hasIssues}>
+                            <ul class="gr-issues" data-id="issues">
+                                <template for:each={issues} for:item="issue">
+                                    <li key={issue.key} class={issue.rowClass} data-id="issue">
+                                        <lightning-icon icon-name={issue.icon} variant={issue.iconVariant} size="x-small" class="gr-issue-icon"></lightning-icon>
+                                        <span class="gr-issue-body">
+                                            <template lwc:if={issue.billId}>
+                                                <button type="button" class="slds-button slds-text-link gr-bill-link" data-id="issue-bill" data-bill-id={issue.billId} onclick={handleOpenBill}>{issue.documentNumber}</button>
+                                            </template>
+                                            {issue.message}
+                                        </span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                    </div>
+                </lightning-card>
+
+                <lightning-card title="GSTR-1" icon-name="standard:report" class="gr-card">
+                    <div class="slds-p-horizontal_medium">
+                        <div class="gr-tiles">
+                            <template for:each={tiles} for:item="tile">
+                                <div key={tile.key} class="gr-tile" data-id="tile" data-tile={tile.key}>
+                                    <p class="gr-tile-label">{tile.label}</p>
+                                    <p class="gr-tile-count">{tile.count}</p>
+                                    <p class="slds-text-body_small">{tile.taxableText}</p>
+                                    <p class="slds-text-body_small">{tile.taxText}</p>
+                                </div>
+                            </template>
+                        </div>
+
+                        <lightning-accordion allow-multiple-sections-open class="gr-details">
+                            <lightning-accordion-section name="b2b" label="B2B invoices">
+                                <div class="gr-scroll">
+                                    <table class="slds-table slds-table_bordered slds-table_cell-buffer gr-table" data-id="b2b-table">
+                                        <thead><tr><th>Invoice</th><th>Date</th><th>GSTIN</th><th>Buyer</th><th>Place of supply</th><th class="gr-num">Rate</th><th class="gr-num">Taxable</th><th class="gr-num">Tax</th><th class="gr-num">Invoice value</th></tr></thead>
+                                        <tbody>
+                                            <template for:each={b2bRows} for:item="row">
+                                                <tr key={row.key}>
+                                                    <td><button type="button" class="slds-button slds-text-link" data-bill-id={row.billId} onclick={handleOpenBill}>{row.invoiceNumber}</button></td>
+                                                    <td>{row.date}</td><td>{row.gstin}</td><td>{row.receiverName}</td><td>{row.placeOfSupply}</td>
+                                                    <td class="gr-num">{row.rate}%</td><td class="gr-num">{row.taxable}</td><td class="gr-num">{row.tax}</td><td class="gr-num">{row.value}</td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </lightning-accordion-section>
+                            <lightning-accordion-section name="b2cl" label="B2C Large invoices">
+                                <div class="gr-scroll">
+                                    <table class="slds-table slds-table_bordered slds-table_cell-buffer gr-table" data-id="b2cl-table">
+                                        <thead><tr><th>Invoice</th><th>Date</th><th>Place of supply</th><th class="gr-num">Rate</th><th class="gr-num">Taxable</th><th class="gr-num">Tax</th><th class="gr-num">Invoice value</th></tr></thead>
+                                        <tbody>
+                                            <template for:each={b2clRows} for:item="row">
+                                                <tr key={row.key}>
+                                                    <td><button type="button" class="slds-button slds-text-link" data-bill-id={row.billId} onclick={handleOpenBill}>{row.invoiceNumber}</button></td>
+                                                    <td>{row.date}</td><td>{row.placeOfSupply}</td>
+                                                    <td class="gr-num">{row.rate}%</td><td class="gr-num">{row.taxable}</td><td class="gr-num">{row.tax}</td><td class="gr-num">{row.value}</td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </lightning-accordion-section>
+                            <lightning-accordion-section name="b2cs" label="B2C Small, by state and rate">
+                                <div class="gr-scroll">
+                                    <table class="slds-table slds-table_bordered slds-table_cell-buffer gr-table" data-id="b2cs-table">
+                                        <thead><tr><th>Place of supply</th><th class="gr-num">Rate</th><th class="gr-num">Taxable</th><th class="gr-num">Tax</th></tr></thead>
+                                        <tbody>
+                                            <template for:each={b2csRows} for:item="row">
+                                                <tr key={row.key}><td>{row.placeOfSupply}</td><td class="gr-num">{row.rate}%</td><td class="gr-num">{row.taxable}</td><td class="gr-num">{row.tax}</td></tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </lightning-accordion-section>
+                            <lightning-accordion-section name="nil" label="Nil rated">
+                                <div class="gr-scroll">
+                                    <table class="slds-table slds-table_bordered slds-table_cell-buffer gr-table" data-id="nil-table">
+                                        <tbody>
+                                            <template for:each={nilRows} for:item="row">
+                                                <tr key={row.key}><td>{row.description}</td><td class="gr-num">{row.value}</td></tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </lightning-accordion-section>
+                            <lightning-accordion-section name="hsn" label="HSN summary">
+                                <div class="gr-scroll">
+                                    <table class="slds-table slds-table_bordered slds-table_cell-buffer gr-table" data-id="hsn-table">
+                                        <thead><tr><th>For</th><th>HSN/SAC</th><th>Description</th><th>Unit</th><th class="gr-num">Qty</th><th class="gr-num">Rate</th><th class="gr-num">Taxable</th><th class="gr-num">Tax</th><th class="gr-num">Total</th></tr></thead>
+                                        <tbody>
+                                            <template for:each={hsnRows} for:item="row">
+                                                <tr key={row.key}>
+                                                    <td>{row.kind}</td><td>{row.hsnText}</td><td>{row.description}</td><td>{row.uqc}</td><td class="gr-num">{row.quantity}</td>
+                                                    <td class="gr-num">{row.rate}%</td><td class="gr-num">{row.taxable}</td><td class="gr-num">{row.tax}</td><td class="gr-num">{row.total}</td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </lightning-accordion-section>
+                            <lightning-accordion-section name="docs" label="Documents issued">
+                                <div class="gr-scroll">
+                                    <table class="slds-table slds-table_bordered slds-table_cell-buffer gr-table" data-id="docs-table">
+                                        <thead><tr><th>From</th><th>To</th><th class="gr-num">Total</th><th class="gr-num">Cancelled</th><th class="gr-num">Issued</th></tr></thead>
+                                        <tbody>
+                                            <template for:each={documentRows} for:item="row">
+                                                <tr key={row.key}><td>{row.fromNumber}</td><td>{row.toNumber}</td><td class="gr-num">{row.totalNumber}</td><td class="gr-num">{row.cancelled}</td><td class="gr-num">{row.netIssued}</td></tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </lightning-accordion-section>
+                        </lightning-accordion>
+                    </div>
+                </lightning-card>
+
+                <lightning-card title="GSTR-3B (sales)" icon-name="standard:report" class="gr-card">
+                    <div class="slds-p-horizontal_medium gr-scroll">
+                        <table class="slds-table slds-table_bordered slds-table_cell-buffer gr-table" data-id="gstr3b-table">
+                            <thead><tr><th></th><th class="gr-num">Taxable value</th><th class="gr-num">IGST</th><th class="gr-num">CGST</th><th class="gr-num">SGST</th></tr></thead>
+                            <tbody>
+                                <template for:each={gstr3bRows} for:item="row">
+                                    <tr key={row.key}><td>{row.label}</td><td class="gr-num">{row.taxable}</td><td class="gr-num">{row.igst}</td><td class="gr-num">{row.cgst}</td><td class="gr-num">{row.sgst}</td></tr>
+                                </template>
+                            </tbody>
+                        </table>
+                        <p class="slds-text-body_small slds-text-color_weak slds-m-top_x-small">Sales only. Input tax credit from purchases isn't in this app yet: your CA adds it.</p>
+                    </div>
+                </lightning-card>
+            </template>
+
+            <div class="gr-actions">
+                <template lwc:if={isRegular}>
+                    <lightning-button data-id="download" variant="brand" icon-name="utility:download" label={downloadLabel} disabled={isDownloading} onclick={handleDownload}></lightning-button>
+                </template>
+                <template lwc:if={showMarkFiled}>
+                    <template lwc:if={confirmFiled}>
+                        <div class="gr-confirm" data-id="confirm-filed">
+                            <p>{confirmFiledText}</p>
+                            <div class="gr-confirm-actions">
+                                <lightning-button data-id="confirm-filed-yes" variant="brand" label="Yes, mark as filed" disabled={isSavingFiled} onclick={handleConfirmFiled}></lightning-button>
+                                <lightning-button data-id="confirm-filed-no" label="Not yet" onclick={handleCancelFiled}></lightning-button>
+                            </div>
+                        </div>
+                    </template>
+                    <template lwc:else>
+                        <lightning-button data-id="mark-filed" icon-name="utility:lock" label="Mark as filed" disabled={markFiledDisabled} onclick={handleAskFiled}></lightning-button>
+                        <span class="slds-text-body_small slds-text-color_weak" data-id="mark-filed-hint">{markFiledHint}</span>
+                    </template>
+                </template>
+                <template lwc:if={ret.isFiled}>
+                    <lightning-button data-id="unmark-filed" variant="base" label="Not really filed? Unlock this period" disabled={isSavingFiled} onclick={handleUnmarkFiled}></lightning-button>
+                </template>
+            </div>
+            <a lwc:ref="downloadLink" class="slds-hide" aria-hidden="true">download</a>
+        </template>
+    </div>
+</template>

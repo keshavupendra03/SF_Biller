@@ -1,13 +1,25 @@
 .bill-row {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 0.5rem;
     width: 100%;
-    padding: 0.75rem 0.5rem;
-    min-height: 44px;
+    padding: 0.25rem 0.5rem 0.25rem 0;
     border-radius: 0.25rem;
     background-color: #f3f3f3;
     margin-bottom: 0.5rem;
+}
+
+/* The row itself opens the details; the Easy Bill button sits beside it. */
+.bill-row-main {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    min-height: 44px;
+    text-align: left;
 }
 
 .bill-row-body,
@@ -17,6 +29,15 @@
     gap: 0.25rem;
 }
 
+.bill-row-body {
+    min-width: 0;
+}
+
 .bill-row-amount {
     align-items: flex-end;
+    white-space: nowrap;
+}
+
+.bill-row-easy {
+    flex: 0 0 auto;
 }

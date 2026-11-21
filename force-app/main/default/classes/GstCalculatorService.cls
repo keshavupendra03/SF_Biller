@@ -30,6 +30,8 @@ public with sharing class GstCalculatorService {
         public Decimal unitPrice;
         public Decimal taxRatePercent;
         public SupplyType supply;
+        // Rupees off the line before GST: taxable value is quantity x price - discount.
+        public Decimal discount = 0;
 
         public GstLineItemInput(
             String description,
@@ -97,8 +99,32 @@ public with sharing class GstCalculatorService {
         return 'IGST'.equalsIgnoreCase(gstType) ? SupplyType.INTER_STATE : SupplyType.INTRA_STATE;
     }
 
+    /**
+     * A saved Bill_Line_Item__c or Estimate_Line_Item__c (same field names) as
+     * calculator input, discount included, so every screen, PDF and report
+     * works a line out the same way.
+     */
+    public static GstLineItemInput inputFor(SObject line) {
+        Decimal rate = (Decimal) line.get('Tax_Rate_Percent__c');
+        Decimal discount = (Decimal) line.get('Discount__c');
+        GstLineItemInput input = new GstLineItemInput(
+            (String) line.get('Description__c'),
+            (Decimal) line.get('Quantity__c'),
+            (Decimal) line.get('Unit_Price__c'),
+            rate == null ? 0 : rate,
+            supplyTypeFromGstType((String) line.get('Gst_Type__c'))
+        );
+        input.discount = discount == null ? 0 : discount;
+        return input;
+    }
+
+    /** What takes a total to whole rupees: 1390.40 gives -0.40, 1390.50 gives 0.50. */
+    public static Decimal roundOff(Decimal total) {
+        return total.setScale(0, System.RoundingMode.HALF_UP) - total;
+    }
+
     public static GstLineResult calculateLine(GstLineItemInput input) {
-        Decimal subtotal = input.quantity * input.unitPrice;
+        Decimal subtotal = input.quantity * input.unitPrice - (input.discount == null ? 0 : input.discount);
         Decimal gst = subtotal * input.taxRatePercent / 100;
 
         GstLineResult result = new GstLineResult();

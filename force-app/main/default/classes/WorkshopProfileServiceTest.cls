@@ -2,9 +2,9 @@
 private class WorkshopProfileServiceTest {
 
     private static Workshop_Profile__c insertTwoCompanies() {
-        Workshop_Profile__c first = new Workshop_Profile__c(Name = 'Speedy Motors', GSTIN__c = '23AAAAA0000A1Z5');
+        Workshop_Profile__c first = new Workshop_Profile__c(Name = 'Speedy Motors', GSTIN__c = '23AAAAA0000A1ZA');
         insert first;
-        Workshop_Profile__c second = new Workshop_Profile__c(Name = 'Speedy Decor', GSTIN__c = '23BBBBB0000B1Z5', Invoice_Prefix__c = 'DEC');
+        Workshop_Profile__c second = new Workshop_Profile__c(Name = 'Speedy Decor', GSTIN__c = '23BBBBB0000B1Z1', Invoice_Prefix__c = 'DEC');
         insert second;
         return second;
     }
@@ -183,9 +183,9 @@ private class WorkshopProfileServiceTest {
         Test.stopTest();
 
         System.assertEquals('Speedy Decor', decorPdf.workshopName);
-        System.assertEquals('23BBBBB0000B1Z5', decorPdf.workshopGstin);
+        System.assertEquals('23BBBBB0000B1Z1', decorPdf.workshopGstin);
         System.assertEquals('Speedy Motors', mainPdf.workshopName);
-        System.assertEquals('23AAAAA0000A1Z5', mainPdf.workshopGstin);
+        System.assertEquals('23AAAAA0000A1ZA', mainPdf.workshopGstin);
     }
 
     @isTest

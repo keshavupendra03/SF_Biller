@@ -259,4 +259,29 @@ describe('c-customer-detail', () => {
             expect(element.shadowRoot.querySelector('c-document-preview').recordId).toBe('cust1');
         });
     });
+
+    it('editing shows an older "MP" as Madhya Pradesh in the state list, and a GSTIN fills a blank state', async () => {
+        getCustomerDetail.mockResolvedValue({ ...DETAIL, state: 'MP', gstin: '' });
+        updateCustomer.mockResolvedValue();
+        const element = createElement('c-customer-detail', { is: CustomerDetail });
+        document.body.appendChild(element);
+        CurrentPageReference.emit(createPageRef('cust1'));
+        await flushPromises();
+        element.shadowRoot.querySelector('[data-id="toggle-edit"]').click();
+        await flushPromises();
+
+        const state = element.shadowRoot.querySelector('[data-field="state"]');
+        expect(state.tagName).toBe('LIGHTNING-COMBOBOX');
+        expect(state.value).toBe('Madhya Pradesh');
+
+        state.dispatchEvent(new CustomEvent('change', { detail: { value: '' } }));
+        const gstin = element.shadowRoot.querySelector('[data-field="gstin"]');
+        gstin.value = '27AAPFU0939F1ZV';
+        gstin.dispatchEvent(new CustomEvent('change', { detail: { value: '27AAPFU0939F1ZV' } }));
+        await flushPromises();
+        element.shadowRoot.querySelector('[data-id="save-edit"]').click();
+        await flushPromises();
+
+        expect(updateCustomer.mock.calls[0][0].input).toEqual(expect.objectContaining({ gstin: '27AAPFU0939F1ZV', state: 'Maharashtra' }));
+    });
 });

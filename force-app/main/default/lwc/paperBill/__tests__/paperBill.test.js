@@ -10,6 +10,9 @@ import saveDocument from '@salesforce/apex/PaperBillController.saveDocument';
 import searchParts from '@salesforce/apex/BillController.searchParts';
 import getVehicleCard from '@salesforce/apex/ServiceBookController.getVehicleCard';
 import listBillToParties from '@salesforce/apex/DirectoryController.listBillToParties';
+import getDocument from '@salesforce/apex/PaperBillController.getDocument';
+import cancelBill from '@salesforce/apex/BillController.cancelBill';
+import deleteEstimate from '@salesforce/apex/EstimateController.deleteEstimate';
 
 jest.mock('@salesforce/apex/WorkshopProfileController.listProfiles', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/BillController.searchCustomers', () => ({ default: jest.fn() }), { virtual: true });
@@ -22,6 +25,9 @@ jest.mock('@salesforce/apex/PaperBillController.amountInWords', () => ({ default
 jest.mock('@salesforce/apex/PaperBillController.saveDocument', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/ServiceBookController.getVehicleCard', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DirectoryController.listBillToParties', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/PaperBillController.getDocument', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/BillController.cancelBill', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/EstimateController.deleteEstimate', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPdfDownload', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPublicLink', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/client/formFactor', () => ({ default: 'Large' }), { virtual: true });
@@ -47,7 +53,7 @@ jest.mock('lightning/navigation', () => {
 });
 
 const PROFILE = {
-    id: 'wp1', name: 'Keshav Motors', address: 'Dewas Road, Ujjain', phone: '9039472001', email: '', gstin: '23ABC', state: 'MP',
+    id: 'wp1', name: 'Keshav Motors', address: 'Dewas Road, Ujjain', phone: '9039472001', email: '', gstin: '23AAACI7904G1ZV', state: 'MP',
     bankName: 'Bank of Baroda', bankAccountNo: '123', bankIfsc: '', bankAccountHolder: '', termsAndConditions: 'Goods once sold are not returned.'
 };
 const RAMESH = {
@@ -764,7 +770,7 @@ describe('c-paper-bill', () => {
             await typeField(element, '[data-id="party-gstin"]', '23ABCDE1234F1Z5X');
             expect($(element, '[data-id="missing-reason"]').textContent).toContain('15 characters');
 
-            await typeField(element, '[data-id="party-gstin"]', '23ABCDE1234F1Z5');
+            await typeField(element, '[data-id="party-gstin"]', '23ABCDE1234F1Z8');
             expect($(element, '[data-id="missing-reason"]')).toBeNull();
             expect($(element, '[data-id="save"]').disabled).toBe(false);
         });
@@ -818,6 +824,497 @@ describe('c-paper-bill', () => {
             $(element, '[data-id="new"]').click();
             await flushPromises();
             expect(field(element, '[data-id="party-name"]')).toBeNull();
+        });
+    });
+
+    describe('a saved bill opened from the Billing list', () => {
+        const SAVED_BILL = {
+            documentType: 'bill',
+            recordId: 'bill9',
+            documentNumber: 'INV/2026-27/0009',
+            versionNumber: 1,
+            isLatestVersion: true,
+            workshopProfileId: 'wp1',
+            customer: { ...RAMESH, vehicles: [...RAMESH.vehicles, { id: 'veh2', registrationNumber: 'MP09CD5678', make: 'Maruti', model: 'Swift' }] },
+            vehicle: { id: 'veh2', registrationNumber: 'MP09CD5678', make: 'Maruti', model: 'Swift', chassisNumber: '' },
+            billToParty: null,
+            documentDate: '2026-11-03',
+            notes: 'First visit',
+            includeGst: true,
+            lines: [
+                { partId: 'part1', description: 'Engine Oil 1L', hsnSacCode: '2710', quantity: 2, unitPrice: 500, taxRatePercent: 18, gstType: 'CGST_SGST' },
+                { partId: 'part2', description: 'Washing', hsnSacCode: '', quantity: 1, unitPrice: 200, taxRatePercent: 5, gstType: 'CGST_SGST' }
+            ]
+        };
+
+        async function openSaved(element, doc, opened = '1') {
+            getDocument.mockResolvedValue(doc);
+            CurrentPageReference.emit({ type: 'standard__navItemPage', attributes: {}, state: { c__editId: doc.recordId, c__opened: opened } });
+            await flushPromises();
+            await flushPromises();
+        }
+
+        it('shows the saved bill on the page, as it was saved', async () => {
+            const element = await createScreen();
+            await openSaved(element, SAVED_BILL);
+
+            expect(getDocument).toHaveBeenCalledWith({ recordId: 'bill9' });
+            expect(field(element, '[data-id="customer-name"]').value).toBe('Ramesh Kumar');
+            expect(field(element, '[data-field="registrationNumber"]').value).toBe('MP09CD5678');
+            expect(field(element, '[data-id="document-date"]').value).toBe('03-11-2026');
+            // What shows in the box, not just the property: an unbound textarea
+            // already on screen once stayed blank here.
+            expect(field(element, '[data-id="notes"]').shadowRoot.querySelector('textarea').value).toBe('First visit');
+            expect(cell(element, 0, 'description').value).toBe('Engine Oil 1L');
+            expect(cell(element, 0, 'quantity').value).toBe('2');
+            expect(cell(element, 1, 'description').value).toBe('Washing');
+            expect($(element, '[data-id="gst-toggle"]').label).toBe('Remove GST');
+            expect($(element, '[data-id="grand-total"]').textContent).toBe('Rs. 1,390.00');
+            expect($(element, '[data-id="auto-number"]').textContent).toContain('INV/2026-27/0009');
+        });
+
+        it('says what saving will do, locks the company and the bill/estimate choice', async () => {
+            const element = await createScreen();
+            await openSaved(element, SAVED_BILL);
+
+            expect($(element, '[data-id="opened-text"]').textContent).toContain('INV/2026-27/0009');
+            expect($(element, '[data-id="opened-text"]').textContent).toContain('new number');
+            expect($(element, '[data-id="document-type"]')).toBeNull();
+            expect($(element, 'c-company-picker').locked).toBe(true);
+            expect($(element, 'c-company-picker').value).toBe('wp1');
+            expect($(element, '[data-id="save"]').label).toBe('Save Changes');
+        });
+
+        it('saving sends it as a new version of the opened bill, and says which one it replaces', async () => {
+            saveDocument.mockResolvedValue({ ...SAVED, replacedNumber: 'INV/2026-27/0009' });
+            const element = await createScreen();
+            await openSaved(element, SAVED_BILL);
+            await typeCell(element, 0, 'quantity', '3');
+
+            $(element, '[data-id="save"]').click();
+            await flushPromises();
+
+            const { request } = saveDocument.mock.calls[0][0];
+            expect(request).toEqual(expect.objectContaining({
+                previousVersionId: 'bill9', documentType: 'bill', customerId: 'cust1', vehicleId: 'veh2', includeGst: true, notes: 'First visit'
+            }));
+            expect(request.lineItems.map((l) => [l.description, l.quantity])).toEqual([['Engine Oil 1L', 3], ['Washing', 1]]);
+            expect(request.documentDate).toBe('2026-11-03');
+            expect($(element, '[data-id="replaced-note"]').textContent).toContain('INV/2026-27/0009');
+            expect($(element, '.pb-saved-card').textContent).toContain('Bill changes saved');
+        });
+
+        it('View PDF shows the saved bill as it is now', async () => {
+            const element = await createScreen();
+            await openSaved(element, SAVED_BILL);
+
+            $(element, '[data-id="view-opened"]').click();
+            await flushPromises();
+
+            expect($(element, 'c-document-preview').recordId).toBe('bill9');
+            expect($(element, 'c-document-preview').heading).toBe('INV/2026-27/0009');
+        });
+
+        it('an estimate with a party opens as an estimate, billed to the party', async () => {
+            const element = await createScreen();
+            await openSaved(element, {
+                ...SAVED_BILL,
+                documentType: 'estimate',
+                recordId: 'est9',
+                documentNumber: 'EST-0009',
+                customer: null,
+                vehicle: null,
+                billToParty: { id: 'p1', name: 'ICICI Lombard', address: 'MG Road', contactPhone: '', gstin: '23AAACI7904G1ZV', state: '' },
+                includeGst: false
+            });
+
+            expect($(element, '[data-id="title"]').textContent).toBe('Estimate');
+            expect(field(element, '[data-id="party-name"]').value).toBe('ICICI Lombard');
+            expect(field(element, '[data-id="party-gstin"]').value).toBe('23AAACI7904G1ZV');
+            expect(field(element, '[data-id="customer-name"]').value).toBe('');
+            expect($(element, '[data-id="gst-toggle"]').label).toBe('Add GST');
+            expect($(element, '[data-id="opened-text"]').textContent).toContain('Estimate EST-0009');
+        });
+
+        it('an older version can be seen but not saved', async () => {
+            const element = await createScreen();
+            await openSaved(element, { ...SAVED_BILL, isLatestVersion: false, versionNumber: 2 });
+
+            expect($(element, '[data-id="opened-text"]').textContent).toContain('older version');
+            expect($(element, '[data-id="save"]').disabled).toBe(true);
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('latest one');
+        });
+
+        it('opening replaces a half-typed bill, and New Bill starts clean again', async () => {
+            const element = await createScreen();
+            await addItem(element, 0, 'Half typed', '99');
+            await openSaved(element, SAVED_BILL);
+            expect(cell(element, 0, 'description').value).toBe('Engine Oil 1L');
+            expect(cell(element, 2, 'description').value).toBe('');
+
+            $(element, '[data-id="start-new"]').click();
+            await flushPromises();
+
+            expect($(element, '[data-id="opened-banner"]')).toBeNull();
+            expect($(element, '[data-id="document-type"]')).not.toBeNull();
+            expect(cell(element, 0, 'description').value).toBe('');
+            expect(field(element, '[data-id="customer-name"]').value).toBe('');
+            expect($(element, '[data-id="auto-number"]').textContent).toBe('Given when you save');
+        });
+
+        it('a bill opened by mistake does not stay behind when the Service Book opens a car', async () => {
+            getCustomer.mockResolvedValue(RAMESH);
+            const element = await createScreen();
+            await openSaved(element, SAVED_BILL);
+
+            CurrentPageReference.emit({ type: 'standard__navItemPage', attributes: {}, state: { c__customerId: 'cust1', c__vehicleId: 'veh1', c__opened: '2' } });
+            await flushPromises();
+            await flushPromises();
+
+            expect($(element, '[data-id="opened-banner"]')).toBeNull();
+            expect(cell(element, 0, 'description').value).toBe('');
+            expect(field(element, '[data-field="registrationNumber"]').value).toBe('MP09AB1234');
+        });
+    });
+
+    describe('GST details on the page', () => {
+        it('the customer state suggests states as it is typed, and a pick fills it', async () => {
+            const element = await createScreen();
+            await typeField(element, '[data-id="customer-state"]', 'ma');
+            await wait(350);
+            const options = [...field(element, '[data-id="customer-state"]').shadowRoot.querySelectorAll('[data-id="option"]')];
+            expect(options.map((o) => o.dataset.value)).toEqual(expect.arrayContaining(['Madhya Pradesh', 'Maharashtra']));
+
+            options.find((o) => o.dataset.value === 'Maharashtra').dispatchEvent(new CustomEvent('mousedown', { bubbles: true, cancelable: true }));
+            await flushPromises();
+
+            expect(field(element, '[data-id="customer-state"]').value).toBe('Maharashtra');
+        });
+
+        it('"mp" typed without picking becomes Madhya Pradesh', async () => {
+            const element = await createScreen();
+            await typeField(element, '[data-id="customer-state"]', 'mp');
+            field(element, '[data-id="customer-state"]').shadowRoot.querySelector('input').dispatchEvent(new CustomEvent('blur'));
+            await flushPromises();
+
+            expect(field(element, '[data-id="customer-state"]').value).toBe('Madhya Pradesh');
+        });
+
+        it('a state that is not a state, or a wrong GSTIN, is named before saving', async () => {
+            const element = await createScreen();
+            await addItem(element, 0, 'Engine Oil', '500');
+            await typeField(element, '[data-id="customer-name"]', 'Ramesh');
+            await typeField(element, '[data-id="customer-state"]', 'Ujjain');
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('Pick the customer state from the list');
+
+            await typeField(element, '[data-id="customer-state"]', '');
+            await typeField(element, '[data-field="gstin"]', '27AAPFU0939F1ZW');
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('The customer GSTIN');
+            expect($(element, '[data-id="save"]').disabled).toBe(true);
+
+            await typeField(element, '[data-field="gstin"]', '27AAPFU0939F1ZV');
+            expect($(element, '[data-id="missing-reason"]')).toBeNull();
+            expect(field(element, '[data-id="customer-state"]').value).toBe('Maharashtra');
+        });
+
+        it('a wrong workshop GSTIN stops saving while the workshop details are being changed', async () => {
+            const element = await createScreen();
+            await addItem(element, 0, 'Engine Oil', '500');
+            $(element, '[data-id="toggle-workshop"]').click();
+            await flushPromises();
+
+            const workshopGstin = [...element.shadowRoot.querySelectorAll('c-paper-field[data-field="gstin"]')].find((f) => f.label === 'Workshop GSTIN');
+            const box = workshopGstin.shadowRoot.querySelector('input');
+            box.value = 'kjhsdj090';
+            box.dispatchEvent(new CustomEvent('input', { bubbles: true }));
+            await flushPromises();
+
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('The workshop GSTIN');
+        });
+    });
+
+    describe('deleting, old dates and filed months', () => {
+        const OPENED = {
+            documentType: 'bill', recordId: 'bill9', documentNumber: 'INV/2026-27/0009', versionNumber: 1, isLatestVersion: true,
+            workshopProfileId: 'wp1', customer: null, vehicle: null, billToParty: null, documentDate: '2026-11-03', notes: '',
+            includeGst: false, lines: [{ description: 'Engine Oil', quantity: 1, unitPrice: 500, taxRatePercent: 18 }],
+            isCancelled: false, isGstFiled: false
+        };
+
+        async function open(element, doc) {
+            getDocument.mockResolvedValue(doc);
+            CurrentPageReference.emit({ type: 'standard__navItemPage', attributes: {}, state: { c__editId: doc.recordId, c__opened: String(Math.random()) } });
+            await flushPromises();
+            await flushPromises();
+        }
+
+        function isoDaysFromToday(days) {
+            const d = new Date();
+            d.setDate(d.getDate() + days);
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
+        }
+
+        it('an opened bill can be deleted from the page, which then starts a new bill', async () => {
+            cancelBill.mockResolvedValue({});
+            const element = await createScreen();
+            await open(element, OPENED);
+            const confirm = $(element, 'c-delete-confirm');
+            expect(confirm.message).toContain('number is kept and shown as cancelled');
+
+            confirm.dispatchEvent(new CustomEvent('confirm'));
+            await flushPromises();
+
+            expect(cancelBill).toHaveBeenCalledWith({ billId: 'bill9' });
+            expect($(element, '[data-id="opened-banner"]')).toBeNull();
+            expect(cell(element, 0, 'description').value).toBe('');
+        });
+
+        it('an opened estimate is deleted outright', async () => {
+            deleteEstimate.mockResolvedValue();
+            const element = await createScreen();
+            await open(element, { ...OPENED, documentType: 'estimate', recordId: 'est9', documentNumber: 'EST-0009' });
+
+            $(element, 'c-delete-confirm').dispatchEvent(new CustomEvent('confirm'));
+            await flushPromises();
+
+            expect(deleteEstimate).toHaveBeenCalledWith({ estimateId: 'est9' });
+            expect(cancelBill).not.toHaveBeenCalled();
+        });
+
+        it('a deleted bill can be looked at, not changed or deleted again', async () => {
+            const element = await createScreen();
+            await open(element, { ...OPENED, isCancelled: true });
+
+            expect($(element, '[data-id="opened-text"]').textContent).toContain('was deleted');
+            expect($(element, 'c-delete-confirm')).toBeNull();
+            expect($(element, '[data-id="save"]').disabled).toBe(true);
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('was deleted');
+        });
+
+        it('a bill in a filed month can be looked at, not changed or deleted', async () => {
+            const element = await createScreen();
+            await open(element, { ...OPENED, isGstFiled: true, gstFiledUpTo: '2026-11-30' });
+
+            expect($(element, '[data-id="opened-text"]').textContent).toContain('filed up to November 2026');
+            expect($(element, 'c-delete-confirm')).toBeNull();
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('can\'t be changed');
+        });
+
+        it('a new bill can\'t be dated in the future', async () => {
+            const element = await createScreen();
+            await addItem(element, 0, 'Engine Oil', '500');
+            await typeField(element, '[data-id="document-date"]', isoDaysFromToday(2));
+
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('future');
+        });
+
+        it('a date in an earlier financial year says which series the number joins', async () => {
+            const element = await createScreen();
+            await typeField(element, '[data-id="document-date"]', isoDaysFromToday(-400));
+            const [day, month, year] = isoDaysFromToday(-400).split('-').map(Number);
+            const start = month >= 4 ? year : year - 1;
+
+            expect($(element, '[data-id="auto-number"]').textContent).toContain(`${start}-${String((start + 1) % 100).padStart(2, '0')} series`);
+        });
+
+        it('a date in a month the company has filed is refused before saving', async () => {
+            listProfiles.mockResolvedValue([{ ...PROFILE, gstFiledUpTo: '2099-12-31' }]);
+            const element = await createScreen();
+            await addItem(element, 0, 'Engine Oil', '500');
+
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('GST is filed up to December 2099');
+            expect($(element, '[data-id="save"]').disabled).toBe(true);
+        });
+    });
+
+    describe('discount, round-off and no-GST companies (G5)', () => {
+        it('Add discount shows a Discount column; the discount comes off before GST and the total is rounded', async () => {
+            saveDocument.mockResolvedValue(SAVED);
+            const element = await createScreen();
+            $(element, '[data-id="gst-toggle"]').click();
+            await flushPromises();
+            expect(cell(element, 0, 'discount')).toBeNull();
+
+            $(element, '[data-id="discount-toggle"]').click();
+            await flushPromises();
+            expect($(element, '[data-id="discount-toggle"]').label).toBe('Remove discount');
+            await typeCell(element, 0, 'description', 'Pad');
+            await typeCell(element, 0, 'quantity', '2');
+            await typeCell(element, 0, 'unitPrice', '500');
+            await typeCell(element, 0, 'discount', '100');
+            await typeCell(element, 1, 'description', 'Clip');
+            await typeCell(element, 1, 'unitPrice', '333');
+
+            // 900 + 162 + 333 + 59.94 = 1454.94, rounded to 1455.00
+            expect($(element, '[data-id="round-off"]').textContent).toBe('Rs. +0.06');
+            expect($(element, '[data-id="grand-total"]').textContent).toBe('Rs. 1,455.00');
+            $(element, '[data-id="save"]').click();
+            await flushPromises();
+            const { request } = saveDocument.mock.calls[0][0];
+            expect(request.lineItems.map((line) => line.discount)).toEqual([100, 0]);
+            expect(request.insuranceSplit).toBe(false);
+        });
+
+        it('Alt+D turns discounts off again, clearing them', async () => {
+            const element = await createScreen();
+            press($(element, '.pb-screen'), 'd', { altKey: true });
+            await flushPromises();
+            await addItem(element, 0, 'Pad', '500');
+            await typeCell(element, 0, 'discount', '50');
+            expect($(element, '[data-id="grand-total"]').textContent).toBe('Rs. 450.00');
+
+            press($(element, '.pb-screen'), 'd', { altKey: true });
+            await flushPromises();
+            expect(cell(element, 0, 'discount')).toBeNull();
+            expect($(element, '[data-id="grand-total"]').textContent).toBe('Rs. 500.00');
+        });
+
+        it('a discount above the line\'s price can\'t be saved', async () => {
+            const element = await createScreen();
+            $(element, '[data-id="discount-toggle"]').click();
+            await flushPromises();
+            await addItem(element, 0, 'Pad', '500');
+            await typeCell(element, 0, 'discount', '600');
+
+            expect(grid(element).querySelector('[data-id="discount-note"]').textContent).toContain('between 0 and ₹500.00');
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('discount is more than');
+            expect($(element, '[data-id="save"]').disabled).toBe(true);
+        });
+
+        it('a company that doesn\'t round off shows the exact total', async () => {
+            listProfiles.mockResolvedValue([{ ...PROFILE, roundOffTotals: false }]);
+            const element = await createScreen();
+            $(element, '[data-id="gst-toggle"]').click();
+            await flushPromises();
+            await addItem(element, 0, 'Clip', '333');
+
+            expect($(element, '[data-id="round-off"]')).toBeNull();
+            expect($(element, '[data-id="grand-total"]').textContent).toBe('Rs. 392.94');
+        });
+
+        it('a composition company issues a Bill of Supply, with no GST button', async () => {
+            listProfiles.mockResolvedValue([{ ...PROFILE, gstRegistrationType: 'Composition' }]);
+            const element = await createScreen();
+
+            expect($(element, '[data-id="title"]').textContent).toBe('Bill of Supply');
+            expect($(element, '[data-id="composition-note"]').textContent).toContain('not eligible to collect tax');
+            expect($(element, '[data-id="gst-toggle"]')).toBeNull();
+            press($(element, '.pb-screen'), 'g', { altKey: true });
+            await flushPromises();
+            expect(cell(element, 0, 'taxRatePercent')).toBeNull();
+        });
+    });
+
+    describe('an insurance claim split (G6)', () => {
+        const ICICI = { id: 'p1', name: 'ICICI Lombard', address: 'MG Road, Indore', contactPhone: '0731400000', gstin: '23AAACI7904G1ZV', state: 'Madhya Pradesh' };
+
+        beforeEach(() => {
+            listBillToParties.mockResolvedValue([ICICI]);
+        });
+
+        async function claimPage() {
+            const element = await createScreen();
+            $(element, '[data-id="toggle-party"]').click();
+            await flushPromises();
+            const name = field(element, '[data-id="party-name"]');
+            name.shadowRoot.querySelector('input').dispatchEvent(new CustomEvent('focus'));
+            await flushPromises();
+            name.shadowRoot.querySelectorAll('[data-id="option"]')[0].dispatchEvent(new CustomEvent('mousedown', { bubbles: true, cancelable: true }));
+            await flushPromises();
+            $(element, '[data-id="gst-toggle"]').click();
+            await flushPromises();
+            return element;
+        }
+
+        it('is offered only on a new bill to a party', async () => {
+            const element = await createScreen();
+            expect($(element, '[data-id="split-toggle"]')).toBeNull();
+            $(element, '[data-id="toggle-party"]').click();
+            await flushPromises();
+            expect($(element, '[data-id="split-toggle"]')).not.toBeNull();
+            $(element, '[data-id="document-type"]').dispatchEvent(new CustomEvent('change', { detail: { value: 'estimate' } }));
+            await flushPromises();
+            expect($(element, '[data-id="split-toggle"]')).toBeNull();
+        });
+
+        it('shows what each side pays, and saves both bills in one go', async () => {
+            saveDocument.mockResolvedValue({
+                ...SAVED, customerName: 'ICICI Lombard', totalAmount: 1770,
+                pairedRecordId: 'bill2', pairedNumber: 'INV/2026-27/0043', pairedTotal: 1180
+            });
+            const element = await claimPage();
+            $(element, '[data-id="split-toggle"]').click();
+            await flushPromises();
+            await typeField(element, '[data-id="customer-name"]', 'Ramesh Kumar');
+            await addItem(element, 0, 'Bumper', '1000');
+            await addItem(element, 1, 'Headlamp', '1000');
+            await typeCell(element, 1, 'insurerPercent', '50');
+            await addItem(element, 2, 'Labour', '500');
+            await typeField(element, '[data-id="excess"]', '590');
+
+            expect($(element, '[data-id="grand-total"]').textContent).toBe('Rs. 2,950.00');
+            expect($(element, '[data-id="insurer-total"]').textContent).toBe('Rs. 1,770.00');
+            expect($(element, '[data-id="customer-total"]').textContent).toBe('Rs. 1,180.00');
+            expect($(element, '[data-id="split-rounding-note"]')).toBeNull();
+
+            $(element, '[data-id="save"]').click();
+            await flushPromises();
+            const { request } = saveDocument.mock.calls[0][0];
+            expect(request.insuranceSplit).toBe(true);
+            expect(request.insurerPercents).toEqual([100, 50, 100]);
+            expect(request.compulsoryExcess).toBe(590);
+            expect(request.lineItems.map((line) => line.unitPrice)).toEqual([1000, 1000, 500]);
+
+            expect($(element, '[data-id="saved-paired-number"]').textContent).toBe('INV/2026-27/0043');
+            expect($(element, '[data-id="saved-paired-total"]').textContent).toBe('₹1,180.00');
+            $(element, '[data-id="print-paired"]').click();
+            await flushPromises();
+            expect($(element, 'c-document-preview').recordId).toBe('bill2');
+        });
+
+        it('needs the car owner, and says what can\'t be split', async () => {
+            const element = await claimPage();
+            $(element, '[data-id="split-toggle"]').click();
+            await flushPromises();
+            await addItem(element, 0, 'Bumper', '1000');
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('car owner');
+
+            await typeField(element, '[data-id="customer-name"]', 'Ramesh Kumar');
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('The customer pays nothing');
+            await typeField(element, '[data-id="excess"]', '5000');
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('more than the insurance company');
+            await typeField(element, '[data-id="excess"]', 'abc');
+            expect($(element, '[data-id="missing-reason"]').textContent).toContain('Type the compulsory excess');
+            await typeField(element, '[data-id="excess"]', '118');
+            expect($(element, '[data-id="missing-reason"]')).toBeNull();
+
+            // 1180 + 18% on 333 = 1572.94 (1573); insurer 1062 + 196.47 - 100 = 1158.47 (1158),
+            // customer 196.47 + 100 = 296.47 (296): each rounds alone, 1454 together.
+            await typeCell(element, 0, 'unitPrice', '900');
+            await addItem(element, 1, 'Clip', '333');
+            await typeCell(element, 1, 'insurerPercent', '50');
+            await typeField(element, '[data-id="excess"]', '100');
+            expect($(element, '[data-id="grand-total"]').textContent).toBe('Rs. 1,455.00');
+            expect($(element, '[data-id="split-rounding-note"]').textContent).toContain('together they come to Rs. 1,454.00');
+        });
+
+        it('a saved claim bill, opened, names its other half', async () => {
+            getDocument.mockResolvedValue({
+                documentType: 'bill', recordId: 'bill1', documentNumber: 'INV/2026-27/0042', versionNumber: 1, isLatestVersion: true,
+                workshopProfileId: 'wp1', customer: null, vehicle: null, billToParty: ICICI, documentDate: '2026-11-03', notes: '',
+                includeGst: true, pairedNumber: 'INV/2026-27/0043',
+                lines: [{ description: 'Headlamp', quantity: 1, unitPrice: 1000, taxRatePercent: 18, gstType: 'CGST_SGST', discount: 500 }]
+            });
+            const element = await createScreen();
+            CurrentPageReference.emit({ type: 'standard__navItemPage', attributes: {}, state: { c__editId: 'bill1', c__opened: 'x' } });
+            await flushPromises();
+            await flushPromises();
+
+            expect($(element, '[data-id="opened-pair"]').textContent).toContain('INV/2026-27/0043');
+            expect($(element, '[data-id="split-toggle"]')).toBeNull();
+            expect(cell(element, 0, 'discount').value).toBe('500');
+            expect($(element, '[data-id="grand-total"]').textContent).toBe('Rs. 590.00');
         });
     });
 });

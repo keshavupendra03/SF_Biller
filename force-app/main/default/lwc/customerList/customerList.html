@@ -41,7 +41,7 @@
                 <lightning-input data-field="address" label="Address" value={newCustomer.address} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
                 <lightning-input data-field="email" label="Email" value={newCustomer.email} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
                 <lightning-input data-field="gstin" label="GSTIN" value={newCustomer.gstin} onchange={handleFieldChange} class="slds-m-bottom_x-small"></lightning-input>
-                <lightning-input data-field="state" label="State (e.g. 23-Madhya Pradesh)" value={newCustomer.state} onchange={handleFieldChange} class="slds-m-bottom_small"></lightning-input>
+                <lightning-combobox placeholder="Pick the state" options={stateOptions} data-field="state" label="State" value={newCustomer.state} onchange={handleFieldChange} class="slds-m-bottom_small"></lightning-combobox>
                 <lightning-button data-id="save" label="Save Customer" variant="brand" disabled={saveDisabled} onclick={handleSave}></lightning-button>
                 <lightning-button label="Cancel" onclick={handleToggleCreateForm} class="slds-m-left_x-small"></lightning-button>
             </div>

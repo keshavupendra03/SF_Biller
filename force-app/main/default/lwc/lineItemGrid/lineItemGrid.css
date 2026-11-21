@@ -95,19 +95,12 @@ input[type='number']::-webkit-inner-spin-button {
     padding-right: 0.375rem;
 }
 
+/* Columns and areas come from the component (lineStyle): they change with
+   GST, discount and insurer share. */
 .item-line_paper {
     gap: 0;
-    grid-template-columns: 1.5rem minmax(0, 1fr) 2.75rem 4rem 5rem;
-    grid-template-areas:
-        'sr name name name actions'
-        'sr hsn qty price amount';
-}
-
-.item-line_paper-gst {
-    grid-template-columns: 1.5rem minmax(0, 1fr) 2.5rem 3.5rem 2.5rem 4.5rem;
-    grid-template-areas:
-        'sr name name name name actions'
-        'sr hsn qty price gst amount';
+    grid-template-columns: var(--phone-columns);
+    grid-template-areas: var(--phone-areas);
 }
 
 .item-line_paper .cell-sr {
@@ -139,6 +132,16 @@ input[type='number']::-webkit-inner-spin-button {
 .item-line_paper input[data-field='taxRatePercent'],
 .item-line_paper .cell-gst {
     grid-area: gst;
+}
+
+.item-line_paper input[data-field='discount'],
+.item-line_paper .cell-disc {
+    grid-area: disc;
+}
+
+.item-line_paper input[data-field='insurerPercent'],
+.item-line_paper .cell-ins {
+    grid-area: ins;
 }
 
 .item-line_paper .cell-amount {
@@ -187,13 +190,8 @@ input[type='number']::-webkit-inner-spin-button {
     }
 
     .item-line_paper {
-        grid-template-columns: 2.5rem minmax(0, 1fr) 6rem 5rem 7rem 8rem 2rem;
-        grid-template-areas: 'sr name hsn qty price amount actions';
-    }
-
-    .item-line_paper-gst {
-        grid-template-columns: 2.5rem minmax(0, 1fr) 6rem 4.5rem 6.5rem 4.5rem 8rem 2rem;
-        grid-template-areas: 'sr name hsn qty price gst amount actions';
+        grid-template-columns: var(--wide-columns);
+        grid-template-areas: var(--wide-areas);
     }
 
     /* Column rules, like the printed table. */

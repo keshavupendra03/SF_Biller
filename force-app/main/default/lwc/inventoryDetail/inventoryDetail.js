@@ -5,6 +5,7 @@ import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import getPartDetail from '@salesforce/apex/PartController.getPartDetail';
 import updatePart from '@salesforce/apex/PartController.updatePart';
 import adjustStock from '@salesforce/apex/PartController.adjustStock';
+import { GST_RATE_OPTIONS, unitOptionsWith, changedValue } from 'c/gst';
 
 const GST_TYPE_OPTIONS = [
     { label: 'CGST + SGST', value: 'CGST_SGST' },
@@ -12,6 +13,7 @@ const GST_TYPE_OPTIONS = [
 ];
 
 export default class InventoryDetail extends NavigationMixin(LightningElement) {
+    rateOptions = GST_RATE_OPTIONS;
     gstTypeOptions = GST_TYPE_OPTIONS;
 
     partId;
@@ -59,6 +61,10 @@ export default class InventoryDetail extends NavigationMixin(LightningElement) {
             });
     }
 
+    get unitOptions() {
+        return unitOptionsWith(this.editValues.unitLabel);
+    }
+
     get hasDetail() {
         return !!this.detail;
     }
@@ -81,7 +87,7 @@ export default class InventoryDetail extends NavigationMixin(LightningElement) {
                 price: p.price,
                 lowStockThreshold: p.lowStockThreshold,
                 gstType: p.gstType,
-                taxRatePercent: p.taxRatePercent,
+                taxRatePercent: p.taxRatePercent === null || p.taxRatePercent === undefined ? '' : String(p.taxRatePercent),
                 hsnCode: p.hsnCode,
                 unitLabel: p.unitLabel
             };
@@ -90,7 +96,7 @@ export default class InventoryDetail extends NavigationMixin(LightningElement) {
 
     handleEditFieldChange(event) {
         const field = event.target.dataset.field;
-        this.editValues = { ...this.editValues, [field]: event.target.value };
+        this.editValues = { ...this.editValues, [field]: changedValue(event) };
     }
 
     handleGstTypeChange(event) {

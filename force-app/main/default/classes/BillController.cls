@@ -30,6 +30,8 @@ public with sharing class BillController {
         @AuraEnabled public String gstType { get; set; }
         @AuraEnabled public String hsnSacCode { get; set; }
         @AuraEnabled public String unitLabel { get; set; }
+        // Rupees off before GST.
+        @AuraEnabled public Decimal discount { get; set; }
     }
 
     public class NewBillToPartyInput {
@@ -50,6 +52,8 @@ public with sharing class BillController {
         @AuraEnabled public NewBillToPartyInput newBillToParty { get; set; }
         @AuraEnabled public Id vehicleId { get; set; }
         @AuraEnabled public CustomerController.NewVehicleInput newVehicle { get; set; }
+        // The customer's half of an insurance claim pair: no stock, no part links.
+        @AuraEnabled public Boolean takesNoStock { get; set; }
         @AuraEnabled public String notes { get; set; }
         @AuraEnabled public Date billDate { get; set; }
         @AuraEnabled public Id sourceEstimateId { get; set; }
@@ -97,6 +101,7 @@ public with sharing class BillController {
         @AuraEnabled public Id id { get; set; }
         @AuraEnabled public String invoiceNumber { get; set; }
         @AuraEnabled public String customerName { get; set; }
+        @AuraEnabled public String billToPartyName { get; set; }
         @AuraEnabled public String companyName { get; set; }
         @AuraEnabled public Decimal totalAmount { get; set; }
         @AuraEnabled public String status { get; set; }
@@ -133,6 +138,16 @@ public with sharing class BillController {
         @AuraEnabled public List<PaymentItem> payments { get; set; }
         @AuraEnabled public Decimal amountPaid { get; set; }
         @AuraEnabled public Decimal amountDue { get; set; }
+        // Deleted: kept, and reported for GST as a cancelled number.
+        @AuraEnabled public Boolean isCancelled { get; set; }
+        @AuraEnabled public Date cancelledOn { get; set; }
+        // Dated in a month whose GST is filed: can't be changed or deleted.
+        @AuraEnabled public Boolean isGstFiled { get; set; }
+        @AuraEnabled public Date gstFiledUpTo { get; set; }
+        @AuraEnabled public Decimal roundOff { get; set; }
+        // An insurance claim's other bill (the customer's share, or the insurer's).
+        @AuraEnabled public Id pairedBillId { get; set; }
+        @AuraEnabled public String pairedInvoiceNumber { get; set; }
     }
 
     @AuraEnabled
@@ -192,53 +207,68 @@ public with sharing class BillController {
      */
     @AuraEnabled
     public static CustomerSearchResult createCustomer(NewCustomerInput input) {
-        if (input == null || String.isBlank(input.name) || String.isBlank(input.phone)) {
-            throw new BillControllerException('Customer name and phone are required.');
-        }
-        Customer__c customer = new Customer__c(
-            Name = input.name,
-            Phone__c = input.phone,
-            Address__c = input.address,
-            Email__c = input.email,
-            GSTIN__c = input.gstin,
-            State__c = input.state
-        );
-        insert customer;
+        // A save error (a bad GSTIN, a future date) is shown in its own words.
+        try {
+            if (input == null || String.isBlank(input.name) || String.isBlank(input.phone)) {
+                throw new BillControllerException('Customer name and phone are required.');
+            }
+            Customer__c customer = new Customer__c(
+                Name = input.name,
+                Phone__c = input.phone,
+                Address__c = input.address,
+                Email__c = input.email,
+                GSTIN__c = input.gstin,
+                State__c = input.state
+            );
+            insert customer;
 
-        CustomerSearchResult result = new CustomerSearchResult();
-        result.id = customer.Id;
-        result.name = customer.Name;
-        result.phone = customer.Phone__c;
-        return result;
+            CustomerSearchResult result = new CustomerSearchResult();
+            result.id = customer.Id;
+            result.name = customer.Name;
+            result.phone = customer.Phone__c;
+            return result;
+        } catch (DmlException e) {
+            throw ReadableErrors.of(e);
+        }
     }
 
     @AuraEnabled
     public static BillSummary createBill(CreateBillRequest request) {
-        validate(request);
-        PartUpsertService.fillManualPartIds(request.lineItems);
-        Id billToPartyId = resolveBillToPartyId(request.billToPartyId, request.newBillToParty);
-        Id vehicleId = resolveVehicleId(request.customerId, request.vehicleId, request.newVehicle);
+        // A save error (a bad GSTIN, a future date) is shown in its own words.
+        try {
+            validate(request);
+            // The customer's share of an insurance claim: its goods are on the
+            // insurer's bill, which takes the stock, so its lines link no part.
+            if (request.takesNoStock != true) {
+                PartUpsertService.fillManualPartIds(request.lineItems);
+            }
+            prepareLines(companyFor(request), request.lineItems);
+            Id billToPartyId = resolveBillToPartyId(request.billToPartyId, request.newBillToParty);
+            Id vehicleId = resolveVehicleId(request.customerId, request.vehicleId, request.newVehicle);
 
-        Bill__c bill = new Bill__c(
-            Workshop_Profile__c = companyFor(request),
-            Customer__c = request.customerId,
-            Job__c = request.jobId,
-            Bill_To_Party__c = billToPartyId,
-            Vehicle__c = vehicleId,
-            Notes__c = request.notes,
-            Bill_Date__c = request.billDate != null ? request.billDate : Date.today(),
-            Source_Estimate__c = request.sourceEstimateId
-        );
-        insert bill;
+            Bill__c bill = new Bill__c(
+                Workshop_Profile__c = companyFor(request),
+                Customer__c = request.customerId,
+                Job__c = request.jobId,
+                Bill_To_Party__c = billToPartyId,
+                Vehicle__c = vehicleId,
+                Notes__c = request.notes,
+                Bill_Date__c = request.billDate != null ? request.billDate : Date.today(),
+                Source_Estimate__c = request.sourceEstimateId
+            );
+            insert bill;
 
-        insertLineItems(bill.Id, request.lineItems);
-        insertInitialPayment(bill.Id, request);
+            insertLineItems(bill.Id, request.lineItems);
+            insertInitialPayment(bill.Id, request);
 
-        if (request.sourceEstimateId != null) {
-            update new Estimate__c(Id = request.sourceEstimateId, Status__c = 'Converted');
+            if (request.sourceEstimateId != null) {
+                update new Estimate__c(Id = request.sourceEstimateId, Status__c = 'Converted');
+            }
+
+            return buildSummary(bill.Id);
+        } catch (DmlException e) {
+            throw ReadableErrors.of(e);
         }
-
-        return buildSummary(bill.Id);
     }
 
     /**
@@ -250,49 +280,101 @@ public with sharing class BillController {
      */
     @AuraEnabled
     public static BillSummary createNewVersion(Id previousBillId, CreateBillRequest request) {
-        validate(request);
-        PartUpsertService.fillManualPartIds(request.lineItems);
+        // A save error (a bad GSTIN, a future date) is shown in its own words.
+        try {
+            validate(request);
+            Bill__c previous = [
+                SELECT Version_Number__c, Root_Bill__c, Source_Estimate__c, Job__c, Vehicle__c, Workshop_Profile__c,
+                       Invoice_Number__c, Bill_Date__c, Is_Cancelled__c, Paired_Bill__c, Bill_To_Party__c
+                FROM Bill__c
+                WHERE Id = :previousBillId
+            ];
+            // A new version replaces the bill's number, so not for a deleted
+            // bill, or one in a month whose GST is already filed.
+            if (previous.Is_Cancelled__c) {
+                throw new BillControllerException(previous.Invoice_Number__c + ' was deleted, so it can\'t be changed.');
+            }
+            GstFilingLock.requireOpen(previous.Workshop_Profile__c, previous.Bill_Date__c, 'changed');
+            prepareLines(previous.Workshop_Profile__c, request.lineItems);
+            // The customer's half of an insurance claim (G6) links no parts: its
+            // goods are on the insurer's bill, which took the stock.
+            Boolean customerHalf = previous.Paired_Bill__c != null && previous.Bill_To_Party__c == null;
+            if (customerHalf) {
+                for (LineItemInput line : request.lineItems) {
+                    line.partId = null;
+                }
+            } else {
+                PartUpsertService.fillManualPartIds(request.lineItems);
+            }
+            Id rootId = previous.Root_Bill__c != null ? previous.Root_Bill__c : previousBillId;
 
-        Bill__c previous = [
-            SELECT Version_Number__c, Root_Bill__c, Source_Estimate__c, Job__c, Vehicle__c, Workshop_Profile__c
-            FROM Bill__c
-            WHERE Id = :previousBillId
+            List<Bill_Line_Item__c> previousLineItems = [
+                SELECT Part__c, Quantity__c FROM Bill_Line_Item__c WHERE Bill__c = :previousBillId
+            ];
+            BillStockService.restoreForRemovedLineItems(previousLineItems);
+
+            Id billToPartyId = resolveBillToPartyId(request.billToPartyId, request.newBillToParty);
+            Id vehicleId = request.vehicleId != null || request.newVehicle != null
+                ? resolveVehicleId(request.customerId, request.vehicleId, request.newVehicle)
+                : previous.Vehicle__c;
+
+            // A later version stays with its company and invoice series, whatever
+            // the request says.
+            Bill__c newVersion = new Bill__c(
+                Workshop_Profile__c = previous.Workshop_Profile__c,
+                Customer__c = request.customerId,
+                Job__c = request.jobId != null ? request.jobId : previous.Job__c,
+                Bill_To_Party__c = billToPartyId,
+                Vehicle__c = vehicleId,
+                Notes__c = request.notes,
+                Bill_Date__c = request.billDate != null ? request.billDate : Date.today(),
+                Source_Estimate__c = request.sourceEstimateId != null ? request.sourceEstimateId : previous.Source_Estimate__c,
+                Previous_Version__c = previousBillId,
+                Root_Bill__c = rootId,
+                Paired_Bill__c = previous.Paired_Bill__c,
+                Version_Number__c = (previous.Version_Number__c == null ? 1 : previous.Version_Number__c) + 1
+            );
+            insert newVersion;
+            // The other half of the claim now points at this version.
+            if (previous.Paired_Bill__c != null) {
+                update new Bill__c(Id = previous.Paired_Bill__c, Paired_Bill__c = newVersion.Id);
+            }
+
+            insertLineItems(newVersion.Id, request.lineItems);
+            insertInitialPayment(newVersion.Id, request);
+
+            update new Bill__c(Id = previousBillId, Is_Latest_Version__c = false);
+
+            return buildSummary(newVersion.Id);
+        } catch (DmlException e) {
+            throw ReadableErrors.of(e);
+        }
+    }
+
+    /**
+     * "Delete" for a bill (architecture.md §D.1, G2). A bill's number has been
+     * issued, and GSTR-1 reports every number issued, so a bill is never really
+     * deleted: it's cancelled, keeping its number to be reported as cancelled,
+     * and its parts go back to stock. It then drops out of the Billing list,
+     * customer and job screens, and revenue. Only the latest version, only
+     * once, and not in a month whose GST is filed.
+     */
+    @AuraEnabled
+    public static BillSummary cancelBill(Id billId) {
+        Bill__c bill = [
+            SELECT Invoice_Number__c, Is_Latest_Version__c, Is_Cancelled__c, Bill_Date__c, Workshop_Profile__c
+            FROM Bill__c WHERE Id = :billId FOR UPDATE
         ];
-        Id rootId = previous.Root_Bill__c != null ? previous.Root_Bill__c : previousBillId;
-
-        List<Bill_Line_Item__c> previousLineItems = [
-            SELECT Part__c, Quantity__c FROM Bill_Line_Item__c WHERE Bill__c = :previousBillId
-        ];
-        BillStockService.restoreForRemovedLineItems(previousLineItems);
-
-        Id billToPartyId = resolveBillToPartyId(request.billToPartyId, request.newBillToParty);
-        Id vehicleId = request.vehicleId != null || request.newVehicle != null
-            ? resolveVehicleId(request.customerId, request.vehicleId, request.newVehicle)
-            : previous.Vehicle__c;
-
-        // A later version stays with its company and invoice series, whatever
-        // the request says.
-        Bill__c newVersion = new Bill__c(
-            Workshop_Profile__c = previous.Workshop_Profile__c,
-            Customer__c = request.customerId,
-            Job__c = request.jobId != null ? request.jobId : previous.Job__c,
-            Bill_To_Party__c = billToPartyId,
-            Vehicle__c = vehicleId,
-            Notes__c = request.notes,
-            Bill_Date__c = request.billDate != null ? request.billDate : Date.today(),
-            Source_Estimate__c = request.sourceEstimateId != null ? request.sourceEstimateId : previous.Source_Estimate__c,
-            Previous_Version__c = previousBillId,
-            Root_Bill__c = rootId,
-            Version_Number__c = (previous.Version_Number__c == null ? 1 : previous.Version_Number__c) + 1
-        );
-        insert newVersion;
-
-        insertLineItems(newVersion.Id, request.lineItems);
-        insertInitialPayment(newVersion.Id, request);
-
-        update new Bill__c(Id = previousBillId, Is_Latest_Version__c = false);
-
-        return buildSummary(newVersion.Id);
+        if (bill.Is_Cancelled__c) {
+            throw new BillControllerException(bill.Invoice_Number__c + ' is already deleted.');
+        }
+        if (!bill.Is_Latest_Version__c) {
+            throw new BillControllerException(bill.Invoice_Number__c + ' has been changed since. Delete its latest version from the Billing list.');
+        }
+        GstFilingLock.requireOpen(bill.Workshop_Profile__c, bill.Bill_Date__c, 'deleted');
+        BillStockService.restoreForRemovedLineItems([SELECT Part__c, Quantity__c FROM Bill_Line_Item__c WHERE Bill__c = :billId]);
+        update new Bill__c(Id = billId, Is_Cancelled__c = true, Cancelled_On__c = Date.today());
+        return buildSummary(billId);
     }
 
     @AuraEnabled
@@ -346,16 +428,19 @@ public with sharing class BillController {
     @AuraEnabled
     public static List<BillListItem> listBills(String filter, String searchTerm, Id workshopProfileId) {
         Boolean duesOnly = 'DuesOnly'.equals(filter);
+        // Deleted bills only on asking for them ('Cancelled'), and then only them.
+        Boolean cancelledOnly = 'Cancelled'.equals(filter);
         String term = '%' + String.escapeSingleQuotes(String.isBlank(searchTerm) ? '' : searchTerm) + '%';
         Boolean hasSearch = String.isNotBlank(searchTerm);
 
-        String soql = 'SELECT Invoice_Number__c, Customer__r.Name, Total_Amount__c, Status__c, Bill_Date__c, Workshop_Profile__c'
-            + ' FROM Bill__c WHERE Is_Latest_Version__c = true';
+        String soql = 'SELECT Invoice_Number__c, Customer__r.Name, Bill_To_Party__r.Name, Total_Amount__c, Status__c, Bill_Date__c, Workshop_Profile__c'
+            + ' FROM Bill__c WHERE Is_Latest_Version__c = true AND Is_Cancelled__c = :cancelledOnly';
         if (duesOnly) {
             soql += ' AND Status__c != \'Paid\'';
         }
         if (hasSearch) {
-            soql += ' AND (Invoice_Number__c LIKE :term OR Customer__r.Name LIKE :term OR Customer__r.Phone__c LIKE :term)';
+            soql += ' AND (Invoice_Number__c LIKE :term OR Customer__r.Name LIKE :term OR Customer__r.Phone__c LIKE :term'
+                + ' OR Bill_To_Party__r.Name LIKE :term)';
         }
         if (workshopProfileId != null) {
             // A bill with no company recorded belongs to the primary company.
@@ -371,6 +456,7 @@ public with sharing class BillController {
             item.id = b.Id;
             item.invoiceNumber = b.Invoice_Number__c;
             item.customerName = b.Customer__r != null ? b.Customer__r.Name : null;
+            item.billToPartyName = b.Bill_To_Party__r != null ? b.Bill_To_Party__r.Name : null;
             item.companyName = companyNames.get(b.Workshop_Profile__c);
             item.totalAmount = b.Total_Amount__c;
             item.status = b.Status__c;
@@ -391,6 +477,7 @@ public with sharing class BillController {
         if (request == null || request.customerId == null) {
             throw new BillControllerException('A customer is required.');
         }
+        GstRules.requireGstRates(request.lineItems);
         if (request.lineItems == null || request.lineItems.isEmpty()) {
             throw new BillControllerException('A bill needs at least one line item.');
         }
@@ -479,10 +566,31 @@ public with sharing class BillController {
                 Tax_Rate_Percent__c = li.taxRatePercent == null ? 0 : li.taxRatePercent,
                 Gst_Type__c = String.isBlank(li.gstType) ? 'CGST_SGST' : li.gstType,
                 HSN_SAC_Code__c = li.hsnSacCode,
-                Unit__c = li.unitLabel
+                Unit__c = li.unitLabel,
+                Discount__c = li.discount == null ? 0 : li.discount
             ));
         }
         insert items;
+    }
+
+    /**
+     * A discount is rupees off a line, never more than the line itself. And a
+     * company that doesn't charge GST (composition, or not registered) gets no
+     * GST on any line, whatever the screen sent.
+     */
+    public static void prepareLines(Id companyId, List<LineItemInput> lineItems) {
+        for (LineItemInput li : lineItems) {
+            Decimal discount = li.discount == null ? 0 : li.discount;
+            Decimal gross = (li.quantity == null ? 0 : li.quantity) * (li.unitPrice == null ? 0 : li.unitPrice);
+            if (discount < 0 || discount > gross) {
+                throw new BillControllerException('The discount on "' + li.description + '" must be between 0 and its price (Rs. ' + gross.setScale(2) + ').');
+            }
+        }
+        if (!WorkshopProfileService.chargesGst(companyId)) {
+            for (LineItemInput li : lineItems) {
+                li.taxRatePercent = 0;
+            }
+        }
     }
 
     private static void insertInitialPayment(Id billId, CreateBillRequest request) {
@@ -503,7 +611,8 @@ public with sharing class BillController {
                    Customer__c, Customer__r.Name, Bill_To_Party__c, Bill_To_Party__r.Name,
                    Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c,
                    Vehicle__r.Chassis_Number__c, Notes__c,
-                   Subtotal__c, GST_Amount__c, Total_Amount__c, Workshop_Profile__c
+                   Subtotal__c, GST_Amount__c, Total_Amount__c, Workshop_Profile__c,
+                   Is_Cancelled__c, Cancelled_On__c, Round_Off__c, Paired_Bill__c, Paired_Bill__r.Invoice_Number__c
             FROM Bill__c
             WHERE Id = :billId
         ];
@@ -511,17 +620,12 @@ public with sharing class BillController {
         List<LineItemInput> lineItemInputs = new List<LineItemInput>();
         List<GstCalculatorService.GstLineItemInput> gstInputs = new List<GstCalculatorService.GstLineItemInput>();
         for (Bill_Line_Item__c item : [
-            SELECT Part__c, Description__c, Quantity__c, Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c, HSN_SAC_Code__c, Unit__c
+            SELECT Part__c, Description__c, Quantity__c, Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c, HSN_SAC_Code__c, Unit__c, Discount__c
             FROM Bill_Line_Item__c
             WHERE Bill__c = :billId
+            ORDER BY CreatedDate, Id
         ]) {
-            gstInputs.add(new GstCalculatorService.GstLineItemInput(
-                item.Description__c,
-                item.Quantity__c,
-                item.Unit_Price__c,
-                item.Tax_Rate_Percent__c,
-                GstCalculatorService.supplyTypeFromGstType(item.Gst_Type__c)
-            ));
+            gstInputs.add(GstCalculatorService.inputFor(item));
             LineItemInput li = new LineItemInput();
             li.partId = item.Part__c;
             li.description = item.Description__c;
@@ -531,6 +635,7 @@ public with sharing class BillController {
             li.gstType = item.Gst_Type__c;
             li.hsnSacCode = item.HSN_SAC_Code__c;
             li.unitLabel = item.Unit__c;
+            li.discount = item.Discount__c;
             lineItemInputs.add(li);
         }
         GstCalculatorService.GstBillResult breakdown = GstCalculatorService.calculateBill(gstInputs);
@@ -551,6 +656,13 @@ public with sharing class BillController {
         summary.customerName = bill.Customer__r != null ? bill.Customer__r.Name : null;
         summary.billToPartyId = bill.Bill_To_Party__c;
         summary.billToPartyName = bill.Bill_To_Party__r != null ? bill.Bill_To_Party__r.Name : null;
+        summary.isCancelled = bill.Is_Cancelled__c;
+        summary.roundOff = bill.Round_Off__c == null ? 0 : bill.Round_Off__c;
+        summary.pairedBillId = bill.Paired_Bill__c;
+        summary.pairedInvoiceNumber = bill.Paired_Bill__c == null ? null : bill.Paired_Bill__r.Invoice_Number__c;
+        summary.cancelledOn = bill.Cancelled_On__c;
+        summary.gstFiledUpTo = GstFilingLock.filedUpTo(bill.Workshop_Profile__c);
+        summary.isGstFiled = GstFilingLock.isLocked(summary.gstFiledUpTo, bill.Bill_Date__c);
         summary.vehicleId = bill.Vehicle__c;
         summary.vehicleLabel = vehicleLabel(bill.Vehicle__c, bill.Vehicle__r);
         summary.vehicleChassisNumber = bill.Vehicle__c != null ? bill.Vehicle__r.Chassis_Number__c : null;

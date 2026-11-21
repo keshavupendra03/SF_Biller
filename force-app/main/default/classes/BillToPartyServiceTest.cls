@@ -29,7 +29,7 @@ private class BillToPartyServiceTest {
         BillController.NewBillToPartyInput input = typed('  Sharma Transport  ');
         input.address = 'Nanakheda, Ujjain';
         input.contactPhone = '9827012345';
-        input.gstin = '23ABCDE1234F1Z5';
+        input.gstin = '23ABCDE1234F1Z8';
         input.state = 'Madhya Pradesh';
 
         Test.startTest();
@@ -40,7 +40,7 @@ private class BillToPartyServiceTest {
         System.assertEquals('Sharma Transport', saved.Name);
         System.assertEquals('Nanakheda, Ujjain', saved.Address__c);
         System.assertEquals('9827012345', saved.Contact_Phone__c);
-        System.assertEquals('23ABCDE1234F1Z5', saved.GSTIN__c);
+        System.assertEquals('23ABCDE1234F1Z8', saved.GSTIN__c);
         System.assertEquals('Madhya Pradesh', saved.State__c);
     }
 

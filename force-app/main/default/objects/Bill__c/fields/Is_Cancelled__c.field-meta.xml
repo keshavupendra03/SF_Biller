@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Is_Cancelled__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Set when staff delete a bill (BillController.cancelBill). A bill's number has been issued and GSTR-1 reports every number issued, so the bill is kept and reported as cancelled; its parts go back to stock. Cancelled bills are left out of lists, customer and job screens, and revenue.</description>
+    <label>Cancelled</label>
+    <type>Checkbox</type>
+</CustomField>

@@ -209,7 +209,7 @@
                     <button type="button" class="slds-button slds-button_reset line-row-button" data-key={line.key} onclick={handleEditLine}>
                         <span class="line-row-body">
                             <span class="slds-text-body_regular">{line.description}</span>
-                            <span class="slds-text-body_small slds-text-color_weak">{line.quantity} x ₹{line.unitPrice} ({line.taxRatePercent}% tax)</span>
+                            <span class="slds-text-body_small slds-text-color_weak">{line.quantity} x ₹{line.unitPrice} ({line.taxRatePercent}% tax){line.discountText}</span>
                         </span>
                     </button>
                     <lightning-button-icon
@@ -249,6 +249,12 @@
                 <div class="slds-grid slds-grid_align-spread">
                     <span>IGST</span>
                     <span>₹{formattedIgst}</span>
+                </div>
+            </template>
+            <template if:true={hasRoundOff}>
+                <div class="slds-grid slds-grid_align-spread">
+                    <span>Round off</span>
+                    <span data-id="round-off">₹{formattedRoundOff}</span>
                 </div>
             </template>
             <div class="slds-grid slds-grid_align-spread slds-text-heading_small slds-m-top_x-small">
@@ -353,12 +359,14 @@
                                 onchange={handleBillToPartyFieldChange}
                                 class="slds-m-bottom_x-small"
                             ></lightning-input>
-                            <lightning-input
+                            <lightning-combobox
+                                placeholder="Pick the state"
+                                options={stateOptions}
                                 label="State"
                                 data-field="state"
                                 value={newBillToParty.state}
                                 onchange={handleBillToPartyFieldChange}
-                            ></lightning-input>
+                            ></lightning-combobox>
                         </template>
                     </template>
                 </div>

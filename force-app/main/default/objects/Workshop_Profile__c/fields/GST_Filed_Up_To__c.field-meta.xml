@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>GST_Filed_Up_To__c</fullName>
+    <description>Last day of the last month whose GST returns this company has filed. Bills dated on or before it can't be added, changed or deleted (GstFilingLock). Blank: nothing filed yet. Set only through WorkshopProfileController.setGstFiledUpTo.</description>
+    <label>GST Filed Up To</label>
+    <required>false</required>
+    <type>Date</type>
+</CustomField>

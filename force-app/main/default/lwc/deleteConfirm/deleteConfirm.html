@@ -1,0 +1,15 @@
+<template>
+    <template lwc:if={isAsking}>
+        <div class="dc-panel" role="alertdialog" aria-labelledby="dc-message" data-id="confirm-panel">
+            <lightning-icon icon-name="utility:warning" size="x-small" variant="warning" class="dc-icon"></lightning-icon>
+            <p class="dc-message" id="dc-message" data-id="confirm-message">{message}</p>
+            <div class="dc-actions">
+                <lightning-button data-id="confirm-yes" variant="destructive" label={confirmLabel} disabled={busy} onclick={handleYes}></lightning-button>
+                <lightning-button data-id="confirm-no" label="Keep it" disabled={busy} onclick={handleNo}></lightning-button>
+            </div>
+        </div>
+    </template>
+    <template lwc:else>
+        <lightning-button data-id="delete" variant="destructive-text" icon-name="utility:delete" label={buttonLabel} disabled={busy} onclick={handleAsk}></lightning-button>
+    </template>
+</template>

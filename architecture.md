@@ -126,6 +126,12 @@ This is a hard constraint, not a preference to balance against convenience:
 
 ### C.1 — Invoice numbering: atomic, no placeholder state
 
+> **2026-11-21 (GST stage G1):** the financial year in the number is the one
+> of the **bill's own date**, not the day it was made, and a bill can't be
+> dated in the future. A bill dated in an earlier financial year continues
+> that year's series (highest `Invoice_Sequence__c`, or the number itself
+> for older bills), under the same company-row lock. See §F, Thirty-seventh.
+
 Unlike the old split-system version, there is now exactly one writer, so this is
 simpler than before — but still needs real concurrency protection, since two
 staff members (or two tabs) can submit a bill at nearly the same moment.
@@ -169,6 +175,13 @@ see §F for the full rationale and the row-locking replacement.
   `Current_Stock__c`) still flags it rather than rejecting the transaction.
 
 ### C.3 — GST type: per-part default, per-line override (not state-based)
+
+> **Re-confirmed 2026-11-21**, with the GST consequence explained: GST law
+> decides CGST+SGST vs IGST per invoice from the place of supply, and the GST
+> portal rejects a GSTR-1 invoice that mixes them. The user chose to keep the
+> per-part rule. So GST stage G3's checkup must list bills whose lines don't
+> match `Bill__c.Place_Of_Supply__c` against the company's state, for the CA
+> to correct. Don't automate the type without asking again.
 
 Confirmed 2026-10-02: CGST+SGST vs IGST is **not** derived from comparing
 customer state to workshop state (an earlier draft of this document assumed
@@ -258,6 +271,30 @@ criteria, not field-level schema.
 | 7 | **Reports & dashboards** | Revenue summary, mechanic-wise job counts, low-stock report | Native Salesforce Reports (+ `Is_Low_Stock__c` formula field, + a hand-authored `Mechanics_with_Jobs__c` custom report type since the junction object gets none automatically) | Stages 1–6 (needs real data to validate against) | Compare report totals to a seeded dataset (seeded 2026-10-03; verified via direct SOQL reconciliation and by running each report over REST) | **Partially met** — Revenue Summary and Low Stock Parts are built, deployed, and verified exact against seeded data; Mechanic Job Counts deployed but without a working Mechanic-name column/grouping (real, reproducible metadata-API limitation, not a syntax error — see §F); the combined Dashboard was not hand-authored via metadata (see §F) but the exit criterion "accessible without leaving the custom app" is still met via the pre-existing `standard-report`/`standard-Dashboard` tabs |
 | 8 | **End-to-end UAT & polish pass** | Full workflow regression + UI/UX consistency review | `BillController.createCustomer`/`EstimateController`+`JobController` customer-creation and job-linkage additions (see below — this stage's own regression pass found and fixed two real gaps, it didn't just confirm existing behavior) | All above | Live end-to-end script through the real deployed controllers: new customer → job → estimate → convert to bill → payment (no "approval" step — removed per §C.4); automated Apex (98/98) + Jest (29/29) regression; manual on-phone walkthrough still needed from the user, can't be done from here | Met for everything verifiable from this side: no custom-app step requires a standard tab (the regression pass found and closed the one real gap — customer creation — that would have forced one); UI/UX consistency reviewed and one real inconsistency fixed (search-result row styling in `jobBoard` didn't match `billCreate`/`estimateCreate`); governor-limit usage checked on the full live chain (21 SOQL queries, 195 of 10,000 CPU time) — no warnings. **Still needs you:** the actual on-phone walkthrough in the Salesforce Mobile App — the exit criteria explicitly call for mobile verification, which isn't something achievable from this environment |
 | 9 | **Full custom navigation — close the "related list" gap** | User-reported regression after using the Stage 8 build on-device: the app's nav still exposed standard object tabs (`Customer__c`, `Vehicle__c`, `Part__c`, `Mechanic__c`, `Surveyor__c`, `Bill_To_Party__c`, `Job_Status_Stage__c`, `Workshop_Profile__c`, …), so creating a vehicle under a customer, or adding a part to an estimate's related list, still routed through standard record pages — a direct violation of §B. Closed by building an LWC for every one of those screens and removing every standard object tab from the app's nav entirely | 5 new Apex controllers (`CustomerController`, `PartController`, `DirectoryController`, `WorkshopProfileController`, `JobStageController`) + `BillController.listBills`; 13 new LWCs (`customerList`, `customerDetail`, `inventoryList`, `inventoryDetail`, `billingList`, `moreMenu`, `directoryMenu`, `mechanicList`, `surveyorList`, `billToPartyList`, `settingsMenu`, `workshopProfile`, `jobStages`) + matching custom tabs/FlexiPages; `WS_Biller.app-meta.xml` nav rebuilt to 5 primary tabs (Jobs, Customers, Billing, Inventory, More) matching the reference app's bottom-nav structure, with every secondary screen reached by in-app navigation from there | Stages 4–8 | Apex: 129/129 passing (`sf project deploy ... --test-level RunLocalTests`). Jest: 59/59 passing across all 17 LWC bundles. Live sanity script against the real deployed org exercised every new controller end-to-end (customer list/detail/vehicle-add, part list/detail/create/adjust-stock, mechanic/surveyor/bill-to-party create+toggle, workshop profile get/save singleton, job stage create/reorder, bill list all/dues-only) with zero exceptions and governor-limit usage nowhere close to a warning; sanity-check records deleted afterward | All Stage 4–8 screens now reachable without a single standard-tab hop — vehicles are added inline from Customer Detail, parts are added inline from Inventory, mechanics/surveyors/bill-to-parties each get their own list+create LWC, Workshop Profile and Job Stages (admin-only screens previously only reachable via their standard tabs) are now custom LWC forms. Deliberately **not** carried over from the reference Flutter app's Settings screen: Backup, Google Account, PIN Lock, Salesforce Sync, Device ID — these are sync-era/second-writer concepts that don't apply to this Salesforce-only, single-writer app (§E) and were dropped rather than built. Job-stage reordering uses up/down buttons instead of drag-and-drop — more reliable on a touch/LWC surface and the only reorder operation the UI actually needs. **Still needs you:** the on-phone walkthrough of this new navigation in the Salesforce Mobile App (same caveat as Stage 8) |
+
+### D.1 — GST filing (sales side), agreed 2026-11-21
+
+User decisions:
+1. Editing keeps the §C.4 versioning: a new number every time. The replaced
+   number is reported as **cancelled** in GSTR-1's documents-issued table, and
+   only the latest version's amounts count.
+2. "Delete" on a bill = cancel: the number is kept and reported as cancelled,
+   stock comes back. Estimates are really deleted.
+3. Each client differs, so GST registration (Regular / Composition / not
+   registered) and filing frequency (Monthly / Quarterly) are per company.
+4. Sales side first; purchases and input tax credit come later, if at all.
+5. Bills without GST stay allowed for GST-registered companies; the reports
+   list them separately.
+Tax type stays per part (§C.3, re-confirmed).
+
+| # | Stage | Objective | Exit criteria |
+|---|---|---|---|
+| G1 | **Correct GST data at the source** | State list with GST codes; GSTIN check (format + check character) that fills the state; per-company registration and filing frequency; buyer's GSTIN and place of supply fixed on each bill; GST rate and unit lists; old-date bills numbered in their own financial year; future dates refused; clean-up of existing data | **Met 2026-11-21.** Every new bill gets a place of supply and the buyer's GSTIN as saved. Bad GSTINs and states are refused when entered or changed, with a readable message. Old-date numbering tested, including bills from before sequences were kept and per-company series. Clean-up ran in the dev org: all 53 bills got a place of supply and sequence; the report lists 5 bad GSTINs for the user to fix. Apex 374/374, Jest 335/335, browser check (nothing saved) |
+| G2 | Delete/cancel, old dates, month lock | Delete = cancel for bills (number kept, reported as cancelled, stock back, CANCELLED on the PDF); real delete for estimates; "mark month as filed" locks it against adding, editing, deleting or back-dating | **Met 2026-11-21.** Apex 389/389 (deleting, every lock path, estimates never locked, filed-up-to rules), Jest 358/358. Browser check: a ZZ estimate deleted end to end (both versions and lines gone); a real bill's Delete opened and kept (untouched); filed-up-to pick-list, deleted-bills toggle and future-date refusal seen |
+| G3 | Reports | GSTR-1 (B2B, B2C large, B2C small, HSN summary, documents issued) and GSTR-3B sales figures per company and month or quarter; GST checkup screen (including tax type vs place of supply, per §C.3); Excel export | **Met 2026-11-21.** Apex 408/408 (a hand-worked sample month: every table, GSTR-3B, documents issued with old-date splits and a missing number, checkup, composition, CSV layouts, zip). Jest 373/373. Real org: October 2026 built from the dev data. Documents issued cross-checked against the raw bills (0007-0048: 42 numbers, 19 live, 23 replaced versions), and the CA zip downloaded and opened |
+| G4 | Credit notes | For returns or changes after filing, own number series, in GSTR-1 | **Postponed by the user (2026-11-21): "need no credit note for now".** Not started |
+| G5 | Portal JSON, round-off, line discount | GSTR-1 JSON for the portal's offline upload in the CA zip; whole-rupee totals by company setting (on by default); a rupee discount per line, before GST | **Met 2026-11-21.** Apex 430/430 (97%), Jest 412+. Real org, rolled back: 2 x 500 - 100 + 333 at 18% = 1454.94, saved as 1455.00 with +0.06; November's JSON built from the dev data. **The JSON follows the portal schema as known on 2026-11-21: upload one month with the CA before relying on it** |
+| G6 | Insurance split bill, composition "Bill of Supply", due-date reminders | Two paired bills for a claim (insurer % per line plus compulsory excess); composition: no GST, "Bill of Supply"; unregistered: no GST, "Bill"; GSTR-1/3B/CMP-08 due dates on GST Returns and a reminder on the Billing list | **Met 2026-11-21.** Split tested to the paisa both sides (1770 + 1180 = 2950), stock taken once, HSN quantity counted once, editing either half keeps the pair. Phone-width browser check (390 px, nothing saved): Easy Bill discount, round-off and split; the Billing list reminder and GST Returns' "Returns to file" with the dev org's real October dates |
 
 ---
 
@@ -2274,3 +2311,249 @@ New Bill / New Estimate screens used them.
 Platform issue: none new. A bash `<<'EOF'` heredoc failed with "unexpected EOF while
 looking for matching `''" on a Python script full of `Buyer's`. Write such scripts
 to a file and run the file (already the practice for anything with quotes).
+
+**Thirty-sixth (2026-11-20): open a saved bill or estimate in Easy Bill from the
+Billing list.** User request: an Easy Bill button on each bill in the list, to see
+earlier bills as printed and change them, for estimates too.
+
+- There was no estimates list anywhere: estimates were only reachable from a customer
+  or job. `c:billingList` gained a Bills | Estimates switch, backed by the new
+  `EstimateController.listEstimates` (same shape as `listBills`: latest versions,
+  search, company filter). Both lists now show a party bill under the party's name with
+  "Buyer: <customer>", and search by party name. Each row is now a details button plus
+  an **Easy Bill** button (`c__editId` + `c__opened`).
+- **Changing never edits in place (§C.4).** `PaperBillController.getDocument` lays a
+  saved document out for the page. On save, `previousVersionId` routes `saveDocument`
+  to `BillController.createNewVersion` / `EstimateController.createNewVersion`, so the
+  old version is kept and the new one gets its own number. For a bill, stock goes back
+  for the old lines and comes off for the new ones. The page says so in a banner above
+  the sheet, with View PDF for the saved one. The bill/estimate choice is hidden, the
+  company is locked (a version stays with its company and series), and Save reads
+  "Save Changes".
+- `lockLatestVersion` selects the version being replaced `FOR UPDATE` and refuses one
+  that is no longer the latest, so two people saving the same bill can't fork it into
+  two "latest" versions. An older version opened by link can be viewed but not saved.
+- `createNewVersion` keeps the old vehicle when the request has none. Easy Bill treats
+  the page as the record, so a vehicle cleared on the page is cleared on the new
+  version (`clearVehicleIfRemoved`).
+- A no-GST document saves every line at 0%, so a reopened one would have nothing to add
+  when Add GST is pressed. `getDocument` takes each such line's rate from its part
+  (parts remember the rate typed on them), else 18%.
+- A document on the shared Walk-in Customer opens with no customer named.
+  `QuickBillController.walkInCustomerIdIfExists` finds that record without creating it.
+- `c:lineItemGrid` gained `@api setLines(lines)`. `c:companyPicker` now reports a
+  company set by its parent after its list has loaded. Before, only a tap or the
+  starting company was reported, so an opened document's company would not have
+  reached the page header.
+- The Billing list search waits 300ms after typing stops. It used to search on every
+  key, and those Apex calls queue: typing "ZZ Edit" took several seconds to settle.
+
+Platform issue (cost a browser round-trip): **`c:paperField`'s textarea still showed
+blank when a value arrived after it was drawn.** The Thirty-third fix copied the value
+in `renderedCallback`. But the template never reads `value` on the textarea branch, so
+setting it on an already-rendered box doesn't re-render it, and `renderedCallback`
+never runs. A reopened bill's Description looked empty, though the note was there and
+saved. Fixed with a `value` setter that copies straight into the textarea. The Jest
+test had only checked the component's `value` property, which was right, and passed.
+Now it checks `textarea.value` (it fails without the fix). **Lesson: for an unbound
+element, assert on the DOM element's own value, not the component property.**
+
+Also: a `git stash` / `git stash pop` (to compare lint before and after) rewrote the
+touched files with CRLF line endings, under `core.autocrlf`. The next scripted edit
+then failed to match on `\n`. Edit scripts here now normalise line endings
+when loading and write them back the same way.
+
+**Thirty-seventh (2026-11-21): GST stage G1, correct GST data at the source
+(§D.1).** Audited first. Already present: GSTIN and free-text State on
+customers, parties and companies; per-line HSN, rate and CGST/SGST-or-IGST.
+What would have made wrong returns: states typed four ways in the dev org ("MP",
+"Madhyapradesh", blank); GSTINs never checked (both dev companies' and three
+customers'/parties' are invalid); numbers taking the financial year from today.
+
+- `GstRules`: GST state codes, aliases ("MP", "23-MP", "Orissa"), GSTIN check
+  (format plus the GSTN mod-36 check character, checked against the published
+  sample 27AAPFU0939F1ZV), valid rates (0, 0.1, 0.25, 1, 1.5, 3, 5, 6, 7.5, 12, 18,
+  28, 40), and unit-to-UQC mapping for G3. `lwc/gst` has the same lists for the
+  screens; `GstRulesTest` and `gst.test.js` use the same examples.
+- `GstPartyDetails` (Customer, Bill-To-Party and Workshop Profile triggers):
+  stores a state by name, tidies a GSTIN, fills a blank state from it, refuses a
+  bad one. **Only when the value is entered or changed:** the invoice counter
+  updates the company row on every bill, so checking unchanged values would stop
+  all billing for a company with an old bad GSTIN. Change detection uses
+  `String.equals`, because Apex `!=` ignores case.
+- New fields: `Bill__c.Place_Of_Supply__c` (state code), `Recipient_GSTIN__c`,
+  `Invoice_Sequence__c`; `Workshop_Profile__c.GST_Registration_Type__c`,
+  `GST_Filing_Frequency__c`. `BillTriggerHandler` fixes the buyer details at
+  insert: party first, else customer. Place of supply is their state, else their
+  GSTIN's state, else the company's. So a later edit to the customer can't
+  change a filed bill. Printed on the tax invoice as "Place of Supply:
+  23-Madhya Pradesh".
+- Numbering by bill date (§C.1 note). Future-dated bills are refused before a
+  number is used.
+- Screens: State is a pick-list everywhere (Easy Bill: suggestions as you type,
+  and "mp" becomes "Madhya Pradesh" on leaving). A GSTIN is checked as typed and
+  fills a blank state. Easy Bill names a bad GSTIN or state above Save. The part
+  forms pick the GST rate and unit (UQC) from lists, keeping an older typed unit.
+  The company screen has the two GST settings.
+- `GstBackfillBatch`, started by `post-install.apex` after every deploy and
+  idempotent: customers, parties, companies, then bills, each step chained. It
+  leaves anything it can't fix untouched. `scripts/apex/gst-data-report.apex`
+  (read-only) lists what needs a person.
+
+Platform issue: **a `DmlException` from an `@AuraEnabled` method reaches the
+screen with no readable message**, so a trigger's "is not a valid GSTIN" would
+show as "An unexpected error occurred". `ReadableErrors.of(e)` rethrows
+`getDmlMessage(0)`. Every screen save that can hit these triggers is wrapped:
+`createCustomer`, `createBill`, `createNewVersion` (bill and estimate),
+`createEstimate`, `updateCustomer`, `create/updateBillToParty`, Quick Bill/Estimate
+and Easy Bill save. The trigger stays the real guard, for imports and scripts too.
+
+Also: the company counter field defaults to 0, not null (a test assumed null).
+One Apex edit left a stray closing brace; the deploy refused it whole, and nothing
+was half-applied.
+
+**Thirty-eighth (2026-11-21): GST stage G2, delete, old dates and the month lock
+(§D.1).**
+
+- **Delete on a bill = cancel** (`BillController.cancelBill`). The bill is kept
+  with `Is_Cancelled__c` and `Cancelled_On__c` set, its parts go back to stock
+  (`BillStockService.restoreForRemovedLineItems`), and its number stays, for
+  GSTR-1's documents-issued table in G3. The bill row is locked `FOR UPDATE`, so
+  two people deleting at once can't put stock back twice. Only the latest version,
+  only once. A deleted bill drops out of `listBills` (unless asked for with
+  'Cancelled'), the customer and job screens, and the Revenue Summary report (new
+  filter). It prints with a CANCELLED stamp, and can't take a new version.
+- **Delete on an estimate is real** (`EstimateController.deleteEstimate`). It
+  deletes every version, lines first, because `Estimate_Line_Item__c.Estimate__c`
+  is a Restrict lookup. A bill made from it keeps everything and only loses
+  `Source_Estimate__c` (SetNull).
+- **Month lock**: `Workshop_Profile__c.GST_Filed_Up_To__c` (a month end), set only
+  through `WorkshopProfileController.setGstFiledUpTo`, so an older screen saving
+  company details can never move it. It refuses a month that isn't over; blank
+  unlocks. `GstFilingLock` is checked when a bill is added (`BillTriggerHandler`,
+  before a number is used), changed (`createNewVersion`, on the old bill's date,
+  since its number gets replaced) and deleted (`cancelBill`). **Deliberately not a
+  general before-update lock on `Bill__c`.** The post-install company backfill and
+  `GstBackfillBatch` update old bills, and replacing a version updates the old one
+  (only after the date check). Estimates are never locked.
+- Screens:
+  - `c:deleteConfirm`: one Delete button that asks in the page, not a pop-up, so
+    it's the same in the Mobile App. Used on Bill Details, Estimate Details and
+    Easy Bill's opened banner.
+  - A deleted or filed bill opens view-only, saying why.
+  - Easy Bill and Quick Bill refuse a future date or a filed month before saving.
+    Easy Bill says when a date joins an earlier year's number series.
+  - Company screen: "GST returns filed up to" pick-list (quarter ends for quarterly
+    filers), saved at once.
+  - Billing list: "Show deleted bills".
+
+Platform issue (cost a full deploy round-trip, nothing applied): **a deploy fails
+on every Apex class with "This schedulable class has jobs pending or in
+progress"** when it's run without `scripts/apex/unschedule-jobs.apex` first. The
+previous deploy's `post-install.apex` had re-scheduled the nightly clean-up job.
+The deploy procedure's step 1 isn't optional, even for a quick redeploy.
+
+**Thirty-ninth (2026-11-21): GST stage G3, the GST Returns screen (§D.1).**
+
+- `GstReturnService.build(company, start, end)` makes the whole return in one pass,
+  so figures and checkup can't disagree. Bills are those dated in the period, of the
+  company (no company = primary). Amounts come only from **live** bills (latest
+  version, not deleted). Each line goes through `GstCalculatorService.calculateLine`,
+  as on the bill, and is rounded once per reported row. The tables:
+  - **B2B**: buyer GSTIN valid. Per invoice per rate.
+  - **B2C Large**: unregistered, inter-state, invoice value over Rs. 1,00,000 (the
+    limit since August 2024).
+  - **B2C Small**: everything else unregistered, by place of supply and rate.
+  - **Nil rated** (Table 8): 0% lines and whole no-GST bills, by inter/intra and
+    registered/unregistered. The checkup warns that no-GST bills from a Regular
+    company may really be taxable (decision 5 keeps them allowed).
+  - **HSN summary**: B2B and B2C separately, with a rate column (the 2025 Table 12
+    format). Units come from `GstRules.uqcFor`. An HSN/SAC starting 99 is a service:
+    unit NA, no quantity.
+  - **GSTR-3B**: 3.1(a) taxable totals, 3.1(c) nil rated, and 3.2 inter-state to
+    unregistered buyers by state. Sales only: no input tax credit (purchases aren't
+    in the app; decision 4).
+  - **Composition** companies get turnover for CMP-08 only. **Unregistered**
+    companies get nothing.
+- **Documents issued (Table 13)**: within each number series, the numbers dated in
+  the period form unbroken runs. A number dated outside the period (an old-date
+  bill) breaks a run. A number with no bill at all left is counted as cancelled and
+  warned about. Deleted bills and versions replaced by an edit are cancelled
+  (decision 1). In the dev org's October, 23 of 42 numbers were replaced versions:
+  each edit costs a number, which the CA will see as cancelled.
+- **Checkup**:
+  - Errors (block "Mark as filed"): bad company GSTIN or no state; bad buyer GSTIN
+    (reported as B2C meanwhile); tax type that doesn't fit the place of supply
+    (§C.3: reported as charged, flagged here); an item without an HSN/SAC.
+  - Warnings: short HSN; a unit that isn't a GST unit (reported as OTH); no-GST
+    bills; missing numbers; legacy bills numbered in another year's series.
+  - A bill's item problems are **one row per bill**, naming every item. The first
+    real-data run listed one row per item: 37 rows for October, 27 after grouping.
+- `GstReturnFiles`: the offline tool's CSV import layouts (b2b, b2cl, b2cs, exemp,
+  hsn(b2b), hsn(b2c), docs) plus a readable summary.csv, in one zip via
+  `Compression.ZipWriter` (checked available first). **The layouts are the templates
+  as known on 2026-11-21. Have the CA import one month into the current offline
+  tool before relying on them; G5's portal JSON is the stricter path.**
+- `c:gstReturns` on the new GST Returns tab, after Billing:
+  - company and period pick-lists (quarters Apr-Jun etc. for quarterly filers; it
+    opens on the latest period that's over);
+  - checkup first, with each bill one tap away;
+  - a tile per table, with tables in an accordion;
+  - GSTR-3B;
+  - "Download for CA (zip)";
+  - "Mark as filed" (sets G2's lock to the period end; asks first; disabled while
+    errors remain), and "Unlock" back to the month before.
+
+Platform issues (each cost a deploy round-trip):
+- `where` and `number` are reserved in Apex, as a local variable and a parameter.
+- `sf apex run test --synchronous` takes only one class. For several, drop
+  `--synchronous`.
+
+**Fortieth (2026-11-21): GST stages G5 and G6 (§D.1); G4 postponed.** User
+decisions: round-off is a company setting, on by default; discount is rupees
+per line only; an insurance claim splits per line (insurer %) plus the
+compulsory excess.
+- **Round-off**: `Workshop_Profile__c.Exact_Totals__c` (ticked = to the paisa).
+  `BillTotalsService` / `EstimateTotalsService` save `Round_Off__c` and add it to
+  `Total_Amount__c`; the PDF prints a "Round off" row and the words of the rounded
+  total. Older documents keep their totals until their lines are saved again.
+- **Discount**: `Discount__c` on bill and estimate lines, off the line before GST,
+  0 to qty x price (`BillController.prepareLines` refuses anything else). Easy Bill
+  has an "Add discount" column (Alt+D; turning it off clears them); the other
+  screens take it in the line popup.
+- **No-GST companies**: Composition and Unregistered save every rate as 0 whatever
+  the screen sent; a composition bill prints "Bill of Supply" with the statutory
+  note, an unregistered one "Bill". The screens hide the GST switch for them.
+- **Insurance split** (Easy Bill, new bill to a party only): the insurer's bill
+  (to the party, takes the stock) and the customer's (no part links), paired by
+  `Bill__c.Paired_Bill__c`. Both keep full qty and price; the other side's share
+  is the line discount, so they add up to the job line by line. The GST-inclusive
+  excess moves from insurer to customer in proportion to each line's cost to the
+  insurer, so every line keeps its rate. A new version of either half keeps the
+  pair, and the customer's half never links parts (it would take stock again).
+  Each bill rounds on its own, so together they can be a rupee off the job's
+  rounded total: Easy Bill says so when it happens.
+- **Portal JSON**: `GstReturnFiles.portalJson`, added to the CA zip for a regular
+  company as `GSTR1_MMYYYY.json` (b2b, b2cl, b2cs, nil, hsn_b2b/hsn_b2c,
+  doc_issue; inter-state from the company's state code).
+- **Due dates** (`c/gst` `gstDueDates`): GSTR-1 11th / 13th after a quarter;
+  GSTR-3B 20th, or 22nd/24th by state for quarterly filers; CMP-08 18th. For each
+  period over and after "filed up to" (only the latest when nothing is marked).
+  GST Returns lists them; the Billing list shows those due within 7 days or late.
+  Usual dates only: the screens say extensions come by notification.
+
+Platform issues:
+- **A new checkbox leaves existing records unticked, whatever its default.** The
+  first field, `Round_Off_Totals__c` (default ticked), left every existing company
+  with round-off off, against the decision. A post-install fix would re-run after
+  every deploy and undo a company's later choice, so the field was replaced by
+  `Exact_Totals__c` (default unticked = round off) and the old one deleted from
+  the dev org with a post-destructive manifest. Default-on settings must be stored
+  as their opposite.
+- `on` is reserved in Apex too (as a parameter name), after `where` and `number`.
+- Apex maps compare Decimals by scale: `{'a' => 1000}` doesn't equal
+  `{'a' => 1000.00}`. Tests compare the text (`GstRules.rateText`) instead.
+- `InvoicePdfController.loadEstimate` didn't select `Round_Off__c`: an SObject
+  field not in the query throws at runtime, not at compile time (5 test failures).
+- `Test.setCurrentPage` can't be used in anonymous Apex, so a Visualforce
+  controller can't be checked that way against a real org; its tests cover it.

@@ -145,6 +145,11 @@ public with sharing class PartController {
         if (input == null || String.isBlank(input.name)) {
             throw new PartControllerException('A part name is required.');
         }
+        if (input.taxRatePercent != null && !GstRules.isGstRate(input.taxRatePercent)) {
+            throw new PartControllerException(
+                'GST ' + GstRules.rateText(input.taxRatePercent) + '% is not a GST rate. Use ' + GstRules.gstRatesText() + '%.'
+            );
+        }
     }
 
     private static PartListItem toListItem(Part__c p) {

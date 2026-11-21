@@ -1,0 +1,23 @@
+.dc-panel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border: 1px solid #c23934;
+    border-radius: 0.25rem;
+    background-color: #fef1ee;
+}
+
+.dc-icon {
+    margin-top: 0.125rem;
+}
+
+.dc-message {
+    flex: 1 1 14rem;
+}
+
+.dc-actions {
+    display: flex;
+    gap: 0.5rem;
+}

@@ -738,4 +738,104 @@ describe('c-quick-bill', () => {
             expect($(element, '.success-card').textContent).toContain('ICICI Lombard');
         });
     });
+
+    it('the customer state is picked from a list, and a GSTIN fills it in', async () => {
+        const element = createQuickBillElement();
+        await flushPromises();
+        $(element, '[data-id="toggle-more-customer"]').click();
+        await flushPromises();
+
+        const state = $(element, '[data-field="state"]');
+        expect(state.tagName).toBe('LIGHTNING-COMBOBOX');
+        type(element, 'lightning-input[data-field="gstin"]', '27AAPFU0939F1ZV');
+        await flushPromises();
+
+        expect($(element, '[data-field="state"]').value).toBe('Maharashtra');
+    });
+
+    it('a bill can\'t be dated after today, or in a month the company has filed', async () => {
+        const element = createQuickBillElement();
+        await switchToWalkIn(element);
+        await typeCell(element, 0, 'description', 'Wheel alignment');
+        await typeCell(element, 0, 'unitPrice', '600');
+        $(element, 'c-company-picker').dispatchEvent(new CustomEvent('companychange', { detail: { id: 'wp1', profile: { id: 'wp1', gstFiledUpTo: '2099-12-31' } } }));
+        await flushPromises();
+
+        expect($(element, '[data-id="missing-reason"]').textContent).toContain('GST is filed up to December 2099');
+
+        $(element, 'c-company-picker').dispatchEvent(new CustomEvent('companychange', { detail: { id: 'wp1', profile: { id: 'wp1', gstFiledUpTo: null } } }));
+        $(element, '[data-id="toggle-more-options"]').click();
+        await flushPromises();
+        const date = $(element, '[data-id="document-date"]');
+        expect(date.max).toBeTruthy();
+        date.value = '2099-01-01';
+        date.dispatchEvent(new CustomEvent('change'));
+        await flushPromises();
+
+        expect($(element, '[data-id="missing-reason"]').textContent).toContain('future');
+    });
+
+    describe('discount, round-off and no-GST companies (G5)', () => {
+        function chooseCompany(element, profile) {
+            $(element, 'c-company-picker').dispatchEvent(new CustomEvent('companychange', { detail: { id: 'wp1', profile: { id: 'wp1', ...profile } } }));
+            return flushPromises();
+        }
+
+        it('rounds the total to whole rupees, as the company chooses', async () => {
+            const element = createQuickBillElement();
+            await switchToWalkIn(element);
+            await chooseCompany(element, { roundOffTotals: true });
+            await setGst(element, true);
+            await typeCell(element, 0, 'description', 'Clip');
+            await typeCell(element, 0, 'unitPrice', '333');
+
+            expect($(element, '[data-id="round-off"]').textContent).toBe('₹+0.06');
+            expect($(element, '[data-id="grand-total"]').textContent).toBe('₹393.00');
+
+            await chooseCompany(element, { roundOffTotals: false });
+            expect($(element, '[data-id="round-off"]')).toBeNull();
+            expect($(element, '[data-id="grand-total"]').textContent).toBe('₹392.94');
+        });
+
+        it('a discount set in the line popup comes off the line and is sent', async () => {
+            createQuickBill.mockResolvedValue(SUMMARY);
+            const element = createQuickBillElement();
+            await switchToWalkIn(element);
+            await typeCell(element, 0, 'description', 'Pad');
+            await typeCell(element, 0, 'quantity', '2');
+            await typeCell(element, 0, 'unitPrice', '500');
+            $(element, '[data-id="edit-item"]').click();
+            await flushPromises();
+            const editor = grid(element).querySelector('c-line-item-editor');
+            editor.dispatchEvent(new CustomEvent('save', {
+                detail: { ...editor.record, quantity: 2, unitPrice: 500, taxRatePercent: 18, discount: 100 }
+            }));
+            await flushPromises();
+
+            expect($(element, '[data-id="off-note"]').textContent).toBe('₹100.00 off');
+            expect($(element, '[data-id="grand-total"]').textContent).toBe('₹900.00');
+            $(element, '[data-id="create"]').click();
+            await flushPromises();
+            expect(createQuickBill.mock.calls[0][0].request.lineItems[0].discount).toBe(100);
+        });
+
+        it('a composition company has no GST toggle, says why, and sends no GST', async () => {
+            createQuickBill.mockResolvedValue(SUMMARY);
+            const element = createQuickBillElement();
+            await switchToWalkIn(element);
+            await setGst(element, true);
+            await chooseCompany(element, { gstRegistrationType: 'Composition' });
+
+            expect($(element, '[data-id="include-gst"]')).toBeNull();
+            expect($(element, '[data-id="no-gst-note"]').textContent).toContain('Bill of Supply');
+            await typeCell(element, 0, 'description', 'Wheel alignment');
+            await typeCell(element, 0, 'unitPrice', '1000');
+            expect($(element, '[data-id="grand-total"]').textContent).toBe('₹1,000.00');
+            expect($(element, '[data-id="gst-excluded"]')).toBeNull();
+
+            $(element, '[data-id="create"]').click();
+            await flushPromises();
+            expect(createQuickBill.mock.calls[0][0].request.includeGst).toBe(false);
+        });
+    });
 });

@@ -87,7 +87,7 @@ private class BillControllerTest {
         request.customerId = customerId;
         BillController.NewBillToPartyInput party = new BillController.NewBillToPartyInput();
         party.name = 'Acme Logistics Pvt Ltd';
-        party.gstin = '27AAACA1234A1Z5';
+        party.gstin = '27AAACA1234A1ZK';
         party.state = 'Maharashtra';
         request.newBillToParty = party;
 
@@ -731,5 +731,29 @@ private class BillControllerTest {
 
         System.assertEquals(1, [SELECT COUNT() FROM Part__c WHERE Name = 'Wiper Blade'], 'Must reuse the existing part, never create a duplicate.');
         System.assertEquals(existing.Id, summary.lineItems[0].partId);
+    }
+
+    @isTest
+    static void listBills_showsTheParty_andSearchesByIt() {
+        Bill_To_Party__c icici = new Bill_To_Party__c(Name = 'ICICI Lombard');
+        insert icici;
+        BillController.CreateBillRequest request = new BillController.CreateBillRequest();
+        request.customerId = insertCustomer();
+        request.billToPartyId = icici.Id;
+        BillController.LineItemInput li = new BillController.LineItemInput();
+        li.description = 'Bumper repair';
+        li.quantity = 1;
+        li.unitPrice = 3500;
+        li.taxRatePercent = 18;
+        request.lineItems = new List<BillController.LineItemInput>{ li };
+        BillController.createBill(request);
+
+        Test.startTest();
+        List<BillController.BillListItem> byParty = BillController.listBills('All', 'lombard', null);
+        Test.stopTest();
+
+        System.assertEquals(1, byParty.size());
+        System.assertEquals('ICICI Lombard', byParty[0].billToPartyName);
+        System.assertEquals('Ramesh Kumar', byParty[0].customerName);
     }
 }

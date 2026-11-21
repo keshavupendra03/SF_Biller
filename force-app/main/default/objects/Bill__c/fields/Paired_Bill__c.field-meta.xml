@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Paired_Bill__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Insurance claim split: the insurer's bill and the customer's bill for the same job point at each other. The insurer's bill is the one with a Bill-To-Party; only it takes stock.</description>
+    <label>Paired Bill</label>
+    <referenceTo>Bill__c</referenceTo>
+    <relationshipLabel>Paired Bills</relationshipLabel>
+    <relationshipName>Paired_Bills</relationshipName>
+    <required>false</required>
+    <type>Lookup</type>
+</CustomField>

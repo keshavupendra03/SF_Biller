@@ -86,34 +86,44 @@ public with sharing class QuickBillController {
 
     @AuraEnabled
     public static BillController.BillSummary createQuickBill(QuickBillRequest request) {
-        ResolvedParties parties = prepare(request);
+        // A save error (a bad GSTIN, a future date) is shown in its own words.
+        try {
+            ResolvedParties parties = prepare(request);
 
-        BillController.CreateBillRequest bill = new BillController.CreateBillRequest();
-        bill.workshopProfileId = request.workshopProfileId;
-        bill.customerId = parties.customerId;
-        bill.vehicleId = parties.vehicleId;
-        bill.newVehicle = parties.newVehicle;
-        bill.billToPartyId = parties.billToPartyId;
-        bill.billDate = request.documentDate;
-        bill.notes = request.notes;
-        bill.lineItems = request.lineItems;
-        return BillController.createBill(bill);
+            BillController.CreateBillRequest bill = new BillController.CreateBillRequest();
+            bill.workshopProfileId = request.workshopProfileId;
+            bill.customerId = parties.customerId;
+            bill.vehicleId = parties.vehicleId;
+            bill.newVehicle = parties.newVehicle;
+            bill.billToPartyId = parties.billToPartyId;
+            bill.billDate = request.documentDate;
+            bill.notes = request.notes;
+            bill.lineItems = request.lineItems;
+            return BillController.createBill(bill);
+        } catch (DmlException e) {
+            throw ReadableErrors.of(e);
+        }
     }
 
     @AuraEnabled
     public static EstimateController.EstimateSummary createQuickEstimate(QuickBillRequest request) {
-        ResolvedParties parties = prepare(request);
+        // A save error (a bad GSTIN, a future date) is shown in its own words.
+        try {
+            ResolvedParties parties = prepare(request);
 
-        EstimateController.CreateEstimateRequest estimate = new EstimateController.CreateEstimateRequest();
-        estimate.workshopProfileId = request.workshopProfileId;
-        estimate.customerId = parties.customerId;
-        estimate.vehicleId = parties.vehicleId;
-        estimate.newVehicle = parties.newVehicle;
-        estimate.billToPartyId = parties.billToPartyId;
-        estimate.estimateDate = request.documentDate;
-        estimate.notes = request.notes;
-        estimate.lineItems = request.lineItems;
-        return EstimateController.createEstimate(estimate);
+            EstimateController.CreateEstimateRequest estimate = new EstimateController.CreateEstimateRequest();
+            estimate.workshopProfileId = request.workshopProfileId;
+            estimate.customerId = parties.customerId;
+            estimate.vehicleId = parties.vehicleId;
+            estimate.newVehicle = parties.newVehicle;
+            estimate.billToPartyId = parties.billToPartyId;
+            estimate.estimateDate = request.documentDate;
+            estimate.notes = request.notes;
+            estimate.lineItems = request.lineItems;
+            return EstimateController.createEstimate(estimate);
+        } catch (DmlException e) {
+            throw ReadableErrors.of(e);
+        }
     }
 
     private class ResolvedParties {
@@ -213,13 +223,19 @@ public with sharing class QuickBillController {
         return vehicle != null && String.isNotBlank(vehicle.registrationNumber);
     }
 
-    public static Id walkInCustomerId() {
+    // The shared walk-in record's Id, without creating it when there is none.
+    public static Id walkInCustomerIdIfExists() {
         List<Customer__c> existing = [
             SELECT Id FROM Customer__c WHERE Name = :WALK_IN_NAME AND Phone__c = :WALK_IN_PHONE
             ORDER BY CreatedDate LIMIT 1
         ];
-        if (!existing.isEmpty()) {
-            return existing[0].Id;
+        return existing.isEmpty() ? null : existing[0].Id;
+    }
+
+    public static Id walkInCustomerId() {
+        Id existing = walkInCustomerIdIfExists();
+        if (existing != null) {
+            return existing;
         }
         Customer__c walkIn = new Customer__c(Name = WALK_IN_NAME, Phone__c = WALK_IN_PHONE);
         insert walkIn;

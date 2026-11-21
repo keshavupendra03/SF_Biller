@@ -22,9 +22,9 @@
                     <lightning-input data-field="price" type="number" step="0.01" label="Price" value={editValues.price} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
                     <lightning-input data-field="lowStockThreshold" type="number" label="Low Stock Threshold" value={editValues.lowStockThreshold} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
                     <lightning-combobox data-field="gstType" label="GST Type" value={editValues.gstType} options={gstTypeOptions} onchange={handleGstTypeChange} class="slds-m-bottom_x-small"></lightning-combobox>
-                    <lightning-input data-field="taxRatePercent" type="number" label="Tax Rate %" value={editValues.taxRatePercent} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
+                    <lightning-combobox data-field="taxRatePercent" label="GST Rate" placeholder="Pick the GST rate" options={rateOptions} value={editValues.taxRatePercent} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-combobox>
                     <lightning-input data-field="hsnCode" label="HSN Code" value={editValues.hsnCode} onchange={handleEditFieldChange} class="slds-m-bottom_x-small"></lightning-input>
-                    <lightning-input data-field="unitLabel" label="Unit" value={editValues.unitLabel} onchange={handleEditFieldChange} class="slds-m-bottom_small"></lightning-input>
+                    <lightning-combobox data-field="unitLabel" label="Unit" placeholder="Pick the unit" options={unitOptions} value={editValues.unitLabel} onchange={handleEditFieldChange} class="slds-m-bottom_small"></lightning-combobox>
                     <lightning-button data-id="save-edit" label="Save" variant="brand" disabled={saveEditDisabled} onclick={handleSaveEdit}></lightning-button>
                     <lightning-button label="Cancel" onclick={handleToggleEdit} class="slds-m-left_x-small"></lightning-button>
                 </div>

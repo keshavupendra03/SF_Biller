@@ -4,7 +4,7 @@
     </template>
 
     <div class={gridClass}>
-        <div class={headerClass} aria-hidden="true">
+        <div class={headerClass} style={lineStyle} aria-hidden="true">
             <template lwc:if={isPaper}>
                 <span class="cell-sr">Sr</span>
                 <span class="cell-name">Product Name</span>
@@ -12,6 +12,8 @@
                 <span class="cell-qty cell-number">Qty</span>
                 <span class="cell-price cell-number">Price</span>
                 <template lwc:if={includeGst}><span class="cell-gst cell-number">GST %</span></template>
+                <template lwc:if={showDiscountCell}><span class="cell-disc cell-number">Discount</span></template>
+                <template lwc:if={showInsurerCell}><span class="cell-ins cell-number">Insurer %</span></template>
                 <span class="cell-amount">Total</span>
                 <span class="cell-actions"></span>
             </template>
@@ -28,7 +30,7 @@
         <!-- Row buttons are tabindex="-1" so Tab only ever lands on the boxes. -->
         <template for:each={decoratedItems} for:item="item">
             <div key={item.key} class="item-row" data-id="item-row">
-                <div class={lineClass}>
+                <div class={lineClass} style={lineStyle}>
                     <template lwc:if={isPaper}>
                         <span class="cell-sr" data-id="line-number">{item.number}</span>
                     </template>
@@ -53,11 +55,17 @@
                     <template lwc:if={showGstCell}>
                         <input type="number" class={numberInputClass} data-key={item.key} data-field="taxRatePercent" aria-label={item.gstLabel} min="0" max="100" step="any" value={item.taxRatePercent} disabled={gstDisabled} oninput={handleCellInput} onkeydown={handleCellKeydown} />
                     </template>
+                    <template lwc:if={showDiscountCell}>
+                        <input type="number" class={numberInputClass} data-key={item.key} data-field="discount" aria-label={item.discountLabel} placeholder="Discount ₹" min="0" step="any" value={item.discount} oninput={handleCellInput} onkeydown={handleCellKeydown} />
+                    </template>
+                    <template lwc:if={showInsurerCell}>
+                        <input type="number" class={numberInputClass} data-key={item.key} data-field="insurerPercent" aria-label={item.insurerLabel} placeholder="Insurer 100%" min="0" max="100" step="any" value={item.insurerPercent} oninput={handleCellInput} onkeydown={handleCellKeydown} />
+                    </template>
                     <span class="cell-amount" data-id="line-amount">{item.formattedAmount}</span>
                     <span class="item-actions cell-actions">
                         <template lwc:if={item.showDetails}>
-                            <button type="button" tabindex="-1" class="slds-button slds-button_icon" data-id="edit-item" data-key={item.key} title="HSN, unit and IGST" onclick={handleEditItem}>
-                                <lightning-icon icon-name="utility:edit" size="xx-small" alternative-text="HSN, unit and IGST"></lightning-icon>
+                            <button type="button" tabindex="-1" class="slds-button slds-button_icon" data-id="edit-item" data-key={item.key} title="HSN, unit, IGST and discount" onclick={handleEditItem}>
+                                <lightning-icon icon-name="utility:edit" size="xx-small" alternative-text="HSN, unit, IGST and discount"></lightning-icon>
                             </button>
                         </template>
                         <template lwc:if={item.isFilled}>
@@ -69,6 +77,15 @@
                 </div>
                 <template lwc:if={item.stockNote}>
                     <p class="slds-text-body_small slds-text-color_error" data-id="stock-note">{item.stockNote}</p>
+                </template>
+                <template lwc:if={item.discountNote}>
+                    <p class="slds-text-body_small slds-text-color_error" data-id="discount-note">{item.discountNote}</p>
+                </template>
+                <template lwc:if={item.percentNote}>
+                    <p class="slds-text-body_small slds-text-color_error" data-id="percent-note">{item.percentNote}</p>
+                </template>
+                <template lwc:if={item.offNote}>
+                    <p class="slds-text-body_small slds-text-color_weak" data-id="off-note">{item.offNote}</p>
                 </template>
                 <template lwc:if={item.showSuggestions}>
                     <ul class="suggestions" role="listbox" aria-label="Matching parts" data-id="suggestions">

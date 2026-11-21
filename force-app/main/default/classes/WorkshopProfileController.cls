@@ -23,14 +23,25 @@ public with sharing class WorkshopProfileController {
         @AuraEnabled public String termsAndConditions { get; set; }
         @AuraEnabled public String jobSlipTerms { get; set; }
         @AuraEnabled public String invoicePrefix { get; set; }
+        // Regular, Composition or Unregistered; and Monthly or Quarterly.
+        @AuraEnabled public String gstRegistrationType { get; set; }
+        @AuraEnabled public String gstFilingFrequency { get; set; }
+        // Read only here: changed through setGstFiledUpTo.
+        @AuraEnabled public Date gstFiledUpTo { get; set; }
+        // Totals to whole rupees. Blank from screens that don't show it: kept.
+        @AuraEnabled public Boolean roundOffTotals { get; set; }
         @AuraEnabled public Boolean isPrimary { get; set; }
     }
 
     private static final List<String> FIELDS = new List<String>{
         'Name', 'Address__c', 'Phone__c', 'Email__c', 'GSTIN__c', 'State__c', 'Invoice_Prefix__c',
         'Bank_Account_Holder__c', 'Bank_Name__c', 'Bank_Account_No__c', 'Bank_IFSC__c',
-        'Terms_And_Conditions__c', 'Job_Slip_Terms__c'
+        'Terms_And_Conditions__c', 'Job_Slip_Terms__c', 'GST_Registration_Type__c', 'GST_Filing_Frequency__c',
+        'GST_Filed_Up_To__c', 'Exact_Totals__c'
     };
+
+    private static final String DEFAULT_REGISTRATION = 'Regular';
+    private static final String DEFAULT_FREQUENCY = 'Monthly';
 
     /** Primary company first. */
     @AuraEnabled
@@ -67,6 +78,28 @@ public with sharing class WorkshopProfileController {
         return write(applyTo(new Workshop_Profile__c(), input));
     }
 
+    /**
+     * "GST returns filed up to" (architecture.md §D.1, G2): bills dated on or
+     * before the end of that month are locked against adding, changing and
+     * deleting. Its own action rather than part of saveProfile, so a screen
+     * saving other company details can never move it. Blank unlocks
+     * everything; a month that hasn't ended can't have been filed yet.
+     */
+    @AuraEnabled
+    public static ProfileData setGstFiledUpTo(Id companyId, Date filedUpTo) {
+        Date monthEnd = filedUpTo == null ? null : GstFilingLock.monthEnd(filedUpTo);
+        if (monthEnd != null && monthEnd >= Date.today()) {
+            throw new WorkshopProfileControllerException(
+                'GST for ' + GstFilingLock.monthName(monthEnd) + ' can\'t be filed until the month is over.'
+            );
+        }
+        Id profileId = companyId != null ? companyId : WorkshopProfileService.primaryId();
+        if (profileId == null) {
+            throw new WorkshopProfileControllerException('Save the workshop details first.');
+        }
+        return write(new Workshop_Profile__c(Id = profileId, GST_Filed_Up_To__c = monthEnd));
+    }
+
     private static void requireName(ProfileData input) {
         if (input == null || String.isBlank(input.name)) {
             throw new WorkshopProfileControllerException('A workshop name is required.');
@@ -87,6 +120,17 @@ public with sharing class WorkshopProfileController {
         profile.Bank_IFSC__c = input.bankIfsc;
         profile.Terms_And_Conditions__c = input.termsAndConditions;
         profile.Job_Slip_Terms__c = input.jobSlipTerms;
+        // Screens that don't show these (Easy Bill's workshop details) send
+        // them blank, which must not clear them.
+        if (String.isNotBlank(input.gstRegistrationType)) {
+            profile.GST_Registration_Type__c = input.gstRegistrationType;
+        }
+        if (String.isNotBlank(input.gstFilingFrequency)) {
+            profile.GST_Filing_Frequency__c = input.gstFilingFrequency;
+        }
+        if (input.roundOffTotals != null) {
+            profile.Exact_Totals__c = !input.roundOffTotals;
+        }
         return profile;
     }
 
@@ -120,6 +164,12 @@ public with sharing class WorkshopProfileController {
         data.termsAndConditions = p.Terms_And_Conditions__c;
         data.jobSlipTerms = p.Job_Slip_Terms__c;
         data.invoicePrefix = WorkshopProfileService.invoicePrefix(p);
+        data.gstRegistrationType = String.isBlank(p.GST_Registration_Type__c) ? DEFAULT_REGISTRATION : p.GST_Registration_Type__c;
+        data.gstFilingFrequency = String.isBlank(p.GST_Filing_Frequency__c) ? DEFAULT_FREQUENCY : p.GST_Filing_Frequency__c;
+        data.gstFiledUpTo = p.GST_Filed_Up_To__c;
+        // Stored the other way round (Exact_Totals__c), so a company from before
+        // the setting rounds off too.
+        data.roundOffTotals = p.Exact_Totals__c != true;
         return data;
     }
 }

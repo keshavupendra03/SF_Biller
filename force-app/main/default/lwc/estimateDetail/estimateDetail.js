@@ -3,6 +3,7 @@ import { NavigationMixin, CurrentPageReference } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import getEstimateSummary from '@salesforce/apex/EstimateController.getEstimateSummary';
+import deleteEstimate from '@salesforce/apex/EstimateController.deleteEstimate';
 
 const STATUS_BADGE_CLASS = {
     Converted: 'slds-badge slds-theme_success',
@@ -12,6 +13,7 @@ const STATUS_BADGE_CLASS = {
 };
 
 export default class EstimateDetail extends NavigationMixin(LightningElement) {
+    isDeleting = false;
     estimateId;
     summary;
     isLoading = true;
@@ -70,8 +72,22 @@ export default class EstimateDetail extends NavigationMixin(LightningElement) {
     }
 
     get decoratedLineItems() {
-        return (this.summary?.lineItems || []).map((li, index) => ({ ...li, key: index }));
+        return (this.summary?.lineItems || []).map((li, index) => ({
+            ...li,
+            key: index,
+            discountText: Number(li.discount) > 0 ? `, ₹${Number(li.discount).toFixed(2)} off` : ''
+        }));
     }
+
+    get hasRoundOff() {
+        return this.hasSummary && (Number(this.summary.roundOff) || 0) !== 0;
+    }
+
+    get formattedRoundOff() {
+        const value = Number(this.summary.roundOff) || 0;
+        return `${value > 0 ? '+' : '-'}${Math.abs(value).toFixed(2)}`;
+    }
+
 
     get hasIgstLines() {
         return this.hasSummary && this.summary.igst > 0;
@@ -83,6 +99,24 @@ export default class EstimateDetail extends NavigationMixin(LightningElement) {
 
     get canConvertToBill() {
         return this.hasSummary && this.summary.status !== 'Converted';
+    }
+
+    get deleteMessage() {
+        return `Delete ${this.summary.estimateNumber}, with all its earlier versions? This can't be undone. A bill already made from it stays as it is.`;
+    }
+
+    handleDelete() {
+        this.isDeleting = true;
+        const number = this.summary.estimateNumber;
+        deleteEstimate({ estimateId: this.estimateId })
+            .then(() => {
+                this.showToast(`${number} deleted`, '', 'success');
+                this.handleBack();
+            })
+            .catch((error) => this.showError(error))
+            .finally(() => {
+                this.isDeleting = false;
+            });
     }
 
     handleBack() {

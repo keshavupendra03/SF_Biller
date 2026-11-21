@@ -248,4 +248,77 @@ private class EstimateControllerTest {
         BillController.PartSearchResult[] found = BillController.searchParts('Headlight');
         System.assertEquals(1, found.size());
     }
+
+    @isTest
+    static void listEstimates_showsLatestVersionsOnly_withTheParty_andSearchesByParty() {
+        Bill_To_Party__c icici = new Bill_To_Party__c(Name = 'ICICI Lombard');
+        insert icici;
+        EstimateController.CreateEstimateRequest firstRequest = new EstimateController.CreateEstimateRequest();
+        firstRequest.customerId = insertCustomer();
+        firstRequest.billToPartyId = icici.Id;
+        firstRequest.lineItems = new List<BillController.LineItemInput>{ makeLine('Diagnostic Fee', 1, 500, 18) };
+        EstimateController.EstimateSummary first = EstimateController.createEstimate(firstRequest);
+        EstimateController.EstimateSummary second = EstimateController.createNewVersion(first.estimateId, firstRequest);
+
+        Test.startTest();
+        List<EstimateController.EstimateListItem> all = EstimateController.listEstimates(null, null);
+        List<EstimateController.EstimateListItem> byParty = EstimateController.listEstimates('icici', null);
+        List<EstimateController.EstimateListItem> none = EstimateController.listEstimates('nobody', null);
+        Test.stopTest();
+
+        System.assertEquals(1, all.size(), 'Only the latest version is listed.');
+        System.assertEquals(second.estimateId, all[0].id);
+        System.assertEquals(second.estimateNumber, all[0].estimateNumber);
+        System.assertEquals('Ramesh Kumar', all[0].customerName);
+        System.assertEquals('ICICI Lombard', all[0].billToPartyName);
+        System.assertEquals(590, all[0].totalAmount);
+        System.assertEquals(1, byParty.size());
+        System.assertEquals(0, none.size());
+    }
+
+    @isTest
+    static void listEstimates_filtersToOneCompany() {
+        Workshop_Profile__c main = new Workshop_Profile__c(Name = 'Speedy Motors');
+        insert main;
+        Workshop_Profile__c decor = new Workshop_Profile__c(Name = 'Speedy Decor', Invoice_Prefix__c = 'SD');
+        insert decor;
+        EstimateController.CreateEstimateRequest request = new EstimateController.CreateEstimateRequest();
+        request.customerId = insertCustomer();
+        request.workshopProfileId = decor.Id;
+        request.lineItems = new List<BillController.LineItemInput>{ makeLine('Seat Covers', 1, 4000, 18) };
+        EstimateController.createEstimate(request);
+
+        Test.startTest();
+        Integer forDecor = EstimateController.listEstimates(null, decor.Id).size();
+        Integer forMain = EstimateController.listEstimates(null, main.Id).size();
+        Test.stopTest();
+
+        System.assertEquals(1, forDecor);
+        System.assertEquals(0, forMain);
+    }
+
+    @isTest
+    static void deleteEstimate_removesEveryVersionAndLine_andABillFromItKeepsGoing() {
+        insert new Workshop_Profile__c(Name = 'Speedy Motors');
+        EstimateController.CreateEstimateRequest request = new EstimateController.CreateEstimateRequest();
+        request.customerId = insertCustomer();
+        request.lineItems = new List<BillController.LineItemInput>{ makeLine('Diagnostic Fee', 1, 500, 18) };
+        EstimateController.EstimateSummary first = EstimateController.createEstimate(request);
+        EstimateController.EstimateSummary second = EstimateController.createNewVersion(first.estimateId, request);
+        BillController.CreateBillRequest bill = new BillController.CreateBillRequest();
+        bill.customerId = request.customerId;
+        bill.sourceEstimateId = second.estimateId;
+        bill.lineItems = request.lineItems;
+        BillController.BillSummary converted = BillController.createBill(bill);
+
+        Test.startTest();
+        EstimateController.deleteEstimate(second.estimateId);
+        Test.stopTest();
+
+        System.assertEquals(0, [SELECT COUNT() FROM Estimate__c], 'Every version goes.');
+        System.assertEquals(0, [SELECT COUNT() FROM Estimate_Line_Item__c]);
+        Bill__c kept = [SELECT Source_Estimate__c, Total_Amount__c FROM Bill__c WHERE Id = :converted.billId];
+        System.assertEquals(null, kept.Source_Estimate__c);
+        System.assertEquals(590, kept.Total_Amount__c);
+    }
 }

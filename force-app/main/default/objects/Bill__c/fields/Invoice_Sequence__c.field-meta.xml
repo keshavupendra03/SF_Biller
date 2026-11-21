@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Invoice_Sequence__c</fullName>
+    <description>The running number at the end of Invoice_Number__c, within its company and financial year. Lets a bill dated in an earlier financial year continue that year's own series (InvoiceNumberingService).</description>
+    <label>Invoice Sequence</label>
+    <type>Number</type>
+    <precision>9</precision>
+    <scale>0</scale>
+    <required>false</required>
+</CustomField>

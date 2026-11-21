@@ -98,33 +98,43 @@ public with sharing class DirectoryController {
 
     @AuraEnabled
     public static BillToPartyItem createBillToParty(BillController.NewBillToPartyInput input) {
-        if (input == null || String.isBlank(input.name)) {
-            throw new DirectoryControllerException('A party name is required.');
+        // A save error (a bad GSTIN, a future date) is shown in its own words.
+        try {
+            if (input == null || String.isBlank(input.name)) {
+                throw new DirectoryControllerException('A party name is required.');
+            }
+            Bill_To_Party__c party = new Bill_To_Party__c(
+                Name = input.name,
+                Address__c = input.address,
+                Contact_Phone__c = input.contactPhone,
+                GSTIN__c = input.gstin,
+                State__c = input.state
+            );
+            insert party;
+            return toBillToPartyItem(party);
+        } catch (DmlException e) {
+            throw ReadableErrors.of(e);
         }
-        Bill_To_Party__c party = new Bill_To_Party__c(
-            Name = input.name,
-            Address__c = input.address,
-            Contact_Phone__c = input.contactPhone,
-            GSTIN__c = input.gstin,
-            State__c = input.state
-        );
-        insert party;
-        return toBillToPartyItem(party);
     }
 
     @AuraEnabled
     public static void updateBillToParty(Id billToPartyId, BillController.NewBillToPartyInput input) {
-        if (billToPartyId == null || input == null || String.isBlank(input.name)) {
-            throw new DirectoryControllerException('A party name is required.');
+        // A save error (a bad GSTIN, a future date) is shown in its own words.
+        try {
+            if (billToPartyId == null || input == null || String.isBlank(input.name)) {
+                throw new DirectoryControllerException('A party name is required.');
+            }
+            update new Bill_To_Party__c(
+                Id = billToPartyId,
+                Name = input.name,
+                Address__c = input.address,
+                Contact_Phone__c = input.contactPhone,
+                GSTIN__c = input.gstin,
+                State__c = input.state
+            );
+        } catch (DmlException e) {
+            throw ReadableErrors.of(e);
         }
-        update new Bill_To_Party__c(
-            Id = billToPartyId,
-            Name = input.name,
-            Address__c = input.address,
-            Contact_Phone__c = input.contactPhone,
-            GSTIN__c = input.gstin,
-            State__c = input.state
-        );
     }
 
     private static List<PersonItem> toPersonItems(List<SObject> records) {

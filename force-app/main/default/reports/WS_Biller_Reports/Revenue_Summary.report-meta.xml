@@ -21,6 +21,11 @@
             <operator>equals</operator>
             <value>1</value>
         </criteriaItems>
+        <criteriaItems>
+            <column>Bill__c.Is_Cancelled__c</column>
+            <operator>equals</operator>
+            <value>0</value>
+        </criteriaItems>
     </filter>
     <groupingsDown>
         <dateGranularity>Month</dateGranularity>

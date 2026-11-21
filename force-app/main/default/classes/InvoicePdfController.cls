@@ -50,6 +50,20 @@ public with sharing class InvoicePdfController {
     public String billToGstin { get; private set; }
     public String billToState { get; private set; }
     public String buyersName { get; private set; }
+    // "23-Madhya Pradesh": required on a tax invoice. Bills only.
+    public String placeOfSupply { get; private set; }
+    // A deleted bill still prints, marked so it can't pass for a live one.
+    public Boolean isCancelled { get; private set; }
+    // Whole-rupee rounding, when the company rounds off.
+    public Decimal roundOff { get; private set; }
+    public Boolean showDiscount { get; private set; }
+    // "Discount", or on an insurance claim pair who pays the rest of the line.
+    public String discountLabel { get; private set; }
+    // A composition company's bill of supply must say so.
+    public String compositionNote { get; private set; }
+    // An insurance claim pair names the other bill.
+    public String pairedNote { get; private set; }
+    private String registrationType;
 
     public String documentNumber { get; private set; }
     public String documentDate { get; private set; }
@@ -81,6 +95,7 @@ public with sharing class InvoicePdfController {
         public Decimal taxRatePercent { get; set; }
         public String gstType { get; set; }
         public Decimal lineTotal { get; set; }
+        public Decimal discount { get; set; }
     }
 
     public InvoicePdfController() {
@@ -93,6 +108,9 @@ public with sharing class InvoicePdfController {
         amountPaid = 0;
         amountDue = 0;
         recordFound = false;
+        roundOff = 0;
+        showDiscount = false;
+        discountLabel = 'Discount';
         renderAs = ApexPages.currentPage().getParameters().get('format') == 'html' ? '' : 'pdf';
 
         String rawId = ApexPages.currentPage().getParameters().get('id');
@@ -120,7 +138,7 @@ public with sharing class InvoicePdfController {
     private void loadWorkshopProfile(Id workshopProfileId) {
         Id profileId = workshopProfileId != null ? workshopProfileId : WorkshopProfileService.primaryId();
         List<Workshop_Profile__c> profiles = [
-            SELECT Name, Address__c, Phone__c, Email__c, GSTIN__c, State__c,
+            SELECT Name, Address__c, Phone__c, Email__c, GSTIN__c, State__c, GST_Registration_Type__c,
                    Bank_Name__c, Bank_Account_No__c, Bank_IFSC__c,
                    Bank_Account_Holder__c, Terms_And_Conditions__c
             FROM Workshop_Profile__c
@@ -136,6 +154,7 @@ public with sharing class InvoicePdfController {
         workshopEmail = profile.Email__c;
         workshopGstin = profile.GSTIN__c;
         workshopState = profile.State__c;
+        registrationType = profile.GST_Registration_Type__c;
         bankName = profile.Bank_Name__c;
         bankAccountNo = profile.Bank_Account_No__c;
         bankIfsc = profile.Bank_IFSC__c;
@@ -145,8 +164,8 @@ public with sharing class InvoicePdfController {
 
     private void loadBill(Id billId) {
         List<Bill__c> bills = [
-            SELECT Workshop_Profile__c, Invoice_Number__c, Bill_Date__c, Notes__c,
-                   Subtotal__c, Total_Amount__c,
+            SELECT Workshop_Profile__c, Invoice_Number__c, Bill_Date__c, Notes__c, Place_Of_Supply__c, Is_Cancelled__c,
+                   Subtotal__c, Total_Amount__c, Round_Off__c, Paired_Bill__c, Paired_Bill__r.Invoice_Number__c,
                    Customer__c, Customer__r.Name, Customer__r.Phone__c,
                    Customer__r.Address__c, Customer__r.GSTIN__c, Customer__r.State__c,
                    Bill_To_Party__c, Bill_To_Party__r.Name, Bill_To_Party__r.Address__c,
@@ -171,6 +190,16 @@ public with sharing class InvoicePdfController {
 
         documentNumber = bill.Invoice_Number__c;
         documentDate = formatDate(bill.Bill_Date__c);
+        isCancelled = bill.Is_Cancelled__c;
+        if (bill.Paired_Bill__c != null) {
+            // The insurer's bill is the one to a party; each shows the other's share as the reduction.
+            Boolean insurers = bill.Bill_To_Party__c != null;
+            discountLabel = insurers ? 'Customer pays' : 'Insurance pays';
+            pairedNote = (insurers ? 'Insurance claim: the customer\'s share is billed on ' : 'Insurance claim: the insurer\'s share is billed on ')
+                + bill.Paired_Bill__r.Invoice_Number__c + '.';
+        }
+        String stateName = GstRules.stateNameForCode(bill.Place_Of_Supply__c);
+        placeOfSupply = stateName == null ? null : bill.Place_Of_Supply__c + '-' + stateName;
         notes = bill.Notes__c;
 
         applyBillTo(bill.Customer__r, bill.Bill_To_Party__c, bill.Bill_To_Party__r);
@@ -204,11 +233,12 @@ public with sharing class InvoicePdfController {
 
         loadLines([
             SELECT Description__c, HSN_SAC_Code__c, Quantity__c, Unit__c,
-                   Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c
+                   Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c, Discount__c
             FROM Bill_Line_Item__c
             WHERE Bill__c = :billId
-            ORDER BY CreatedDate
+            ORDER BY CreatedDate, Id
         ]);
+        addRoundOff(bill.Round_Off__c);
         amountDue = grandTotal - totalPaid;
         amountInWords = AmountInWordsService.convert(grandTotal);
     }
@@ -216,7 +246,7 @@ public with sharing class InvoicePdfController {
     private void loadEstimate(Id estimateId) {
         List<Estimate__c> estimates = [
             SELECT Workshop_Profile__c, Name, Estimate_Date__c, Notes__c,
-                   Subtotal__c, Total_Amount__c,
+                   Subtotal__c, Total_Amount__c, Round_Off__c,
                    Customer__c, Customer__r.Name, Customer__r.Phone__c,
                    Customer__r.Address__c, Customer__r.GSTIN__c, Customer__r.State__c,
                    Bill_To_Party__c, Bill_To_Party__r.Name, Bill_To_Party__r.Address__c,
@@ -258,11 +288,12 @@ public with sharing class InvoicePdfController {
 
         loadLines([
             SELECT Description__c, HSN_SAC_Code__c, Quantity__c, Unit__c,
-                   Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c
+                   Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c, Discount__c
             FROM Estimate_Line_Item__c
             WHERE Estimate__c = :estimateId
-            ORDER BY CreatedDate
+            ORDER BY CreatedDate, Id
         ]);
+        addRoundOff(estimate.Round_Off__c);
         amountInWords = AmountInWordsService.convert(grandTotal);
     }
 
@@ -305,12 +336,14 @@ public with sharing class InvoicePdfController {
         Integer i = 1;
         List<GstCalculatorService.GstLineItemInput> gstInputs = new List<GstCalculatorService.GstLineItemInput>();
         for (SObject item : items) {
-            Decimal quantity = (Decimal) item.get('Quantity__c');
-            Decimal unitPrice = (Decimal) item.get('Unit_Price__c');
-            Decimal taxRate = (Decimal) item.get('Tax_Rate_Percent__c');
+            GstCalculatorService.GstLineItemInput input = GstCalculatorService.inputFor(item);
+            GstCalculatorService.GstLineResult result = GstCalculatorService.calculateLine(input);
+            Decimal quantity = input.quantity;
+            Decimal unitPrice = input.unitPrice;
+            Decimal taxRate = input.taxRatePercent;
             String gstType = (String) item.get('Gst_Type__c');
-            Decimal taxable = quantity * unitPrice;
-            Decimal gstAmt = taxable * taxRate / 100;
+            Decimal taxable = result.subtotal;
+            Decimal gstAmt = result.gst;
 
             LineRow row = new LineRow();
             row.rowNumber = i;
@@ -324,13 +357,12 @@ public with sharing class InvoicePdfController {
             row.taxRatePercent = taxRate;
             row.gstType = gstType;
             row.lineTotal = taxable + gstAmt;
+            row.discount = input.discount;
+            showDiscount = showDiscount || input.discount > 0;
             lines.add(row);
             i++;
 
-            gstInputs.add(new GstCalculatorService.GstLineItemInput(
-                row.description, quantity, unitPrice, taxRate,
-                GstCalculatorService.supplyTypeFromGstType(gstType)
-            ));
+            gstInputs.add(input);
         }
 
         GstCalculatorService.GstBillResult totals = GstCalculatorService.calculateBill(gstInputs);
@@ -345,15 +377,25 @@ public with sharing class InvoicePdfController {
         for (LineRow row : lines) {
             showUnit = showUnit || String.isNotBlank(row.unit);
         }
-        if (!isEstimate && !hasGst) {
+        if (!isEstimate && registrationType == 'Composition') {
+            documentTitle = 'Bill of Supply';
+            compositionNote = 'Composition taxable person, not eligible to collect tax on supplies.';
+        } else if (!isEstimate && !hasGst) {
             documentTitle = 'Bill';
         }
+    }
+
+    // After the lines: the saved whole-rupee rounding joins the total, and so
+    // the amount in words.
+    private void addRoundOff(Decimal saved) {
+        roundOff = saved == null ? 0 : saved;
+        grandTotal += roundOff;
     }
 
     // What's left of the table once the optional columns are accounted for.
     public Integer productColumnWidth {
         get {
-            return 54 - (showUnit == true ? 6 : 0) - (hasGst == true ? 26 : 0);
+            return 54 - (showUnit == true ? 6 : 0) - (hasGst == true ? 26 : 0) - (showDiscount == true ? 10 : 0);
         }
     }
 

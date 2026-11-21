@@ -1,9 +1,11 @@
 import { createElement } from 'lwc';
 import { CurrentPageReference } from 'lightning/navigation';
 import EstimateDetail from 'c/estimateDetail';
+import deleteEstimate from '@salesforce/apex/EstimateController.deleteEstimate';
 import getEstimateSummary from '@salesforce/apex/EstimateController.getEstimateSummary';
 
 jest.mock('@salesforce/apex/EstimateController.getEstimateSummary', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/EstimateController.deleteEstimate', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPublicLink', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPdfDownload', () => ({ default: jest.fn() }), { virtual: true });
 
@@ -196,5 +198,21 @@ describe('c-estimate-detail', () => {
 
         const preview = element.shadowRoot.querySelector('c-document-preview');
         expect(preview.recordId).toBe('a02xx0000000001');
+    });
+
+    it('Delete Estimate asks, deletes it with its versions, and goes back', async () => {
+        getEstimateSummary.mockResolvedValue(SUMMARY);
+        deleteEstimate.mockResolvedValue();
+        const element = createDetail(SUMMARY.estimateId);
+        await flushPromises();
+        const confirm = element.shadowRoot.querySelector('c-delete-confirm');
+        expect(confirm.buttonLabel).toBe('Delete Estimate');
+        expect(confirm.message).toContain('all its earlier versions');
+
+        confirm.dispatchEvent(new CustomEvent('confirm'));
+        await flushPromises();
+
+        expect(deleteEstimate).toHaveBeenCalledWith({ estimateId: SUMMARY.estimateId });
+        expect(mockNavigate).toHaveBeenCalled();
     });
 });

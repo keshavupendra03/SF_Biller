@@ -40,6 +40,31 @@ public with sharing class WorkshopProfileService {
         return names;
     }
 
+    /** Whether each company rounds totals off; the null key is the primary company. */
+    public static Map<Id, Boolean> roundsOff(Set<Id> companyIds) {
+        Set<Id> ids = new Set<Id>(companyIds);
+        ids.add(primaryId());
+        Map<Id, Boolean> rounds = new Map<Id, Boolean>();
+        for (Workshop_Profile__c profile : [SELECT Exact_Totals__c FROM Workshop_Profile__c WHERE Id IN :ids]) {
+            rounds.put(profile.Id, profile.Exact_Totals__c != true);
+        }
+        rounds.put(null, rounds.get(primaryId()) == true);
+        return rounds;
+    }
+
+    /**
+     * Only a company registered as Regular charges GST. A composition company
+     * issues bills of supply, and an unregistered one can't charge GST at all.
+     */
+    public static Boolean chargesGst(Id companyId) {
+        Id profileId = companyId != null ? companyId : primaryId();
+        if (profileId == null) {
+            return true;
+        }
+        List<Workshop_Profile__c> profiles = [SELECT GST_Registration_Type__c FROM Workshop_Profile__c WHERE Id = :profileId];
+        return profiles.isEmpty() || String.isBlank(profiles[0].GST_Registration_Type__c) || profiles[0].GST_Registration_Type__c == 'Regular';
+    }
+
     public static String invoicePrefix(Workshop_Profile__c profile) {
         return String.isBlank(profile.Invoice_Prefix__c) ? DEFAULT_INVOICE_PREFIX : profile.Invoice_Prefix__c;
     }

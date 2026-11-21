@@ -1,5 +1,6 @@
 import { LightningElement, api } from 'lwc';
 import listBillToParties from '@salesforce/apex/DirectoryController.listBillToParties';
+import { STATE_OPTIONS, checkGstinBox, withStateFromGstin, changedValue } from 'c/gst';
 
 const SEARCH_DELAY_MS = 250;
 const PARTIES_SHOWN = 8;
@@ -17,6 +18,7 @@ const EMPTY_DETAILS = { address: '', contactPhone: '', gstin: '', state: '' };
  * party's Id, or the typed party, never both.
  */
 export default class BillToPartyPicker extends LightningElement {
+    stateOptions = STATE_OPTIONS;
     term = '';
     results = [];
     highlightIndex = -1;
@@ -191,7 +193,12 @@ export default class BillToPartyPicker extends LightningElement {
     }
 
     handleDetailChange(event) {
-        this.details = { ...this.details, [event.target.dataset.field]: event.target.value || '' };
+        const field = event.target.dataset.field;
+        this.details = { ...this.details, [field]: changedValue(event) || '' };
+        if (field === 'gstin') {
+            checkGstinBox(event.target);
+            this.details = withStateFromGstin(this.details);
+        }
         this.notify();
     }
 

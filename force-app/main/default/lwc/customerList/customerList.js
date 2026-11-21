@@ -5,9 +5,11 @@ import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import listCustomers from '@salesforce/apex/CustomerController.listCustomers';
 import createCustomer from '@salesforce/apex/BillController.createCustomer';
 import listProfiles from '@salesforce/apex/WorkshopProfileController.listProfiles';
+import { STATE_OPTIONS, checkGstinBox, withStateFromGstin, changedValue } from 'c/gst';
 const EMPTY_NEW_CUSTOMER = { name: '', phone: '', address: '', email: '', gstin: '', state: '' };
 
 export default class CustomerList extends NavigationMixin(LightningElement) {
+    stateOptions = STATE_OPTIONS;
     @track customers = [];
 
     searchTerm = '';
@@ -79,7 +81,11 @@ export default class CustomerList extends NavigationMixin(LightningElement) {
 
     handleFieldChange(event) {
         const field = event.target.dataset.field;
-        this.newCustomer = { ...this.newCustomer, [field]: event.target.value };
+        this.newCustomer = { ...this.newCustomer, [field]: changedValue(event) };
+        if (field === 'gstin') {
+            checkGstinBox(event.target);
+            this.newCustomer = withStateFromGstin(this.newCustomer);
+        }
     }
 
     get canSave() {

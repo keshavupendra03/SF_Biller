@@ -40,3 +40,10 @@ if (!firstCompany.isEmpty()) {
     update slips;
     System.debug('Company recorded on ' + bills.size() + ' bills, ' + estimates.size() + ' estimates, ' + slips.size() + ' job slips.');
 }
+
+// GST details saved before the GST checks existed: tidies states and GSTINs,
+// and gives bills their place of supply and buyer's GSTIN. Runs in the
+// background (one object after another); idempotent, so running it after every
+// deploy is fine. scripts/apex/gst-data-report.apex lists what it couldn't fix.
+Id gstJob = Database.executeBatch(new GstBackfillBatch(), 200);
+System.debug('Started GST tidy-up job ' + gstJob);

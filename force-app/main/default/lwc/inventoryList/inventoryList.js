@@ -4,6 +4,7 @@ import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import listParts from '@salesforce/apex/PartController.listParts';
 import createPart from '@salesforce/apex/PartController.createPart';
+import { GST_RATE_OPTIONS, unitOptionsWith, changedValue } from 'c/gst';
 
 const EMPTY_PART = {
     name: '',
@@ -24,6 +25,7 @@ const GST_TYPE_OPTIONS = [
 ];
 
 export default class InventoryList extends NavigationMixin(LightningElement) {
+    rateOptions = GST_RATE_OPTIONS;
     gstTypeOptions = GST_TYPE_OPTIONS;
 
     @track parts = [];
@@ -50,6 +52,10 @@ export default class InventoryList extends NavigationMixin(LightningElement) {
             .finally(() => {
                 this.isLoading = false;
             });
+    }
+
+    get unitOptions() {
+        return unitOptionsWith(this.newPart.unitLabel);
     }
 
     get decoratedParts() {
@@ -91,7 +97,7 @@ export default class InventoryList extends NavigationMixin(LightningElement) {
 
     handleFieldChange(event) {
         const field = event.target.dataset.field;
-        this.newPart = { ...this.newPart, [field]: event.target.value };
+        this.newPart = { ...this.newPart, [field]: changedValue(event) };
     }
 
     handleGstTypeChange(event) {
