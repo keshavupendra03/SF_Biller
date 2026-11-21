@@ -11,6 +11,7 @@ import moveJob from '@salesforce/apex/JobController.moveJob';
 import assignMechanics from '@salesforce/apex/JobController.assignMechanics';
 import searchCustomers from '@salesforce/apex/BillController.searchCustomers';
 import createCustomer from '@salesforce/apex/BillController.createCustomer';
+import { changedValue } from 'c/gst';
 
 const EMPTY_NEW_VEHICLE = { registrationNumber: '', make: '', model: '', year: '', color: '', chassisNumber: '' };
 const EMPTY_NEW_CUSTOMER = { name: '', phone: '', address: '', email: '', gstin: '', state: '' };
@@ -280,7 +281,7 @@ export default class JobBoard extends NavigationMixin(LightningElement) {
 
     handleNewVehicleFieldChange(event) {
         const field = event.target.dataset.field;
-        this.newVehicle = { ...this.newVehicle, [field]: event.target.value };
+        this.newVehicle = { ...this.newVehicle, [field]: changedValue(event) };
     }
 
     handleSurveyorChange(event) {

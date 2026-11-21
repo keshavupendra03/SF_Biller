@@ -62,11 +62,23 @@
     cursor: pointer;
 }
 
-.option_active {
+.option:hover {
     background-color: #eef4ff;
+}
+
+/* The one the arrow keys are on: the bill's dark blue, so it can't be missed. */
+.option.option_active {
+    background-color: #1a4fa0;
+    color: #fff;
+    font-weight: 700;
+    box-shadow: inset 4px 0 0 #ffb75d;
 }
 
 .option-sub {
     color: #666;
     flex-shrink: 0;
+}
+
+.option_active .option-sub {
+    color: #fff;
 }

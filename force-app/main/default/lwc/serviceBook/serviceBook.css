@@ -92,9 +92,11 @@
     cursor: pointer;
 }
 
+/* The one the arrow keys are on: clearly marked, but still readable as a card. */
 .sb-result_active {
     border-color: #1a4fa0;
-    background-color: #eef4ff;
+    background-color: #d6e4fb;
+    box-shadow: inset 6px 0 0 #1a4fa0, 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .sb-result-head {

@@ -1317,4 +1317,57 @@ describe('c-paper-bill', () => {
             expect($(element, '[data-id="grand-total"]').textContent).toBe('Rs. 590.00');
         });
     });
+
+    describe('capitals and the suggestion highlight', () => {
+        it('vehicle number, chassis and GSTIN type in capitals, with the cursor kept where it was', async () => {
+            saveDocument.mockResolvedValue(SAVED);
+            const element = await createScreen();
+            const box = field(element, '[data-field="registrationNumber"]').shadowRoot.querySelector('input');
+            box.value = 'mp09ab1234';
+            box.setSelectionRange(4, 4);
+            box.dispatchEvent(new CustomEvent('input', { bubbles: true }));
+            await flushPromises();
+            expect(box.value).toBe('MP09AB1234');
+            expect(box.selectionStart).toBe(4);
+
+            await typeField(element, '[data-field="chassisNumber"]', 'ma3abc123');
+            await typeField(element, '[data-id="customer-name"]', 'Sharma Traders');
+            const gstin = field(element, '[data-field="gstin"]');
+            gstin.shadowRoot.querySelector('input').value = '27aapfu0939f1zv';
+            gstin.shadowRoot.querySelector('input').dispatchEvent(new CustomEvent('input', { bubbles: true }));
+            await flushPromises();
+            await addItem(element, 0, 'Wash', '200');
+            $(element, '[data-id="save"]').click();
+            await flushPromises();
+
+            const { request } = saveDocument.mock.calls[0][0];
+            expect(request.registrationNumber).toBe('MP09AB1234');
+            expect(request.chassisNumber).toBe('MA3ABC123');
+            expect(request.customerGstin).toBe('27AAPFU0939F1ZV');
+        });
+
+        it('a name box is left as typed', async () => {
+            const element = await createScreen();
+            await typeField(element, '[data-id="customer-name"]', 'ramesh kumar');
+            expect(field(element, '[data-id="customer-name"]').shadowRoot.querySelector('input').value).toBe('ramesh kumar');
+        });
+
+        it('the suggestion the arrow keys are on is marked as the active one', async () => {
+            searchParts.mockResolvedValue([
+                { id: 'part1', name: 'Brake Pad', price: 100, currentStock: 3 },
+                { id: 'part2', name: 'Brake Oil', price: 200, currentStock: 3 }
+            ]);
+            const element = await createScreen();
+            await typeCell(element, 0, 'description', 'Bra');
+            await wait(350);
+            await flushPromises();
+            press(cell(element, 0, 'description'), 'ArrowDown');
+            press(cell(element, 0, 'description'), 'ArrowDown');
+            await flushPromises();
+
+            const options = [...grid(element).querySelectorAll('[data-id="suggestion"]')];
+            expect(options.map((o) => o.classList.contains('suggestion_active'))).toEqual([false, true]);
+            expect(options[1].getAttribute('aria-selected')).toBe('true');
+        });
+    });
 });

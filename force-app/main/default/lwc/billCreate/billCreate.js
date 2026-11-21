@@ -450,7 +450,7 @@ export default class BillCreate extends NavigationMixin(LightningElement) {
 
     handleVehicleFieldChange(event) {
         const field = event.target.dataset.field;
-        this.newVehicle = { ...this.newVehicle, [field]: event.target.value };
+        this.newVehicle = { ...this.newVehicle, [field]: changedValue(event) };
     }
 
     handleBillDateChange(event) {

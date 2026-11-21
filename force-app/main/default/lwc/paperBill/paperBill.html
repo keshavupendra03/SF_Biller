@@ -78,7 +78,7 @@
                         <c-paper-field data-field="address" label="Workshop address" placeholder="Workshop address" value={workshop.address} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
                         <c-paper-field data-field="phone" type="tel" label="Workshop phone" placeholder="Phone no." value={workshop.phone} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
                         <c-paper-field data-field="email" label="Workshop email" placeholder="Email" value={workshop.email} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
-                        <c-paper-field data-field="gstin" label="Workshop GSTIN" placeholder="GSTIN" value={workshop.gstin} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
+                        <c-paper-field caps data-field="gstin" label="Workshop GSTIN" placeholder="GSTIN" value={workshop.gstin} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
                         <c-paper-field data-field="state" data-group="workshop" label="Workshop state" placeholder="State" min-chars="1" value={workshop.state} search={searchStateOptions} onvaluechange={handleWorkshopChange} onpick={handleStatePick} onleave={handleStateLeave} onadvance={handleAdvance}></c-paper-field>
                     </template>
                     <template lwc:else>
@@ -113,7 +113,7 @@
                             </template>
                             <c-paper-field data-id="party-address" data-field="address" label="Party address" placeholder="Address" value={party.address} onvaluechange={handlePartyChange} onadvance={handleAdvance}></c-paper-field>
                             <div class="pb-labelled"><span>Contact No.:</span><c-paper-field data-id="party-phone" data-field="contactPhone" type="tel" label="Party contact number" placeholder="Phone number" value={party.contactPhone} onvaluechange={handlePartyChange} onadvance={handleAdvance}></c-paper-field></div>
-                            <div class="pb-labelled"><span>GSTIN Number:</span><c-paper-field data-id="party-gstin" data-field="gstin" label="Party GSTIN" placeholder="Party GSTIN" value={party.gstin} onvaluechange={handlePartyChange} onadvance={handleAdvance}></c-paper-field></div>
+                            <div class="pb-labelled"><span>GSTIN Number:</span><c-paper-field caps data-id="party-gstin" data-field="gstin" label="Party GSTIN" placeholder="Party GSTIN" value={party.gstin} onvaluechange={handlePartyChange} onadvance={handleAdvance}></c-paper-field></div>
                             <div class="pb-labelled"><span>State:</span><c-paper-field data-id="party-state" data-field="state" data-group="party" label="Party state" placeholder="State" min-chars="1" value={party.state} search={searchStateOptions} onvaluechange={handlePartyChange} onpick={handleStatePick} onleave={handleStateLeave} onadvance={handleAdvance}></c-paper-field></div>
                         </template>
                         <template lwc:else>
@@ -126,7 +126,7 @@
                         </template>
                         <c-paper-field data-field="address" label="Customer address" placeholder="Address" value={customer.address} onvaluechange={handleCustomerChange} onadvance={handleAdvance}></c-paper-field>
                         <div class="pb-labelled"><span>Contact No.:</span><c-paper-field data-id="customer-phone" data-field="phone" type="tel" label="Customer mobile number" placeholder="Mobile number" value={customer.phone} search={searchCustomerOptions} onvaluechange={handleCustomerChange} onpick={handleCustomerPick} onleave={handlePhoneLeave} onadvance={handleAdvance}></c-paper-field></div>
-                        <div class="pb-labelled"><span>GSTIN Number:</span><c-paper-field data-field="gstin" label="Customer GSTIN" placeholder="Only if the customer has one" value={customer.gstin} onvaluechange={handleCustomerChange} onadvance={handleAdvance}></c-paper-field></div>
+                        <div class="pb-labelled"><span>GSTIN Number:</span><c-paper-field caps data-field="gstin" label="Customer GSTIN" placeholder="Only if the customer has one" value={customer.gstin} onvaluechange={handleCustomerChange} onadvance={handleAdvance}></c-paper-field></div>
                         <div class="pb-labelled"><span>State:</span><c-paper-field data-id="customer-state" data-field="state" data-group="customer" label="Customer state" placeholder="State" min-chars="1" value={customer.state} search={searchStateOptions} onvaluechange={handleCustomerChange} onpick={handleStatePick} onleave={handleStateLeave} onadvance={handleAdvance}></c-paper-field></div>
                         </template>
                     </div>
@@ -141,10 +141,10 @@
                             </template>
                             <div class="pb-labelled pb-not-printed"><span>Buyer's Mobile:</span><c-paper-field data-id="customer-phone" data-field="phone" type="tel" label="Buyer's mobile number" placeholder="Not printed" value={customer.phone} search={searchCustomerOptions} onvaluechange={handleCustomerChange} onpick={handleCustomerPick} onleave={handlePhoneLeave} onadvance={handleAdvance}></c-paper-field></div>
                         </template>
-                        <div class="pb-labelled"><span>Vehicle No.:</span><c-paper-field data-field="registrationNumber" label="Vehicle number" placeholder="e.g. MP09AB1234" min-chars="0" value={vehicle.registrationNumber} search={searchVehicleOptions} onvaluechange={handleVehicleChange} onpick={handleVehiclePick} onleave={handleVehicleNumberLeave} onadvance={handleAdvance}></c-paper-field></div>
+                        <div class="pb-labelled"><span>Vehicle No.:</span><c-paper-field caps data-field="registrationNumber" label="Vehicle number" placeholder="e.g. MP09AB1234" min-chars="0" value={vehicle.registrationNumber} search={searchVehicleOptions} onvaluechange={handleVehicleChange} onpick={handleVehiclePick} onleave={handleVehicleNumberLeave} onadvance={handleAdvance}></c-paper-field></div>
                         <div class="pb-labelled"><span>Make:</span><c-paper-field data-field="make" label="Vehicle make" placeholder="e.g. Tata" value={vehicle.make} search={searchMakeOptions} onvaluechange={handleVehicleChange} onpick={handleMakeModelPick} onadvance={handleAdvance}></c-paper-field></div>
                         <div class="pb-labelled"><span>Model:</span><c-paper-field data-field="model" label="Vehicle model" placeholder="e.g. Punch" value={vehicle.model} search={searchModelOptions} onvaluechange={handleVehicleChange} onpick={handleMakeModelPick} onadvance={handleAdvance}></c-paper-field></div>
-                        <div class="pb-labelled"><span>Chassis No.:</span><c-paper-field data-field="chassisNumber" data-next="grid" label="Chassis number" placeholder="Chassis number" value={vehicle.chassisNumber} onvaluechange={handleVehicleChange} onadvance={handleAdvance}></c-paper-field></div>
+                        <div class="pb-labelled"><span>Chassis No.:</span><c-paper-field caps data-field="chassisNumber" data-next="grid" label="Chassis number" placeholder="Chassis number" value={vehicle.chassisNumber} onvaluechange={handleVehicleChange} onadvance={handleAdvance}></c-paper-field></div>
                     </div>
                 </div>
 
@@ -229,7 +229,7 @@
                             <template lwc:if={isEditingWorkshop}>
                                 <c-paper-field data-field="bankName" label="Bank name" placeholder="Bank name" value={workshop.bankName} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
                                 <c-paper-field data-field="bankAccountNo" label="Bank account number" placeholder="Bank account no." value={workshop.bankAccountNo} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
-                                <c-paper-field data-field="bankIfsc" label="Bank IFSC code" placeholder="IFSC code" value={workshop.bankIfsc} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
+                                <c-paper-field caps data-field="bankIfsc" label="Bank IFSC code" placeholder="IFSC code" value={workshop.bankIfsc} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
                                 <c-paper-field data-field="bankAccountHolder" label="Account holder name" placeholder="Account holder name" value={workshop.bankAccountHolder} onvaluechange={handleWorkshopChange} onadvance={handleAdvance}></c-paper-field>
                             </template>
                             <template lwc:else>

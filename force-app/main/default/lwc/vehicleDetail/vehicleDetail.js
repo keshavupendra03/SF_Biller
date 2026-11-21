@@ -4,6 +4,7 @@ import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import getVehicleDetail from '@salesforce/apex/VehicleController.getVehicleDetail';
 import updateVehicle from '@salesforce/apex/VehicleController.updateVehicle';
+import { changedValue } from 'c/gst';
 
 export default class VehicleDetail extends NavigationMixin(LightningElement) {
     vehicleId;
@@ -92,7 +93,7 @@ export default class VehicleDetail extends NavigationMixin(LightningElement) {
 
     handleEditFieldChange(event) {
         const field = event.target.dataset.field;
-        this.editValues = { ...this.editValues, [field]: event.target.value };
+        this.editValues = { ...this.editValues, [field]: changedValue(event) };
     }
 
     get canSaveEdit() {

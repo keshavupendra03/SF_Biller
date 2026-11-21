@@ -26,6 +26,8 @@ export default class PaperField extends LightningElement {
     @api type = 'text';
     @api multiline = false;
     @api strong = false;
+    // Capitals as typed (vehicle numbers, GSTIN, IFSC).
+    @api caps = false;
     @api search;
     // 0 shows the whole list as soon as the box gets focus.
     @api minChars = 2;
@@ -106,7 +108,16 @@ export default class PaperField extends LightningElement {
     }
 
     handleInput(event) {
-        const value = event.target.value;
+        let value = event.target.value;
+        if (this.caps && value !== value.toUpperCase()) {
+            const box = event.target;
+            const { selectionStart, selectionEnd } = box;
+            value = value.toUpperCase();
+            box.value = value;
+            if (typeof selectionStart === 'number' && box.setSelectionRange) {
+                box.setSelectionRange(selectionStart, selectionEnd);
+            }
+        }
         this.dispatchEvent(new CustomEvent('valuechange', { detail: { value } }));
         if (!this.search) {
             return;

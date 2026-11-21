@@ -4,6 +4,7 @@ import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import getJobSlipForm from '@salesforce/apex/JobSlipController.getJobSlipForm';
 import saveJobSlip from '@salesforce/apex/JobSlipController.saveJobSlip';
+import { changedValue } from 'c/gst';
 
 // Same keys as JobSlipController.ACCESSORY_KEYS, in the paper slip's order.
 const ACCESSORIES = [
@@ -213,7 +214,7 @@ export default class JobSlipEditor extends NavigationMixin(LightningElement) {
 
     handleFieldChange(event) {
         const field = event.target.dataset.field;
-        this.slip = { ...this.slip, [field]: event.detail.value !== undefined ? event.detail.value : event.target.value };
+        this.slip = { ...this.slip, [field]: changedValue(event) };
     }
 
     handleVehicleChange(event) {
@@ -242,7 +243,7 @@ export default class JobSlipEditor extends NavigationMixin(LightningElement) {
 
     handleNewVehicleChange(event) {
         const field = event.target.dataset.field;
-        this.newVehicle = { ...this.newVehicle, [field]: event.detail.value !== undefined ? event.detail.value : event.target.value };
+        this.newVehicle = { ...this.newVehicle, [field]: changedValue(event) };
     }
 
     handleFuelChange(event) {

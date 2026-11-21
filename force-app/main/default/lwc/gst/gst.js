@@ -186,13 +186,25 @@ export function checkGstinBox(input) {
     }
 }
 
+// Boxes (by data-field) whose codes are kept in capitals as they're typed:
+// vehicle numbers, GSTIN, IFSC. The server stores them so too (UpperCaseText,
+// GstPartyDetails), whatever a screen sends.
+const CAPS_FIELDS = new Set(['registrationNumber', 'chassisNumber', 'engineNumber', 'batteryNumber', 'gstin', 'bankIfsc']);
+
+/** The value in capitals if `field` is one kept in capitals. */
+export function capsFor(field, value) {
+    return CAPS_FIELDS.has(field) && typeof value === 'string' ? value.toUpperCase() : value;
+}
+
 /**
- * The value a form box changed to. A lightning-combobox reports it in the
- * event's detail; a lightning-input in both; a test's plain event only on
- * the box itself.
+ * The value a form box changed to, in capitals for a box kept in capitals. A
+ * lightning-combobox reports it in the event's detail; a lightning-input in
+ * both; a test's plain event only on the box itself.
  */
 export function changedValue(event) {
-    return event.detail && event.detail.value !== undefined ? event.detail.value : event.target.value;
+    const value = event.detail && event.detail.value !== undefined ? event.detail.value : event.target.value;
+    const field = event.target && event.target.dataset ? event.target.dataset.field : undefined;
+    return capsFor(field, value);
 }
 
 /** The same details, with a state typed some other way ("MP") shown by its name. */

@@ -24,3 +24,17 @@
     font-size: 0.75rem;
     color: var(--slds-g-color-neutral-base-30, #444);
 }
+
+/* The saved party the arrow keys are on: the bill's dark blue, so it can't be missed. */
+.party-option_active,
+.party-option_active:hover {
+    background-color: #1a4fa0;
+    color: #fff;
+    box-shadow: inset 4px 0 0 #ffb75d;
+}
+
+.party-option_active .slds-listbox__option-text,
+.party-option_active .slds-listbox__option-meta {
+    color: #fff;
+    font-weight: 700;
+}

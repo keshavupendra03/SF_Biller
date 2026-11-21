@@ -74,7 +74,7 @@ export default class BillToPartyPicker extends LightningElement {
             ...party,
             meta: [party.gstin, party.contactPhone, party.state].filter((part) => part).join(' · '),
             optionClass: `slds-media slds-listbox__option slds-listbox__option_entity slds-listbox__option_has-meta${
-                index === this.highlightIndex ? ' slds-has-focus' : ''
+                index === this.highlightIndex ? ' slds-has-focus party-option_active' : ''
             }`,
             ariaSelected: index === this.highlightIndex ? 'true' : 'false'
         }));

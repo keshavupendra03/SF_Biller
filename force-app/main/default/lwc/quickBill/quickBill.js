@@ -315,8 +315,7 @@ export default class QuickBill extends NavigationMixin(LightningElement) {
 
     handleVehicleFieldChange(event) {
         const field = event.target.dataset.field;
-        const value = event.detail && event.detail.value !== undefined ? event.detail.value : event.target.value;
-        this.newVehicle = { ...this.newVehicle, [field]: value };
+        this.newVehicle = { ...this.newVehicle, [field]: changedValue(event) };
     }
 
     // ---- items ----------------------------------------------------------

@@ -132,4 +132,30 @@ describe('c-vehicle-detail', () => {
             attributes: { apiName: 'Customer_List' }
         });
     });
+
+    it('a registration or chassis number typed in small letters shows and saves in capitals', async () => {
+        getVehicleDetail.mockResolvedValue(DETAIL);
+        updateVehicle.mockResolvedValue();
+        const element = createElement('c-vehicle-detail', { is: VehicleDetail });
+        document.body.appendChild(element);
+        CurrentPageReference.emit({ state: { c__recordId: 'veh1' } });
+        await flushPromises();
+        element.shadowRoot.querySelector('[data-id="toggle-edit"]').click();
+        await flushPromises();
+
+        for (const [field, value] of [['registrationNumber', 'mp09zz0001'], ['chassisNumber', 'ma3abc'], ['engineNumber', 'k12mn']]) {
+            const input = element.shadowRoot.querySelector(`[data-field="${field}"]`);
+            input.value = value;
+            input.dispatchEvent(new CustomEvent('change'));
+        }
+        await flushPromises();
+        expect(element.shadowRoot.querySelector('[data-field="registrationNumber"]').value).toBe('MP09ZZ0001');
+
+        element.shadowRoot.querySelector('[data-id="save-edit"]').click();
+        await flushPromises();
+        expect(updateVehicle).toHaveBeenCalledWith({
+            vehicleId: 'veh1',
+            input: expect.objectContaining({ registrationNumber: 'MP09ZZ0001', chassisNumber: 'MA3ABC', engineNumber: 'K12MN' })
+        });
+    });
 });

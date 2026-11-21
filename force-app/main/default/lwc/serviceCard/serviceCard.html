@@ -19,7 +19,7 @@
         <template lwc:if={showBoxes}>
             <div class="sc-new">
                 <template lwc:if={isNewCar}>
-                    <div class="sc-labelled"><span>Car Number</span><c-paper-field data-field="registrationNumber" label="Car number" placeholder="e.g. MP09AB1234" strong min-chars="0" value={draft.registrationNumber} search={searchCarOptions} onvaluechange={handleDraftChange} onpick={handleCarPick} onleave={handleCarNumberLeave} onadvance={handleAdvance}></c-paper-field></div>
+                    <div class="sc-labelled"><span>Car Number</span><c-paper-field caps data-field="registrationNumber" label="Car number" placeholder="e.g. MP09AB1234" strong min-chars="0" value={draft.registrationNumber} search={searchCarOptions} onvaluechange={handleDraftChange} onpick={handleCarPick} onleave={handleCarNumberLeave} onadvance={handleAdvance}></c-paper-field></div>
                 </template>
                 <template lwc:if={showCustomerBox}>
                     <div class="sc-labelled"><span>Customer</span><c-paper-field data-field="customerName" label="Customer name" placeholder="Name, if you have it" value={draft.customerName} search={searchCustomerOptions} onvaluechange={handleDraftChange} onpick={handleCustomerPick} onleave={handleDetailsLeave} onadvance={handleAdvance}></c-paper-field></div>

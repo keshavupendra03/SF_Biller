@@ -22,7 +22,9 @@ import {
     filedUpToOptions,
     gstPeriods,
     gstDueDates,
-    shortDateLabel
+    shortDateLabel,
+    capsFor,
+    changedValue
 } from 'c/gst';
 
 // The same examples as GstRulesTest.cls, so screens and server agree.
@@ -270,5 +272,25 @@ describe('gstDueDates (G5)', () => {
 
     it('shortDateLabel', () => {
         expect(shortDateLabel('2026-12-01')).toBe('1 Dec 2026');
+    });
+});
+
+describe('capitals for vehicle numbers, GSTIN and IFSC', () => {
+    const boxEvent = (field, value, detail) => ({ target: { value, dataset: { field } }, detail });
+
+    it('a box kept in capitals gives capitals, whichever way the value comes', () => {
+        expect(changedValue(boxEvent('registrationNumber', 'mp09ab1234'))).toBe('MP09AB1234');
+        expect(changedValue(boxEvent('gstin', '', { value: '27aapfu0939f1zv' }))).toBe('27AAPFU0939F1ZV');
+        ['chassisNumber', 'engineNumber', 'batteryNumber', 'bankIfsc'].forEach((field) => {
+            expect(changedValue(boxEvent(field, 'ab12c'))).toBe('AB12C');
+        });
+    });
+
+    it('other boxes are left as typed', () => {
+        expect(changedValue(boxEvent('name', 'Ramesh Kumar'))).toBe('Ramesh Kumar');
+        expect(changedValue(boxEvent('address', 'vijay nagar'))).toBe('vijay nagar');
+        expect(changedValue({ target: { value: 'x' }, detail: { value: 'y' } })).toBe('y');
+        expect(capsFor('gstin', null)).toBeNull();
+        expect(capsFor('quantity', 2)).toBe(2);
     });
 });

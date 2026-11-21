@@ -2557,3 +2557,27 @@ Platform issues:
   field not in the query throws at runtime, not at compile time (5 test failures).
 - `Test.setCurrentPage` can't be used in anonymous Apex, so a Visualforce
   controller can't be checked that way against a real org; its tests cover it.
+
+**Forty-first (2026-11-21): capitals for vehicle numbers, GSTIN and IFSC; a
+clearer suggestion highlight.** User request.
+- Stored in capitals whatever the screen, import or script: `UpperCaseText` from
+  the new `VehicleTrigger` (registration, chassis, engine numbers) and
+  `JobSlipTrigger` (battery number), and from `WorkshopProfileTrigger` (IFSC).
+  GSTINs already were (`GstPartyDetails`). Ends are trimmed; spaces inside stay.
+- On screen, as typed: `c/gst` `changedValue` gives capitals for those boxes (by
+  `data-field`), so every lightning-input screen gets it from one place; Easy Bill
+  and the Service Book card use `c-paper-field caps`, which keeps the cursor
+  where it was.
+- Existing records aren't changed by the trigger until saved again:
+  `scripts/apex/capitalise-existing.apex` does it once (1 of 19 vehicles in the
+  dev org; not run there, it's the user's data).
+- The suggestion the arrow keys are on (part names, Easy Bill boxes, saved
+  parties) is now the bill's dark blue with white bold text and an orange edge,
+  instead of a pale tint; Service Book's selected card is darker too.
+
+Platform issues:
+- A row built on `slds-button` keeps its rounded corners over a plain class rule:
+  `.slds-button.suggestion` was needed.
+- Lightning caches components in the browser: a check right after a CSS-only
+  deploy showed the old style until a fresh browser profile. Users may need a
+  hard refresh (Ctrl+Shift+R) after a style change.
