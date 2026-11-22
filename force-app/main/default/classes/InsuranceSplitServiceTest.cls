@@ -38,6 +38,17 @@ private class InsuranceSplitServiceTest {
         return taxable;
     }
 
+    // How many of a bill's lines are linked to a part.
+    private static Integer partLinks(Id billId) {
+        Integer linked = 0;
+        for (BillController.LineItemInput line : TestLines.of(billId)) {
+            if (line.partId != null) {
+                linked++;
+            }
+        }
+        return linked;
+    }
+
     @isTest
     static void eachLineSplitsByItsPercent_withTheOtherSharesAsTheDiscount() {
         InsuranceSplitService.Split split = InsuranceSplitService.split(job(), new List<Decimal>{ 100, 50, 100 }, 0);
@@ -134,7 +145,7 @@ private class InsuranceSplitServiceTest {
         System.assertEquals('MP09AB1234', customer.Vehicle__r.Name);
         System.assertEquals(saved.pairedNumber, [SELECT Invoice_Number__c FROM Bill__c WHERE Id = :customer.Id].Invoice_Number__c);
         System.assertEquals(4, [SELECT Current_Stock__c FROM Part__c WHERE Name = 'Bumper'].Current_Stock__c, 'One bumper went out, not two.');
-        System.assertEquals(0, [SELECT COUNT() FROM Bill_Line_Item__c WHERE Bill__c = :customer.Id AND Part__c != null]);
+        System.assertEquals(0, partLinks(customer.Id));
         System.assertEquals(saved.pairedNumber, PaperBillController.getDocument(saved.recordId).pairedNumber, 'Opened in Easy Bill, each names the other.');
     }
 
@@ -197,7 +208,7 @@ private class InsuranceSplitServiceTest {
         Test.stopTest();
 
         System.assertEquals(4, [SELECT Current_Stock__c FROM Part__c WHERE Name = 'Bumper'].Current_Stock__c, 'Still one bumper out.');
-        System.assertEquals(0, [SELECT COUNT() FROM Bill_Line_Item__c WHERE Bill__c = :changed.billId AND Part__c != null]);
+        System.assertEquals(0, partLinks(changed.billId));
         System.assertEquals(saved.recordId, changed.pairedBillId);
         System.assertEquals(changed.billId, [SELECT Paired_Bill__c FROM Bill__c WHERE Id = :saved.recordId].Paired_Bill__c, 'The insurer\'s bill points at the new version.');
     }

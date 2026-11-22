@@ -20,6 +20,20 @@ private class ServiceBookControllerTest {
         return request;
     }
 
+    // A car's stored days, oldest first.
+    private static List<ServiceBookController.Entry> daysOf(Id vehicleId) {
+        return ServiceBookController.readBook([SELECT Service_Book__c FROM Vehicle__c WHERE Id = :vehicleId]);
+    }
+
+    // Every car's days, as counting the old entry records did.
+    private static Integer dayCount() {
+        Integer total = 0;
+        for (Vehicle__c car : [SELECT Service_Book__c FROM Vehicle__c]) {
+            total += ServiceBookController.readBook(car).size();
+        }
+        return total;
+    }
+
     @isTest
     static void writingWork_putsTheCarOnThatDay_withItsDetails() {
         Vehicle__c car = insertCar();
@@ -49,7 +63,7 @@ private class ServiceBookControllerTest {
         ServiceBookController.ServiceCard later = ServiceBookController.getDay(DAY_5)[0];
         Test.stopTest();
 
-        System.assertEquals(2, [SELECT COUNT() FROM Service_Entry__c]);
+        System.assertEquals(2, dayCount());
         System.assertEquals('Oil changed', first.workDone);
         System.assertEquals('Brake pads replaced', first.visitDays[0].workDone, 'Day 5 carried on the same visit.');
         System.assertEquals(DAY_5, first.visitDays[0].entryDate);
@@ -67,8 +81,8 @@ private class ServiceBookControllerTest {
         ServiceBookController.saveWork(work(car.Id, DAY_1, 'Oil changed\nWashed'));
         Test.stopTest();
 
-        System.assertEquals(1, [SELECT COUNT() FROM Service_Entry__c]);
-        System.assertEquals('Oil changed\nWashed', [SELECT Work_Done__c FROM Service_Entry__c].Work_Done__c);
+        System.assertEquals(1, dayCount());
+        System.assertEquals('Oil changed\nWashed', daysOf(car.Id)[0].workDone);
     }
 
     @isTest
@@ -551,16 +565,21 @@ private class ServiceBookControllerTest {
         Test.stopTest();
 
         System.assertEquals(DAY_1, card.visitStart);
-        System.assertEquals(1, [SELECT COUNT() FROM Service_Entry__c]);
+        System.assertEquals(1, dayCount());
     }
 
     @isTest
     static void entriesFromBeforeVisits_countAsAVisitEach() {
         Vehicle__c car = insertCar();
-        insert new List<Service_Entry__c>{
-            new Service_Entry__c(Vehicle__c = car.Id, Entry_Date__c = DAY_1, Work_Done__c = 'Old one', Unique_Key__c = car.Id + '|1'),
-            new Service_Entry__c(Vehicle__c = car.Id, Entry_Date__c = DAY_3, Work_Done__c = 'Old two', Unique_Key__c = car.Id + '|3')
-        };
+        // Days written before visits existed have no visit start.
+        List<ServiceBookController.Entry> old = new List<ServiceBookController.Entry>();
+        for (Date day : new List<Date>{ DAY_1, DAY_3 }) {
+            ServiceBookController.Entry entry = new ServiceBookController.Entry();
+            entry.entryDate = day;
+            entry.workDone = 'Old ' + day.day();
+            old.add(entry);
+        }
+        update new Vehicle__c(Id = car.Id, Service_Book__c = JSON.serialize(old, true), First_Service_Date__c = DAY_1, Last_Service_Date__c = DAY_3);
 
         Test.startTest();
         ServiceBookController.ServiceCard card = ServiceBookController.getVehicleCard(car.Id, DAY_3);
@@ -570,5 +589,50 @@ private class ServiceBookControllerTest {
         System.assertEquals(0, card.visitDays.size());
         System.assertEquals(1, card.otherVisits.size());
         System.assertEquals(DAY_1, card.previousVisitStart);
+    }
+
+    @isTest
+    static void aPage_showsTheNewestCardFirst_andADayBetweenVisitsShowsNone() {
+        Vehicle__c first = insertCar();
+        Customer__c other = new Customer__c(Name = 'Deepak', Phone__c = '9333344444');
+        insert other;
+        Vehicle__c second = new Vehicle__c(Name = 'MP09CD5678', Customer__c = other.Id);
+        insert second;
+        ServiceBookController.saveWork(work(first.Id, DAY_1, 'Oil'));
+        ServiceBookController.saveWork(work(first.Id, DAY_5, 'Brakes'));
+        // Written a moment later on the same day.
+        ServiceBookController.saveWork(work(second.Id, DAY_1, 'Wash'));
+        List<ServiceBookController.Entry> secondDays = daysOf(second.Id);
+        secondDays[0].writtenAt = Datetime.now().addMinutes(5);
+        update new Vehicle__c(Id = second.Id, Service_Book__c = JSON.serialize(secondDays, true));
+
+        Test.startTest();
+        List<ServiceBookController.ServiceCard> dayOne = ServiceBookController.getDay(DAY_1);
+        List<ServiceBookController.ServiceCard> dayThree = ServiceBookController.getDay(DAY_1.addDays(2));
+        Test.stopTest();
+
+        System.assertEquals(2, dayOne.size());
+        System.assertEquals(second.Id, dayOne[0].vehicleId, 'The card written last is on top.');
+        System.assertEquals(first.Id, dayOne[1].vehicleId);
+        System.assertEquals(0, dayThree.size(), 'Nothing was written on day 3, though the car came before and after.');
+        Vehicle__c stored = [SELECT First_Service_Date__c, Last_Service_Date__c FROM Vehicle__c WHERE Id = :first.Id];
+        System.assertEquals(DAY_1, stored.First_Service_Date__c);
+        System.assertEquals(DAY_5, stored.Last_Service_Date__c);
+    }
+
+    @isTest
+    static void clearingTheOnlyDay_leavesTheCarWithNoBook() {
+        Vehicle__c car = insertCar();
+        ServiceBookController.saveWork(work(car.Id, DAY_1, 'Oil'));
+
+        Test.startTest();
+        ServiceBookController.saveWork(work(car.Id, DAY_1, '  '));
+        Test.stopTest();
+
+        Vehicle__c stored = [SELECT Service_Book__c, First_Service_Date__c, Last_Service_Date__c FROM Vehicle__c WHERE Id = :car.Id];
+        System.assertEquals(null, stored.Service_Book__c);
+        System.assertEquals(null, stored.First_Service_Date__c);
+        System.assertEquals(null, stored.Last_Service_Date__c);
+        System.assertEquals(0, ServiceBookController.getDay(DAY_1).size());
     }
 }

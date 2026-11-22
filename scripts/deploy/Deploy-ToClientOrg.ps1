@@ -66,7 +66,17 @@
 
       1. Unschedule this app's own job, if present (no-op on a new org).
       2. Validate, then deploy for real, the entire force-app tree with
-         --test-level NoTestRun.
+         --test-level NoTestRun, deleting what manifest/destructiveChangesPre.xml
+         lists first (the retired child-record triggers and classes;
+         --ignore-warnings, so an org without them is fine). The CLI only
+         takes a delete list alongside a manifest, so a package.xml of the
+         whole force-app tree is generated first; it's the same payload as
+         --source-dir force-app, deployed in one transaction.
+         2c. fold-child-records.apex, repeated until nothing is left: moves
+         old bill lines, payments, estimate lines, job slip lines and Service
+         Book entries into their parent records (a no-op once done, and on a
+         new org). Run Retire-OldChildObjects.ps1 afterwards, once, to delete
+         the empty objects.
       3. Assign WS_Biller_Full_Access to the target admin user.
       4. Run a standalone Apex test verification (not a deploy) to prove
          the deployed code actually passes now that FLS exists.
@@ -115,16 +125,48 @@ Write-Step "1/7 Unscheduling this app's own jobs (no-op on a brand-new org)"
 sf apex run --file scripts/apex/unschedule-jobs.apex --target-org $TargetOrg
 
 Write-Step "2a/7 Validating the full deploy (NoTestRun - see script header for why)"
-sf project deploy start --source-dir force-app --target-org $TargetOrg --test-level NoTestRun --dry-run --wait 30
+$manifestDir = Join-Path ([System.IO.Path]::GetTempPath()) ("wsbiller-deploy-" + [guid]::NewGuid())
+sf project generate manifest --source-dir force-app --output-dir $manifestDir --name package.xml
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Could not build the deploy manifest from force-app. Nothing was deployed." -ForegroundColor Red
+    exit 1
+}
+$manifest = Join-Path $manifestDir "package.xml"
+sf project deploy start --manifest $manifest --target-org $TargetOrg --test-level NoTestRun --dry-run --wait 30 --pre-destructive-changes manifest/destructiveChangesPre.xml --ignore-warnings
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Validation failed. Nothing was deployed. Fix the errors above before re-running." -ForegroundColor Red
     exit 1
 }
 
 Write-Step "2b/7 Deploying for real"
-sf project deploy start --source-dir force-app --target-org $TargetOrg --test-level NoTestRun --wait 30
+sf project deploy start --manifest $manifest --target-org $TargetOrg --test-level NoTestRun --wait 30 --pre-destructive-changes manifest/destructiveChangesPre.xml --ignore-warnings
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Deploy failed. Nothing further will run." -ForegroundColor Red
+    exit 1
+}
+
+Write-Step "2c/7 Moving old child records into their bills, estimates, job slips and cars (no-op once done)"
+# Each run is one all-or-nothing transaction handling a share of the records.
+$remaining = -1
+for ($run = 1; $run -le 40 -and $remaining -ne 0; $run++) {
+    $previousEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $foldOutput = sf apex run --file scripts/apex/fold-child-records.apex --target-org $TargetOrg 2>&1
+    $foldExit = $LASTEXITCODE
+    $ErrorActionPreference = $previousEAP
+    $foldLines = $foldOutput | ForEach-Object { "$_" } | Where-Object { $_ -match 'USER_DEBUG' } | ForEach-Object { ($_ -split '\|')[-1] }
+    $foldLines | ForEach-Object { Write-Host "  $_" }
+    # -1 means "run again" (it has just given itself access, or has one more tidy-up to do).
+    $match = $foldLines | Select-String -Pattern 'FOLD-REMAINING: (-?\d+)' | Select-Object -Last 1
+    if ($foldExit -ne 0 -or -not $match) {
+        $foldOutput | ForEach-Object { Write-Host $_ }
+        Write-Host "Moving the old records failed (nothing from that run was changed). Fix the error above and re-run this script." -ForegroundColor Red
+        exit 1
+    }
+    $remaining = [int]$match.Matches[0].Groups[1].Value
+}
+if ($remaining -ne 0) {
+    Write-Host "The old records are not all moved after 40 runs (last count: $remaining). Re-run this script to continue." -ForegroundColor Red
     exit 1
 }
 
@@ -188,3 +230,11 @@ Write-Host "  5. Do the on-device walkthrough in the Salesforce Mobile App."
 Write-Host "  6. (Optional) Seed Vehicle_Make_Model__c with common makes and models via"
 Write-Host "     Data Loader. The app works correctly with it empty, just with no"
 Write-Host "     autocomplete suggestions yet."
+Write-Host "  7. On each shop PC (slow PCs especially; architecture.md, Forty-third), in Chrome:"
+Write-Host "     - Settings > On startup > 'Continue where you left off' (keeps the login when Chrome is closed)."
+Write-Host "     - Settings > Performance > Memory Saver > 'Always keep these sites active' > add"
+Write-Host "       force.com (otherwise Chrome unloads the tab and the next click reloads everything)."
+Write-Host "     - Keep one WS Biller tab open all day and move between screens inside it;"
+Write-Host "       don't open screens in new tabs. Close other tabs and programs on a 2 GB PC."
+Write-Host "  8. For quick Service Book entries, staff can use the Salesforce mobile app on"
+Write-Host "     their phone: it stays logged in and opens on Service Book."

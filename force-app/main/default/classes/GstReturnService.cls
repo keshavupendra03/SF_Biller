@@ -191,9 +191,7 @@ public with sharing class GstReturnService {
         List<Bill__c> bills = [
             SELECT Invoice_Number__c, Invoice_Sequence__c, Financial_Year__c, Bill_Date__c, Is_Latest_Version__c,
                    Is_Cancelled__c, Recipient_GSTIN__c, Place_Of_Supply__c, Total_Amount__c,
-                   Customer__r.Name, Bill_To_Party__r.Name, Bill_To_Party__c, Paired_Bill__c,
-                   (SELECT Description__c, HSN_SAC_Code__c, Unit__c, Quantity__c, Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c, Discount__c
-                    FROM Bill_Line_Items__r ORDER BY CreatedDate, Id)
+                   Customer__r.Name, Bill_To_Party__r.Name, Bill_To_Party__c, Paired_Bill__c, Line_Items__c
             FROM Bill__c
             WHERE Bill_Date__c >= :startDate AND Bill_Date__c <= :endDate
               AND (Workshop_Profile__c = :profileId OR Workshop_Profile__c = :orNoCompany)
@@ -260,16 +258,17 @@ public with sharing class GstReturnService {
             Boolean registered = GstRules.isValidGstin(gstin);
             Decimal invoiceValue = bill.Total_Amount__c == null ? 0 : bill.Total_Amount__c;
             Boolean largeB2c = !registered && interState && invoiceValue > B2CL_LIMIT;
+            List<BillController.LineItemInput> lines = StoredLines.read(bill.Line_Items__c);
 
-            checkBill(ret, bill, gstin, registered, placeOfSupply, companyState, interState);
+            checkBill(ret, bill, lines, gstin, registered, placeOfSupply, companyState, interState);
 
             Map<String, Amounts> byRate = new Map<String, Amounts>();
             Map<String, Decimal> rates = new Map<String, Decimal>();
             Decimal billNil = 0;
             Boolean anyTaxed = false;
             ItemProblems problems = new ItemProblems();
-            for (Bill_Line_Item__c line : bill.Bill_Line_Items__r) {
-                Decimal rate = line.Tax_Rate_Percent__c == null ? 0 : line.Tax_Rate_Percent__c;
+            for (BillController.LineItemInput line : lines) {
+                Decimal rate = line.taxRatePercent == null ? 0 : line.taxRatePercent;
                 GstCalculatorService.GstLineResult result = GstCalculatorService.calculateLine(GstCalculatorService.inputFor(line));
                 String rateKey = GstRules.rateText(rate);
                 if (rate == 0) {
@@ -300,7 +299,7 @@ public with sharing class GstReturnService {
                     : (interState ? NIL_INTER_UNREGISTERED : NIL_INTRA_UNREGISTERED);
                 nil.put(kind, nil.get(kind) + billNil);
             }
-            if (!anyTaxed && !bill.Bill_Line_Items__r.isEmpty()) {
+            if (!anyTaxed && !lines.isEmpty()) {
                 noGstBills.add(bill.Invoice_Number__c);
                 noGstValue += invoiceValue;
             }
@@ -393,15 +392,15 @@ public with sharing class GstReturnService {
         }
     }
 
-    private static void addHsn(Map<String, Amounts> hsn, Bill_Line_Item__c line, GstCalculatorService.GstLineResult result,
+    private static void addHsn(Map<String, Amounts> hsn, BillController.LineItemInput line, GstCalculatorService.GstLineResult result,
                                Decimal rate, Boolean registered, ItemProblems problems, Boolean countQuantity) {
-        String code = line.HSN_SAC_Code__c == null ? '' : line.HSN_SAC_Code__c.deleteWhitespace();
+        String code = line.hsnSacCode == null ? '' : line.hsnSacCode.deleteWhitespace();
         Boolean service = GstRules.isServiceCode(code);
-        String uqc = GstRules.uqcFor(line.Unit__c);
+        String uqc = GstRules.uqcFor(line.unitLabel);
         if (code == '') {
-            addProblem(problems.noHsn, '"' + line.Description__c + '"');
+            addProblem(problems.noHsn, '"' + line.description + '"');
         } else if (!code.isNumeric() || code.length() < 4) {
-            addProblem(problems.shortHsn, '"' + code + '" on "' + line.Description__c + '"');
+            addProblem(problems.shortHsn, '"' + code + '" on "' + line.description + '"');
         }
         // A service has no unit; an item with none is counted in numbers.
         String uqcLabel;
@@ -409,25 +408,25 @@ public with sharing class GstReturnService {
             uqcLabel = 'NA';
         } else if (uqc != null) {
             uqcLabel = GstRules.uqcLabel(uqc);
-        } else if (String.isBlank(line.Unit__c)) {
+        } else if (String.isBlank(line.unitLabel)) {
             uqcLabel = GstRules.uqcLabel('NOS');
         } else {
             uqcLabel = GstRules.uqcLabel('OTH');
-            addProblem(problems.unknownUnit, '"' + line.Unit__c + '" on "' + line.Description__c + '"');
+            addProblem(problems.unknownUnit, '"' + line.unitLabel + '" on "' + line.description + '"');
         }
         String key = (registered ? 'B2B' : 'B2C') + '|' + code + '|' + uqcLabel + '|' + GstRules.rateText(rate);
         Amounts sum = amountsFor(hsn, key);
         sum.add(result);
         if (!service && countQuantity) {
-            sum.quantity += line.Quantity__c == null ? 0 : line.Quantity__c;
+            sum.quantity += line.quantity == null ? 0 : line.quantity;
         }
         if (sum.description == null) {
-            sum.description = line.Description__c;
+            sum.description = line.description;
         }
     }
 
     // The checks that need a whole bill: buyer's GSTIN, place of supply, tax type, number series.
-    private static void checkBill(GstReturn ret, Bill__c bill, String gstin, Boolean registered,
+    private static void checkBill(GstReturn ret, Bill__c bill, List<BillController.LineItemInput> lines, String gstin, Boolean registered,
                                   String placeOfSupply, String companyState, Boolean interState) {
         if (gstin != null && !registered) {
             addIssue(ret, 'error', 'The buyer\'s GSTIN "' + gstin + '" is not valid, so this bill is shown as a sale to an unregistered buyer. Correct the customer or party, then change the bill.', bill.Id, bill.Invoice_Number__c);
@@ -438,9 +437,9 @@ public with sharing class GstReturnService {
         if (companyState != null && placeOfSupply != null) {
             Boolean hasIgst = false;
             Boolean hasCgstSgst = false;
-            for (Bill_Line_Item__c line : bill.Bill_Line_Items__r) {
-                if (line.Tax_Rate_Percent__c != null && line.Tax_Rate_Percent__c > 0) {
-                    if (line.Gst_Type__c == 'IGST') {
+            for (BillController.LineItemInput line : lines) {
+                if (line.taxRatePercent != null && line.taxRatePercent > 0) {
+                    if ('IGST'.equals(line.gstType)) {
                         hasIgst = true;
                     } else {
                         hasCgstSgst = true;

@@ -15,6 +15,9 @@ public with sharing class JobSlipController {
 
     public class JobSlipControllerException extends Exception {}
 
+    // A repair line's request or observation, as the old line fields allowed.
+    private static final Integer LINE_TEXT_LENGTH = 255;
+
     // Printed/rendered in this order on both the screen and the slip,
     // matching the paper form's checklist column.
     public static final List<String> ACCESSORY_KEYS = new List<String>{
@@ -38,8 +41,11 @@ public with sharing class JobSlipController {
         'keyRing' => Job_Slip__c.Key_Ring__c
     };
 
+    // Stored on the slip itself (Repair_Lines__c, JSON), not as child records,
+    // to save data storage (architecture.md, Forty-second).
     public class JobSlipLine {
-        @AuraEnabled public Id id { get; set; }
+        // Its place on the slip ('l1', 'l2'...), for the screen's own use.
+        @AuraEnabled public String id { get; set; }
         @AuraEnabled public String customerRequest { get; set; }
         @AuraEnabled public String observation { get; set; }
         @AuraEnabled public Decimal labourEstimate { get; set; }
@@ -194,9 +200,8 @@ public with sharing class JobSlipController {
         for (String key : ACCESSORY_KEYS) {
             slip.put(ACCESSORY_FIELDS.get(key), present.contains(key));
         }
+        slip.Repair_Lines__c = writeRepairLines(input.lines);
         upsert slip;
-
-        saveLines(slip.Id, input.lines);
         return slip.Id;
     }
 
@@ -214,39 +219,43 @@ public with sharing class JobSlipController {
         throw new JobSlipControllerException('Select the vehicle, or add a new one with its registration number.');
     }
 
-    // Rows with nothing typed in are dropped rather than saved as empty
-    // records; rows that came from the server but are no longer in the
-    // list are deleted.
-    private static void saveLines(Id slipId, List<JobSlipLine> lines) {
-        Map<Id, Job_Slip_Line__c> existing = new Map<Id, Job_Slip_Line__c>(
-            [SELECT Id FROM Job_Slip_Line__c WHERE Job_Slip__c = :slipId]
-        );
-        List<Job_Slip_Line__c> toUpsert = new List<Job_Slip_Line__c>();
-        Integer sortOrder = 1;
+    // The lines in the order typed. Rows with nothing typed in are dropped
+    // rather than saved empty; the list replaces whatever the slip had.
+    private static String writeRepairLines(List<JobSlipLine> lines) {
+        List<JobSlipLine> kept = new List<JobSlipLine>();
         for (JobSlipLine line : lines == null ? new List<JobSlipLine>() : lines) {
             if (String.isBlank(line.customerRequest) && String.isBlank(line.observation)
                     && line.labourEstimate == null && line.sparesEstimate == null) {
                 continue;
             }
-            Job_Slip_Line__c record = new Job_Slip_Line__c(
-                Customer_Request__c = line.customerRequest,
-                Observation__c = line.observation,
-                Labour_Estimate__c = line.labourEstimate,
-                Spares_Estimate__c = line.sparesEstimate,
-                Sort_Order__c = sortOrder++
-            );
-            if (line.id != null && existing.containsKey(line.id)) {
-                record.Id = line.id;
-                existing.remove(line.id);
-            } else {
-                record.Job_Slip__c = slipId;
+            for (String text : new List<String>{ line.customerRequest, line.observation }) {
+                if (text != null && text.length() > LINE_TEXT_LENGTH) {
+                    throw new JobSlipControllerException('A repair line can be at most ' + LINE_TEXT_LENGTH + ' characters: "' + text.abbreviate(40) + '".');
+                }
             }
-            toUpsert.add(record);
+            JobSlipLine stored = new JobSlipLine();
+            stored.customerRequest = String.isBlank(line.customerRequest) ? null : line.customerRequest;
+            stored.observation = String.isBlank(line.observation) ? null : line.observation;
+            stored.labourEstimate = line.labourEstimate == null ? null : line.labourEstimate.setScale(2, System.RoundingMode.HALF_UP);
+            stored.sparesEstimate = line.sparesEstimate == null ? null : line.sparesEstimate.setScale(2, System.RoundingMode.HALF_UP);
+            kept.add(stored);
         }
-        if (!existing.isEmpty()) {
-            delete existing.values();
+        String body = JSON.serialize(kept, true);
+        if (body.length() > StoredLines.MAX_LENGTH) {
+            throw new JobSlipControllerException('There are too many repair lines to save on one job slip.');
         }
-        upsert toUpsert;
+        return body;
+    }
+
+    /** A saved slip's repair lines, in order (the slip must be loaded with Repair_Lines__c). */
+    public static List<JobSlipLine> repairLines(Job_Slip__c slip) {
+        List<JobSlipLine> lines = String.isBlank(slip.Repair_Lines__c)
+            ? new List<JobSlipLine>()
+            : (List<JobSlipLine>) JSON.deserialize(slip.Repair_Lines__c, List<JobSlipLine>.class);
+        for (Integer i = 0; i < lines.size(); i++) {
+            lines[i].id = 'l' + (i + 1);
+        }
+        return lines;
     }
 
     public static Job_Slip__c loadSlip(Id jobSlipId) {
@@ -261,8 +270,7 @@ public with sharing class JobSlipController {
                    Service_Advisor_Name__c, Service_Advisor_Mobile__c, Promised_Delivery__c,
                    Total_Cost_Estimate__c,
                    Vehicle__r.Chassis_Number__c, Vehicle__r.Engine_Number__c, Vehicle__r.Date_Of_Sale__c,
-                   (SELECT Id, Customer_Request__c, Observation__c, Labour_Estimate__c, Spares_Estimate__c
-                    FROM Lines__r ORDER BY Sort_Order__c, CreatedDate)
+                   Repair_Lines__c
             FROM Job_Slip__c
             WHERE Id = :jobSlipId
         ];
@@ -305,16 +313,7 @@ public with sharing class JobSlipController {
             data.engineNumber = s.Vehicle__r.Engine_Number__c;
             data.dateOfSale = s.Vehicle__r.Date_Of_Sale__c;
         }
-        data.lines = new List<JobSlipLine>();
-        for (Job_Slip_Line__c l : s.Lines__r) {
-            JobSlipLine line = new JobSlipLine();
-            line.id = l.Id;
-            line.customerRequest = l.Customer_Request__c;
-            line.observation = l.Observation__c;
-            line.labourEstimate = l.Labour_Estimate__c;
-            line.sparesEstimate = l.Spares_Estimate__c;
-            data.lines.add(line);
-        }
+        data.lines = repairLines(s);
         return data;
     }
 

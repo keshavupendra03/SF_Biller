@@ -244,20 +244,20 @@ public with sharing class JobSlipPdfController {
         Decimal labour = 0;
         Decimal spares = 0;
         Boolean anyAmount = false;
-        for (Job_Slip_Line__c l : s.Lines__r) {
+        for (JobSlipController.JobSlipLine l : JobSlipController.repairLines(s)) {
             LineRow row = new LineRow();
             row.rowNumber = lines.size() + 1;
-            row.customerRequest = l.Customer_Request__c;
-            row.observation = l.Observation__c;
-            row.labour = formatAmount(l.Labour_Estimate__c);
-            row.spares = formatAmount(l.Spares_Estimate__c);
+            row.customerRequest = l.customerRequest;
+            row.observation = l.observation;
+            row.labour = formatAmount(l.labourEstimate);
+            row.spares = formatAmount(l.sparesEstimate);
             lines.add(row);
-            if (l.Labour_Estimate__c != null) {
-                labour += l.Labour_Estimate__c;
+            if (l.labourEstimate != null) {
+                labour += l.labourEstimate;
                 anyAmount = true;
             }
-            if (l.Spares_Estimate__c != null) {
-                spares += l.Spares_Estimate__c;
+            if (l.sparesEstimate != null) {
+                spares += l.sparesEstimate;
                 anyAmount = true;
             }
         }

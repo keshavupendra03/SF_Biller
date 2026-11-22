@@ -19,6 +19,19 @@ private class JobSlipPdfControllerTest {
         return new JobSlipPdfController();
     }
 
+    private static JobSlipController.JobSlipLine repairLine(String request, Decimal labour, Decimal spares) {
+        JobSlipController.JobSlipLine line = new JobSlipController.JobSlipLine();
+        line.customerRequest = request;
+        line.labourEstimate = labour;
+        line.sparesEstimate = spares;
+        return line;
+    }
+
+    // The slip's lines as JobSlipController stores them.
+    private static String repairLines(List<JobSlipController.JobSlipLine> lines) {
+        return JSON.serialize(lines, true);
+    }
+
     @isTest
     static void savedSlip_rendersEverythingAndPadsTableTo15Rows() {
         Customer__c customer = insertCustomer();
@@ -32,11 +45,11 @@ private class JobSlipPdfControllerTest {
             Time_In__c = Time.newInstance(14, 5, 0, 0), Current_Km__c = 17773, Visit_Reason__c = 'Accident',
             Fuel_Level__c = '3/4', Mats__c = true
         );
+        slip.Repair_Lines__c = repairLines(new List<JobSlipController.JobSlipLine>{
+            repairLine('Bumper damaged', 1500, 6500),
+            repairLine('Headlamp', 500, null)
+        });
         insert slip;
-        insert new List<Job_Slip_Line__c>{
-            new Job_Slip_Line__c(Job_Slip__c = slip.Id, Customer_Request__c = 'Bumper damaged', Labour_Estimate__c = 1500, Spares_Estimate__c = 6500, Sort_Order__c = 1),
-            new Job_Slip_Line__c(Job_Slip__c = slip.Id, Customer_Request__c = 'Headlamp', Labour_Estimate__c = 500, Sort_Order__c = 2)
-        };
 
         Test.startTest();
         JobSlipPdfController controller = render(slip.Id);
@@ -72,9 +85,11 @@ private class JobSlipPdfControllerTest {
     @isTest
     static void typedTotalCostEstimate_winsOverTheLineSum() {
         Customer__c customer = insertCustomer();
-        Job_Slip__c slip = new Job_Slip__c(Customer__c = customer.Id, Total_Cost_Estimate__c = '2000 - 8000');
+        Job_Slip__c slip = new Job_Slip__c(
+            Customer__c = customer.Id, Total_Cost_Estimate__c = '2000 - 8000',
+            Repair_Lines__c = repairLines(new List<JobSlipController.JobSlipLine>{ repairLine(null, 100, null) })
+        );
         insert slip;
-        insert new Job_Slip_Line__c(Job_Slip__c = slip.Id, Labour_Estimate__c = 100, Sort_Order__c = 1);
 
         Test.startTest();
         JobSlipPdfController controller = render(slip.Id);

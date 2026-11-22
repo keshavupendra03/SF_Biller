@@ -77,7 +77,7 @@ private class RoundOffDiscountTest {
         System.assertEquals(81, bill.sgst);
         System.assertEquals(1062, bill.totalAmount);
         System.assertEquals(100, bill.lineItems[0].discount);
-        System.assertEquals(100, [SELECT Discount__c FROM Bill_Line_Item__c LIMIT 1].Discount__c);
+        System.assertEquals(100, TestLines.of(bill.billId)[0].discount, 'The discount is stored with the line.');
     }
 
     @isTest
@@ -141,7 +141,7 @@ private class RoundOffDiscountTest {
         Test.stopTest();
 
         System.assertEquals(1000, bill.totalAmount, 'No GST, whatever the screen sent.');
-        System.assertEquals(0, [SELECT Tax_Rate_Percent__c FROM Bill_Line_Item__c LIMIT 1].Tax_Rate_Percent__c);
+        System.assertEquals(0, TestLines.of(bill.billId)[0].taxRatePercent);
         System.assertEquals('Bill of Supply', pdf.documentTitle);
         System.assert(pdf.compositionNote.contains('not eligible to collect tax'), pdf.compositionNote);
     }

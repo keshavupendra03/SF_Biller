@@ -1,7 +1,7 @@
 /**
  * Client-side preview mirror of GstCalculatorService.cls / gst_rules.md.
  * This is NOT the system of record — the authoritative totals are always
- * whatever Apex/BillTotalsService computes and persists on Bill__c once
+ * whatever Apex (StoredLines) computes and persists on Bill__c once
  * the bill is actually saved. This exists only so the LWC can show live
  * running totals as staff add/edit lines, without a server round trip per
  * keystroke, for a formula simple enough that keeping two independent

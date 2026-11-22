@@ -5,8 +5,8 @@
  * That contract scoped IGST out entirely and never decided how CGST+SGST
  * vs IGST gets chosen; this project's actual rule (confirmed over state
  * comparison) is that GST type is a property of the PART being sold —
- * Part__c.Gst_Type__c is the default, copied onto Bill_Line_Item__c /
- * Estimate_Line_Item__c when a line is added, and overridable per line —
+ * Part__c.Gst_Type__c is the default, copied onto each bill or estimate
+ * line (StoredLines) when it is added, and overridable per line —
  * so each line in a bill carries its own supply type independently; a
  * single bill can mix CGST+SGST parts with IGST parts.
  *
@@ -100,21 +100,18 @@ public with sharing class GstCalculatorService {
     }
 
     /**
-     * A saved Bill_Line_Item__c or Estimate_Line_Item__c (same field names) as
-     * calculator input, discount included, so every screen, PDF and report
-     * works a line out the same way.
+     * A saved bill or estimate line (StoredLines) as calculator input, discount
+     * included, so every screen, PDF and report works a line out the same way.
      */
-    public static GstLineItemInput inputFor(SObject line) {
-        Decimal rate = (Decimal) line.get('Tax_Rate_Percent__c');
-        Decimal discount = (Decimal) line.get('Discount__c');
+    public static GstLineItemInput inputFor(BillController.LineItemInput line) {
         GstLineItemInput input = new GstLineItemInput(
-            (String) line.get('Description__c'),
-            (Decimal) line.get('Quantity__c'),
-            (Decimal) line.get('Unit_Price__c'),
-            rate == null ? 0 : rate,
-            supplyTypeFromGstType((String) line.get('Gst_Type__c'))
+            line.description,
+            line.quantity,
+            line.unitPrice,
+            line.taxRatePercent == null ? 0 : line.taxRatePercent,
+            supplyTypeFromGstType(line.gstType)
         );
-        input.discount = discount == null ? 0 : discount;
+        input.discount = line.discount == null ? 0 : line.discount;
         return input;
     }
 

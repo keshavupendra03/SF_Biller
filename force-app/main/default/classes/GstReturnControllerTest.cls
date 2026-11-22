@@ -12,10 +12,7 @@ private class GstReturnControllerTest {
         insert buyer;
         Bill__c bill = new Bill__c(Customer__c = buyer.Id, Bill_Date__c = periodStart().addDays(4));
         insert bill;
-        insert new Bill_Line_Item__c(
-            Bill__c = bill.Id, Description__c = 'Brake Pad', Quantity__c = 2, Unit_Price__c = 500, Tax_Rate_Percent__c = 18,
-            Gst_Type__c = 'IGST', HSN_SAC_Code__c = '8708', Unit__c = 'Pcs'
-        );
+        TestLines.attach(bill.Id, TestLines.line('Brake Pad', 2, 500, 18, 'IGST', '8708', 'Pcs'));
     }
 
     @isTest

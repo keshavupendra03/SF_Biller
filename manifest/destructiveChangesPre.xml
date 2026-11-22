@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Deleted at the start of every deploy (Deploy-ToClientOrg.ps1, with
+  ignore-warnings so an org that never had them, or already lost them, is fine).
+  The triggers, handlers and tests of the child records that bills, estimates,
+  payments and job slips no longer use (architecture.md, Forty-second). Their
+  objects stay until scripts/deploy/Retire-OldChildObjects.ps1, once
+  fold-child-records.apex has copied their data across.
+-->
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+  <types>
+    <members>BillLineItemTrigger</members>
+    <members>EstimateLineItemTrigger</members>
+    <members>PaymentTrigger</members>
+    <name>ApexTrigger</name>
+  </types>
+  <types>
+    <members>BillLineItemTriggerHandler</members>
+    <members>BillLineItemTriggerTest</members>
+    <members>BillTotalsService</members>
+    <members>EstimateLineItemTriggerHandler</members>
+    <members>EstimateLineItemTriggerTest</members>
+    <members>EstimateTotalsService</members>
+    <members>PaymentStatusService</members>
+    <members>PaymentTriggerHandler</members>
+    <members>PaymentTriggerTest</members>
+    <name>ApexClass</name>
+  </types>
+  <types>
+    <members>Bill_Line_Item__c</members>
+    <members>Estimate_Line_Item__c</members>
+    <members>Payment__c</members>
+    <name>CustomTab</name>
+  </types>
+  <version>67.0</version>
+</Package>

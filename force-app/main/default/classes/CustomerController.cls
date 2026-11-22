@@ -133,9 +133,9 @@ public with sharing class CustomerController {
 
         Decimal spend = 0;
         for (AggregateResult result : [
-            SELECT SUM(Amount__c) total
-            FROM Payment__c
-            WHERE Bill__r.Customer__c = :customerId
+            SELECT SUM(Amount_Paid__c) total
+            FROM Bill__c
+            WHERE Customer__c = :customerId
         ]) {
             Object total = result.get('total');
             spend = total == null ? 0 : (Decimal) total;

@@ -49,18 +49,12 @@ private class CustomerControllerTest {
 
         Bill__c bill = new Bill__c(Customer__c = customerId, Bill_Date__c = Date.today());
         insert bill;
-        insert new Bill_Line_Item__c(
-            Bill__c = bill.Id, Description__c = 'Service', Quantity__c = 1, Unit_Price__c = 500,
-            Tax_Rate_Percent__c = 18, Gst_Type__c = 'CGST_SGST'
-        );
-        insert new Payment__c(Bill__c = bill.Id, Amount__c = 300, Method__c = 'Cash', Paid_At__c = Datetime.now());
+        TestLines.attach(bill.Id, TestLines.line('Service', 1, 500, 18, 'CGST_SGST', null, null));
+        BillPayments.add(bill.Id, 300, 'Cash');
 
         Estimate__c estimate = new Estimate__c(Customer__c = customerId, Estimate_Date__c = Date.today());
         insert estimate;
-        insert new Estimate_Line_Item__c(
-            Estimate__c = estimate.Id, Description__c = 'Diagnostic', Quantity__c = 1, Unit_Price__c = 200,
-            Tax_Rate_Percent__c = 18, Gst_Type__c = 'CGST_SGST'
-        );
+        TestLines.attach(estimate.Id, TestLines.line('Diagnostic', 1, 200, 18, 'CGST_SGST', null, null));
 
         Test.startTest();
         CustomerController.CustomerDetail detail = CustomerController.getCustomerDetail(customerId);

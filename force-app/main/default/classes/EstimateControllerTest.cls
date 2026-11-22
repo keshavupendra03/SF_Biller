@@ -30,7 +30,7 @@ private class EstimateControllerTest {
         System.assertEquals(1, summary.versionNumber);
         System.assertEquals(true, summary.isLatestVersion);
         System.assertEquals(590, summary.totalAmount);
-        System.assertEquals(1, [SELECT COUNT() FROM Estimate_Line_Item__c WHERE Estimate__c = :summary.estimateId]);
+        System.assertEquals(1, TestLines.of(summary.estimateId).size());
     }
 
     @isTest
@@ -315,8 +315,7 @@ private class EstimateControllerTest {
         EstimateController.deleteEstimate(second.estimateId);
         Test.stopTest();
 
-        System.assertEquals(0, [SELECT COUNT() FROM Estimate__c], 'Every version goes.');
-        System.assertEquals(0, [SELECT COUNT() FROM Estimate_Line_Item__c]);
+        System.assertEquals(0, [SELECT COUNT() FROM Estimate__c], 'Every version goes, lines and all.');
         Bill__c kept = [SELECT Source_Estimate__c, Total_Amount__c FROM Bill__c WHERE Id = :converted.billId];
         System.assertEquals(null, kept.Source_Estimate__c);
         System.assertEquals(590, kept.Total_Amount__c);

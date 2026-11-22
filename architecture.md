@@ -41,8 +41,21 @@ actual metadata, don't assume):
 
 `Workshop_Profile__c` · `Customer__c` · `Vehicle__c` · `Part__c` ·
 `Job_Status_Stage__c` · `Job__c` · `Job_Mechanic__c` ·
-`Mechanic__c` · `Surveyor__c` · `Bill__c` · `Bill_Line_Item__c` ·
-`Bill_To_Party__c` · `Payment__c` · `Estimate__c` · `Estimate_Line_Item__c`
+`Mechanic__c` · `Surveyor__c` · `Bill__c` · `Bill_To_Party__c` · `Estimate__c`
+
+**Since 2026-11-22 (§F, Forty-second) a document's lines and payments are not
+records of their own.** Every Salesforce record costs 2 KB of data storage
+whatever it holds, and a Developer org has 5 MB, so `Bill_Line_Item__c`,
+`Payment__c`, `Estimate_Line_Item__c`, `Job_Slip_Line__c` and `Service_Entry__c`
+were folded into their parent as JSON in a Long Text Area:
+`Bill__c.Line_Items__c` / `Payments__c` (+ `Amount_Paid__c`),
+`Estimate__c.Line_Items__c`, `Job_Slip__c.Repair_Lines__c`, and
+`Vehicle__c.Service_Book__c` (+ `First_`/`Last_Service_Date__c`). Only
+`StoredLines`, `BillPayments`, `JobSlipController` and `ServiceBookController`
+read or write those fields. **Don't add a child object for something that
+belongs to one parent and is only ever read through it** — store it on the
+parent. `Job_Mechanic__c` stays a record: the native "Mechanics with Jobs"
+report type is built on it.
 
 `Stock_Movement__c` was part of this list through Stage 2 but was removed
 2026-10-10 — see §F. Stock now lives directly on `Part__c.Current_Stock__c`.
@@ -56,10 +69,12 @@ Thirty-second): don't read it with a bare `LIMIT 1`; use
 `WorkshopProfileService.primaryId()` or the document's own company.
 
 `Service_Entry__c` was added 2026-11-04 (§F, Thirty-third): the Service Book. It
-gained `Visit_Start__c` on 2026-11-09 (§F, Thirty-fourth).
+gained `Visit_Start__c` on 2026-11-09 (§F, Thirty-fourth), and was folded into
+`Vehicle__c.Service_Book__c` on 2026-11-22 (Forty-second).
 
 `Job_Slip__c` + `Job_Slip_Line__c` were added 2026-11-01 (§F, Twenty-sixth) —
-the workshop's paper vehicle-intake slip, stored and printable.
+the workshop's paper vehicle-intake slip, stored and printable. The lines were
+folded into `Job_Slip__c.Repair_Lines__c` on 2026-11-22 (Forty-second).
 `Vehicle__c.Engine_Number__c`/`Date_Of_Sale__c` and
 `Workshop_Profile__c.Job_Slip_Terms__c` were added with them.
 
@@ -161,7 +176,7 @@ see §F for the full rationale and the row-locking replacement.
 - `PartStockService.adjustStock(Map<Id, Decimal> deltaByPartId)` is the only
   code path allowed to write it. It locks the affected `Part__c` rows with
   `FOR UPDATE` before adding each delta — the same lock-then-read-then-write
-  shape as `InvoiceNumberingService`/`PaymentStatusService` — so two
+  shape as `InvoiceNumberingService`/`BillPayments` — so two
   concurrent bill creations against the same part serialize instead of one
   silently clobbering the other's deduction. This is what replaces the old
   ledger's concurrency safety now that there's no aggregate recompute to
@@ -190,8 +205,8 @@ it scoped IGST out entirely). The actual rule:
 
 - `Part__c.Gst_Type__c` (picklist: `CGST_SGST` / `IGST`, default `CGST_SGST`)
   holds each part's default GST treatment.
-- When a line is added to a bill or estimate, `Bill_Line_Item__c.Gst_Type__c`
-  / `Estimate_Line_Item__c.Gst_Type__c` is copied from the part's value —
+- When a line is added to a bill or estimate, the line's `gstType` (stored in
+  `Line_Items__c`, §A) is copied from the part's value —
   staff can see and change it per line at creation time.
 - Each line's GST type is independent: a single bill can legitimately mix
   CGST+SGST parts with IGST parts, and `GstCalculatorService.calculateBill`
@@ -2581,3 +2596,91 @@ Platform issues:
 - Lightning caches components in the browser: a check right after a CSS-only
   deploy showed the old style until a fresh browser profile. Users may need a
   hard refresh (Ctrl+Shift+R) after a style change.
+
+**Forty-second (2026-11-22): lines, payments and Service Book days stored on their
+parent, to save data storage.** User request: a Developer org has 5 MB, and at
+2-3 bills and 5 Service Book entries a day it would have been full in about 3
+months. Salesforce counts every record as 2 KB whatever it holds, so the record
+count was the cost: a bill of four lines and a payment was six records.
+- Now one: `Bill__c.Line_Items__c` and `Payments__c` (JSON, Long Text Area
+  131,072) with `Amount_Paid__c` for SOQL sums. Estimates (`Line_Items__c`) and
+  job slips (`Repair_Lines__c`) the same; Service Book days on the car
+  (`Vehicle__c.Service_Book__c`), with `First_`/`Last_Service_Date__c` so a day's
+  page only reads cars that can have an entry that day (in SOQL-for-loop chunks).
+  A typical day goes from about 44 KB to about 9 KB: about 15 months on 4 MB.
+- `StoredLines` keeps the old field rules: two decimal places, blank rate 0,
+  blank GST type `CGST_SGST`, blank discount 0, the 255/20/20 text lengths, and
+  refuses more lines than the field holds. Lines are the screens' own
+  `BillController.LineItemInput`, so no screen or Jest test changed.
+- Totals are worked out when the record is saved (`StoredLines.store`), not by a
+  trigger after the lines are inserted. Stock: `BillStockService.deduct/restore`
+  take a bill's whole line list.
+- Payments (`BillPayments.add`) and Service Book writes lock the parent row with
+  `FOR UPDATE` first, so two people writing at once both count.
+- Kept as a record: `Job_Mechanic__c` (the native Mechanics with Jobs report type
+  is built on it; jobs are few).
+- Given up: a native report on single lines or payments. None existed.
+- Moving an existing org: `Deploy-ToClientOrg.ps1` deletes the old triggers and
+  classes in the same deploy (`manifest/destructiveChangesPre.xml`), then runs
+  `scripts/apex/fold-child-records.apex` (which calls `ChildRecordFold`) until it
+  reports 0. It copies the children in, keeps saved totals and statuses as they
+  were, deletes the children and empties them from the Recycle Bin.
+  `Retire-OldChildObjects.ps1` deletes the empty objects afterwards, and refuses
+  if any still has a record.
+- Dev org (wsbiller01), with the user's go-ahead: 56 bills (98 lines, 19
+  payments), 9 estimates (17 lines), 1 job slip (2 lines) and 5 cars (9 days)
+  moved; every bill's lines matched its saved totals. What the screens return for
+  all 56 bills, 9 estimates, 2 job slips, 17 customers' spend and 6 Service Book
+  pages was captured before and after and compared: no differences (payment and
+  slip-line ids, blank-vs-0 discount and number scale aside). Backup CSVs were
+  taken first.
+
+Platform issues:
+- `sf project deploy start --pre-destructive-changes` needs `--manifest`; it
+  won't run with `--source-dir`. The deploy script generates a package.xml of
+  force-app (`sf project generate manifest`) and deploys that.
+- A permission set naming a class that the same deploy deletes fails with
+  "invalid cross reference id" and nothing else: its `classAccesses` had to go too.
+- Field-level security applies to Apex at API 67, in classes as well as
+  anonymous Apex, and to dynamic SOQL too ("No such column 'Gst_Type__c'",
+  "fields being inaccessible"). Redeploying the permission set without the old
+  objects' entries took that access away, so the fold couldn't read them.
+  `ChildRecordFold` gives the running user a temporary permission set
+  (`WS_Biller_Old_Records_Access`, made in Apex), does the work in the next
+  runs, and deletes it in the last. A grant only applies from the next
+  transaction, and setup and record changes can't share one, hence one run each.
+- Required fields can't be granted in a permission set (they're always
+  readable), and Read on a master-detail child needs Read on its master in the
+  same set ("Permission Read Job_Slip_Line__c depends on ... Read Job_Slip__c").
+- `sf data query` fails under Git Bash on this machine ("'C:\Program' is not
+  recognized"); it works from PowerShell.
+- The fold updates every car and job slip it touches, so `VehicleTrigger` and
+  `JobSlipTrigger` put their numbers in capitals on the way (Forty-first).
+
+**Forty-third (2026-11-22): opening faster on slow shop PCs.** User request: clients
+on 2 GB, old-processor PCs wait a long time to log in and load before they can
+write in the Service Book or make a bill. Measured on wsbiller01 in Chrome with the
+CPU slowed 4x:
+- First login, nothing cached: 22.8 s to a usable Easy Bill, 7.9 MB, 124 MB of
+  memory. Logging in again with the cache warm: 16-18 s. Already logged in, a
+  new tab: 9.5-14 s. Switching screens inside the open app: 4-5 s.
+- With the cache warm under 0.2 MB comes over the network: the time is the CPU
+  starting the Lightning frame (about 10 s of every fresh open), not our screens
+  (Easy Bill makes no server call on opening, Service Book one).
+- So the fix is opening less often, not code: logging in once a day, one tab all
+  day, Chrome not unloading the tab, and opening on the screen staff want.
+
+Done:
+- `settings/Security.settings-meta.xml`: session timeout 24 hours (was 2), no
+  forced logout. It names only those two fields; a retrieve before and after
+  showed nothing else changed. System Administrator users follow it.
+- `profileSessionSettings/Ws_Biller_End_User`: the end-user profile's own
+  timeout, 1440 minutes, no forced logout (the org saves its name in lower case).
+- The app opens on Service Book: it's the first nav item, which Lightning uses as
+  the landing page (checked: a fresh login and the app icon both land there).
+- The deploy script's checklist gives the per-PC Chrome steps.
+
+Tried and not adopted (yet): Service Book in a bare Visualforce page through
+Lightning Out opened in 6.3-7.6 s with 34-45 MB, against 9.5-12 s and about 115 MB
+in the app. It would break §B's one-app rule, toasts don't show there and
+navigation needs reworking, so it waits on the user. The test page was deleted.

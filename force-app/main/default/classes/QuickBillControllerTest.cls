@@ -233,8 +233,8 @@ private class QuickBillControllerTest {
 
         System.assertEquals(2200, summary.totalAmount, 'With GST off the total is just quantity x price.');
         System.assertEquals(0, summary.cgst + summary.sgst + summary.igst);
-        for (Bill_Line_Item__c item : [SELECT Tax_Rate_Percent__c FROM Bill_Line_Item__c WHERE Bill__c = :summary.billId]) {
-            System.assertEquals(0, item.Tax_Rate_Percent__c);
+        for (BillController.LineItemInput item : TestLines.of(summary.billId)) {
+            System.assertEquals(0, item.taxRatePercent);
         }
         System.assertEquals(18, [SELECT Tax_Rate_Percent__c FROM Part__c WHERE Name = 'Engine Oil 1L'].Tax_Rate_Percent__c,
             'A part created from a typed line must keep the typed rate for later bills.');
@@ -290,7 +290,7 @@ private class QuickBillControllerTest {
         Test.stopTest();
 
         System.assertEquals(1000, summary.totalAmount);
-        System.assertEquals(0, [SELECT Tax_Rate_Percent__c FROM Estimate_Line_Item__c WHERE Estimate__c = :summary.estimateId].Tax_Rate_Percent__c);
+        System.assertEquals(0, TestLines.of(summary.estimateId)[0].taxRatePercent);
         System.assertEquals(18, [SELECT Tax_Rate_Percent__c FROM Part__c WHERE Name = 'Engine Oil 1L'].Tax_Rate_Percent__c);
     }
 

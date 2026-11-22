@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The end-user profile stays logged in for 24 hours (1440 minutes) with no forced logout (architecture.md, Forty-third). -->
+<ProfileSessionSetting xmlns="http://soap.sforce.com/2006/04/metadata">
+    <externalCommunityUserIdentityVerif>false</externalCommunityUserIdentityVerif>
+    <forceLogout>false</forceLogout>
+    <profile>Ws biller enduser profile</profile>
+    <sessionPersistence>false</sessionPersistence>
+    <sessionTimeout>1440</sessionTimeout>
+    <sessionTimeoutWarning>true</sessionTimeoutWarning>
+</ProfileSessionSetting>

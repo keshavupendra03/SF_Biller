@@ -6,6 +6,7 @@
     <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
     <isNavPersonalizationDisabled>true</isNavPersonalizationDisabled>
     <navType>Standard</navType>
+    <tabs>Service_Book</tabs>
     <tabs>Jobs_Board</tabs>
     <tabs>Customer_List</tabs>
     <tabs>Billing_List</tabs>
@@ -13,7 +14,6 @@
     <tabs>Quick_Bill</tabs>
     <tabs>Quick_Estimate</tabs>
     <tabs>Easy_Bill</tabs>
-    <tabs>Service_Book</tabs>
     <tabs>Inventory_List</tabs>
     <tabs>More_Menu</tabs>
     <tabs>Customer_Detail</tabs>

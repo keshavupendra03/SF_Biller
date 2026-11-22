@@ -23,17 +23,8 @@ private class InvoicePdfControllerTest {
         insert customer;
         Bill__c bill = new Bill__c(Customer__c = customer.Id, Notes__c = 'Front bumper repair');
         insert bill;
-        insert new Bill_Line_Item__c(
-            Bill__c = bill.Id,
-            Description__c = 'Brake Pad',
-            HSN_SAC_Code__c = '8708',
-            Quantity__c = 2,
-            Unit__c = 'Pcs',
-            Unit_Price__c = 500,
-            Tax_Rate_Percent__c = 18,
-            Gst_Type__c = 'CGST_SGST'
-        );
-        insert new Payment__c(Bill__c = bill.Id, Amount__c = 700, Method__c = 'Cash');
+        TestLines.attach(bill.Id, TestLines.line('Brake Pad', 2, 500, 18, 'CGST_SGST', '8708', 'Pcs'));
+        BillPayments.add(bill.Id, 700, 'Cash');
         return bill.Id;
     }
 
@@ -42,13 +33,7 @@ private class InvoicePdfControllerTest {
         insert customer;
         Estimate__c estimate = new Estimate__c(Customer__c = customer.Id, Status__c = 'Draft');
         insert estimate;
-        insert new Estimate_Line_Item__c(
-            Estimate__c = estimate.Id,
-            Description__c = 'Diagnostic Fee',
-            Quantity__c = 1,
-            Unit_Price__c = 500,
-            Tax_Rate_Percent__c = 18
-        );
+        TestLines.attach(estimate.Id, TestLines.line('Diagnostic Fee', 1, 500, 18, null, null, null));
         return estimate.Id;
     }
 
@@ -91,10 +76,7 @@ private class InvoicePdfControllerTest {
         insert customer;
         Bill__c bill = new Bill__c(Customer__c = customer.Id);
         insert bill;
-        insert new Bill_Line_Item__c(
-            Bill__c = bill.Id, Description__c = 'Export part',
-            Quantity__c = 2, Unit_Price__c = 500, Tax_Rate_Percent__c = 18, Gst_Type__c = 'IGST'
-        );
+        TestLines.attach(bill.Id, TestLines.line('Export part', 2, 500, 18, 'IGST', null, null));
 
         Test.setCurrentPageReference(Page.InvoicePdf);
         ApexPages.currentPage().getParameters().put('id', bill.Id);
@@ -318,7 +300,7 @@ private class InvoicePdfControllerTest {
         insert customer;
         Bill__c bill = new Bill__c(Customer__c = customer.Id);
         insert bill;
-        insert new Bill_Line_Item__c(Bill__c = bill.Id, Description__c = 'Brake Pad', Quantity__c = 1, Unit_Price__c = 1000, Tax_Rate_Percent__c = 18, Gst_Type__c = 'IGST');
+        TestLines.attach(bill.Id, TestLines.line('Brake Pad', 1, 1000, 18, 'IGST', null, null));
 
         Test.setCurrentPageReference(Page.InvoicePdf);
         ApexPages.currentPage().getParameters().put('id', bill.Id);

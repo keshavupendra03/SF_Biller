@@ -53,7 +53,7 @@ private class BillControllerTest {
         Part__c updatedPart = [SELECT Current_Stock__c FROM Part__c WHERE Id = :part.Id];
         System.assertEquals(-2, updatedPart.Current_Stock__c);
 
-        System.assertEquals(2, [SELECT COUNT() FROM Bill_Line_Item__c WHERE Bill__c = :summary.billId]);
+        System.assertEquals(2, TestLines.of(summary.billId).size(), 'Both lines are stored on the bill.');
     }
 
     @isTest
@@ -76,7 +76,8 @@ private class BillControllerTest {
         Test.stopTest();
 
         System.assertEquals('Paid', summary.status);
-        System.assertEquals(1, [SELECT COUNT() FROM Payment__c WHERE Bill__c = :summary.billId]);
+        System.assertEquals(1, TestLines.paymentsOf(summary.billId).size());
+        System.assertEquals(summary.totalAmount, [SELECT Amount_Paid__c FROM Bill__c WHERE Id = :summary.billId].Amount_Paid__c);
     }
 
     @isTest
@@ -410,8 +411,8 @@ private class BillControllerTest {
         Test.stopTest();
 
         System.assertEquals('Unpaid', second.status);
-        System.assertEquals(1, [SELECT COUNT() FROM Payment__c WHERE Bill__c = :first.billId]);
-        System.assertEquals(0, [SELECT COUNT() FROM Payment__c WHERE Bill__c = :second.billId]);
+        System.assertEquals(1, TestLines.paymentsOf(first.billId).size());
+        System.assertEquals(0, TestLines.paymentsOf(second.billId).size());
     }
 
     @isTest

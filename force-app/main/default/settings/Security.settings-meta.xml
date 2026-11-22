@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Only these two session settings are set here; every other security setting
+  is left as the org has it (architecture.md, Forty-third). Staff stay logged in
+  for 24 hours instead of 2, so the slow first load of the day happens once.
+-->
+<SecuritySettings xmlns="http://soap.sforce.com/2006/04/metadata">
+    <sessionSettings>
+        <forceLogoutOnSessionTimeout>false</forceLogoutOnSessionTimeout>
+        <sessionTimeout>TwentyFourHours</sessionTimeout>
+    </sessionSettings>
+</SecuritySettings>

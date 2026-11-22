@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>First_Service_Date__c</fullName>
+    <description>The earliest day in Service_Book__c. With Last_Service_Date__c it finds the cars that can have an entry on a given day.</description>
+    <label>First Service Book Date</label>
+    <type>Date</type>
+</CustomField>

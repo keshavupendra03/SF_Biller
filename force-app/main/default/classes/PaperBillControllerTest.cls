@@ -40,9 +40,10 @@ private class PaperBillControllerTest {
         Bill__c bill = [SELECT Bill_Date__c, Notes__c FROM Bill__c WHERE Id = :saved.recordId];
         System.assertEquals(Date.newInstance(2026, 11, 1), bill.Bill_Date__c);
         System.assertEquals('Thank you', bill.Notes__c);
-        Bill_Line_Item__c item = [SELECT HSN_SAC_Code__c, Tax_Rate_Percent__c FROM Bill_Line_Item__c WHERE Bill__c = :saved.recordId];
-        System.assertEquals('8708', item.HSN_SAC_Code__c);
-        System.assertEquals(0, item.Tax_Rate_Percent__c);
+        List<BillController.LineItemInput> items = TestLines.of(saved.recordId);
+        System.assertEquals(1, items.size());
+        System.assertEquals('8708', items[0].hsnSacCode);
+        System.assertEquals(0, items[0].taxRatePercent);
         System.assertEquals(18, [SELECT Tax_Rate_Percent__c FROM Part__c WHERE Name = 'Engine Oil 1L'].Tax_Rate_Percent__c,
             'A part created from a typed line keeps the typed rate for later bills.');
     }

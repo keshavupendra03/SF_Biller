@@ -74,9 +74,7 @@ public with sharing class EstimateController {
                 Notes__c = request.notes,
                 Estimate_Date__c = request.estimateDate != null ? request.estimateDate : Date.today()
             );
-            insert estimate;
-
-            insertLineItems(estimate.Id, request.lineItems);
+            saveWithLines(estimate, request.lineItems);
 
             return buildSummary(estimate.Id);
         } catch (DmlException e) {
@@ -122,9 +120,7 @@ public with sharing class EstimateController {
                 Root_Estimate__c = rootId,
                 Version_Number__c = (previous.Version_Number__c == null ? 1 : previous.Version_Number__c) + 1
             );
-            insert newVersion;
-
-            insertLineItems(newVersion.Id, request.lineItems);
+            saveWithLines(newVersion, request.lineItems);
 
             update new Estimate__c(Id = previousEstimateId, Is_Latest_Version__c = false);
 
@@ -135,7 +131,7 @@ public with sharing class EstimateController {
     }
 
     /**
-     * Deletes an estimate with all its versions and lines (architecture.md
+     * Deletes an estimate with all its versions, lines included (architecture.md
      * §D.1, G2). An estimate isn't a GST document, so unlike a bill nothing of
      * it needs keeping. A bill made from it keeps its own copy of everything
      * and only loses the link.
@@ -146,8 +142,6 @@ public with sharing class EstimateController {
         Id rootId = estimate.Root_Estimate__c != null ? estimate.Root_Estimate__c : estimateId;
         List<Estimate__c> versions = [SELECT Id FROM Estimate__c WHERE Id = :rootId OR Root_Estimate__c = :rootId];
         try {
-            // Lines first: their link to the estimate doesn't allow deleting it under them.
-            delete [SELECT Id FROM Estimate_Line_Item__c WHERE Estimate__c IN :versions];
             delete versions;
         } catch (DmlException e) {
             throw ReadableErrors.of(e);
@@ -305,23 +299,14 @@ public with sharing class EstimateController {
         return String.isBlank(makeModel) ? vehicle.Name : vehicle.Name + ' — ' + makeModel;
     }
 
-    private static void insertLineItems(Id estimateId, List<BillController.LineItemInput> lineItems) {
-        List<Estimate_Line_Item__c> items = new List<Estimate_Line_Item__c>();
-        for (BillController.LineItemInput li : lineItems) {
-            items.add(new Estimate_Line_Item__c(
-                Estimate__c = estimateId,
-                Part__c = li.partId,
-                Description__c = li.description,
-                Quantity__c = li.quantity,
-                Unit_Price__c = li.unitPrice,
-                Tax_Rate_Percent__c = li.taxRatePercent == null ? 0 : li.taxRatePercent,
-                Gst_Type__c = String.isBlank(li.gstType) ? 'CGST_SGST' : li.gstType,
-                HSN_SAC_Code__c = li.hsnSacCode,
-                Unit__c = li.unitLabel,
-                Discount__c = li.discount == null ? 0 : li.discount
-            ));
+    // The lines and their totals go on the estimate itself (StoredLines).
+    private static void saveWithLines(Estimate__c estimate, List<BillController.LineItemInput> lineItems) {
+        try {
+            StoredLines.store(estimate, estimate.Workshop_Profile__c, lineItems);
+        } catch (StoredLines.StoredLinesException e) {
+            throw new EstimateControllerException(e.getMessage());
         }
-        insert items;
+        insert estimate;
     }
 
     private static EstimateSummary buildSummary(Id estimateId) {
@@ -330,33 +315,13 @@ public with sharing class EstimateController {
                    Customer__c, Customer__r.Name, Bill_To_Party__c, Bill_To_Party__r.Name,
                    Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c,
                    Vehicle__r.Chassis_Number__c, Notes__c,
-                   Subtotal__c, Total_Amount__c, Workshop_Profile__c, Round_Off__c
+                   Subtotal__c, Total_Amount__c, Workshop_Profile__c, Round_Off__c, Line_Items__c
             FROM Estimate__c
             WHERE Id = :estimateId
         ];
 
-        List<BillController.LineItemInput> lineItemInputs = new List<BillController.LineItemInput>();
-        List<GstCalculatorService.GstLineItemInput> gstInputs = new List<GstCalculatorService.GstLineItemInput>();
-        for (Estimate_Line_Item__c item : [
-            SELECT Part__c, Description__c, Quantity__c, Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c, HSN_SAC_Code__c, Unit__c, Discount__c
-            FROM Estimate_Line_Item__c
-            WHERE Estimate__c = :estimateId
-            ORDER BY CreatedDate, Id
-        ]) {
-            gstInputs.add(GstCalculatorService.inputFor(item));
-            BillController.LineItemInput li = new BillController.LineItemInput();
-            li.partId = item.Part__c;
-            li.description = item.Description__c;
-            li.quantity = item.Quantity__c;
-            li.unitPrice = item.Unit_Price__c;
-            li.taxRatePercent = item.Tax_Rate_Percent__c;
-            li.gstType = item.Gst_Type__c;
-            li.hsnSacCode = item.HSN_SAC_Code__c;
-            li.unitLabel = item.Unit__c;
-            li.discount = item.Discount__c;
-            lineItemInputs.add(li);
-        }
-        GstCalculatorService.GstBillResult breakdown = GstCalculatorService.calculateBill(gstInputs);
+        List<BillController.LineItemInput> lineItemInputs = StoredLines.read(estimate.Line_Items__c);
+        GstCalculatorService.GstBillResult breakdown = GstCalculatorService.calculateBill(StoredLines.gstInputs(lineItemInputs));
 
         EstimateSummary summary = new EstimateSummary();
         summary.estimateId = estimateId;

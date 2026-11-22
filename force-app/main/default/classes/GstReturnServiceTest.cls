@@ -39,21 +39,15 @@ private class GstReturnServiceTest {
         return customer;
     }
 
-    private static Bill__c bill(Id customerId, Id partyId, Integer day, List<Bill_Line_Item__c> lines) {
+    private static Bill__c bill(Id customerId, Id partyId, Integer day, List<BillController.LineItemInput> lines) {
         Bill__c bill = new Bill__c(Customer__c = customerId, Bill_To_Party__c = partyId, Bill_Date__c = periodStart().addDays(day));
         insert bill;
-        for (Bill_Line_Item__c line : lines) {
-            line.Bill__c = bill.Id;
-        }
-        insert lines;
+        TestLines.attach(bill.Id, lines);
         return [SELECT Id, Invoice_Number__c, Total_Amount__c FROM Bill__c WHERE Id = :bill.Id];
     }
 
-    private static Bill_Line_Item__c line(String description, Decimal qty, Decimal price, Decimal rate, String type, String hsn, String unit) {
-        return new Bill_Line_Item__c(
-            Description__c = description, Quantity__c = qty, Unit_Price__c = price, Tax_Rate_Percent__c = rate,
-            Gst_Type__c = type, HSN_SAC_Code__c = hsn, Unit__c = unit
-        );
+    private static BillController.LineItemInput line(String description, Decimal qty, Decimal price, Decimal rate, String type, String hsn, String unit) {
+        return TestLines.line(description, qty, price, rate, type, hsn, unit);
     }
 
     private static Map<String, Bill__c> sampleMonth() {
@@ -64,31 +58,29 @@ private class GstReturnServiceTest {
         insert fleetMh;
 
         Map<String, Bill__c> bills = new Map<String, Bill__c>();
-        bills.put('B1', bill(registeredMp.Id, null, 1, new List<Bill_Line_Item__c>{
+        bills.put('B1', bill(registeredMp.Id, null, 1, new List<BillController.LineItemInput>{
             line('Brake Pad', 1, 1000, 18, 'CGST_SGST', '8708', 'Pcs'), line('Engine Oil', 2, 100, 5, 'CGST_SGST', '2710', 'Ltr') }));
-        bills.put('B2', bill(walkIn.Id, fleetMh.Id, 2, new List<Bill_Line_Item__c>{ line('Clutch', 1, 2000, 18, 'IGST', '8708', 'Pcs') }));
-        bills.put('B3', bill(unregisteredMh.Id, null, 3, new List<Bill_Line_Item__c>{ line('Engine', 1, 100000, 18, 'IGST', '8703', 'Nos') }));
-        bills.put('B4', bill(unregisteredMh.Id, null, 4, new List<Bill_Line_Item__c>{ line('Seat Covers', 1, 1000, 18, 'IGST', '8708', 'Set') }));
-        bills.put('B5', bill(walkIn.Id, null, 5, new List<Bill_Line_Item__c>{
+        bills.put('B2', bill(walkIn.Id, fleetMh.Id, 2, new List<BillController.LineItemInput>{ line('Clutch', 1, 2000, 18, 'IGST', '8708', 'Pcs') }));
+        bills.put('B3', bill(unregisteredMh.Id, null, 3, new List<BillController.LineItemInput>{ line('Engine', 1, 100000, 18, 'IGST', '8703', 'Nos') }));
+        bills.put('B4', bill(unregisteredMh.Id, null, 4, new List<BillController.LineItemInput>{ line('Seat Covers', 1, 1000, 18, 'IGST', '8708', 'Set') }));
+        bills.put('B5', bill(walkIn.Id, null, 5, new List<BillController.LineItemInput>{
             line('Labour', 1, 500, 18, 'CGST_SGST', '998714', null), line('Free Washer', 1, 300, 0, 'CGST_SGST', '8708', 'Pcs') }));
-        bills.put('B6', bill(walkIn.Id, null, 6, new List<Bill_Line_Item__c>{ line('Wiper', 1, 700, 0, 'CGST_SGST', '8708', 'Pcs') }));
-        bills.put('B7', bill(walkIn.Id, null, 7, new List<Bill_Line_Item__c>{ line('Horn', 1, 999, 18, 'CGST_SGST', '8512', 'Pcs') }));
+        bills.put('B6', bill(walkIn.Id, null, 6, new List<BillController.LineItemInput>{ line('Wiper', 1, 700, 0, 'CGST_SGST', '8708', 'Pcs') }));
+        bills.put('B7', bill(walkIn.Id, null, 7, new List<BillController.LineItemInput>{ line('Horn', 1, 999, 18, 'CGST_SGST', '8512', 'Pcs') }));
         update new Bill__c(Id = bills.get('B7').Id, Is_Cancelled__c = true, Cancelled_On__c = Date.today());
-        bills.put('B8', bill(walkIn.Id, null, 8, new List<Bill_Line_Item__c>{ line('Mirror', 1, 888, 18, 'CGST_SGST', '7009', 'Pcs') }));
+        bills.put('B8', bill(walkIn.Id, null, 8, new List<BillController.LineItemInput>{ line('Mirror', 1, 888, 18, 'CGST_SGST', '7009', 'Pcs') }));
         update new Bill__c(Id = bills.get('B8').Id, Is_Latest_Version__c = false);
-        bills.put('B9', bill(walkIn.Id, null, 9, new List<Bill_Line_Item__c>{ line('Coolant', 1, 100, 5, 'CGST_SGST', '2710', 'Ltr') }));
-        bills.put('B10', bill(walkIn.Id, null, 10, new List<Bill_Line_Item__c>{ line('Bulb', 1, 100, 18, 'IGST', '8539', 'Pcs') }));
-        bills.put('B11', bill(walkIn.Id, null, 11, new List<Bill_Line_Item__c>{ line('Clip', 1, 50, 18, 'CGST_SGST', null, 'Pcs') }));
+        bills.put('B9', bill(walkIn.Id, null, 9, new List<BillController.LineItemInput>{ line('Coolant', 1, 100, 5, 'CGST_SGST', '2710', 'Ltr') }));
+        bills.put('B10', bill(walkIn.Id, null, 10, new List<BillController.LineItemInput>{ line('Bulb', 1, 100, 18, 'IGST', '8539', 'Pcs') }));
+        bills.put('B11', bill(walkIn.Id, null, 11, new List<BillController.LineItemInput>{ line('Clip', 1, 50, 18, 'CGST_SGST', null, 'Pcs') }));
 
         // Not this return: last month, and the other company.
-        bill(walkIn.Id, null, -5, new List<Bill_Line_Item__c>{ line('Earlier', 1, 5000, 18, 'CGST_SGST', '8708', 'Pcs') });
+        bill(walkIn.Id, null, -5, new List<BillController.LineItemInput>{ line('Earlier', 1, 5000, 18, 'CGST_SGST', '8708', 'Pcs') });
         Workshop_Profile__c decor = new Workshop_Profile__c(Name = 'Speedy Decor', Invoice_Prefix__c = 'DEC', State__c = 'Madhya Pradesh');
         insert decor;
         Bill__c other = new Bill__c(Customer__c = walkIn.Id, Workshop_Profile__c = decor.Id, Bill_Date__c = periodStart().addDays(3));
         insert other;
-        Bill_Line_Item__c otherLine = line('Other company', 1, 7000, 18, 'CGST_SGST', '8708', 'Pcs');
-        otherLine.Bill__c = other.Id;
-        insert otherLine;
+        TestLines.attach(other.Id, line('Other company', 1, 7000, 18, 'CGST_SGST', '8708', 'Pcs'));
         return bills;
     }
 
@@ -265,7 +257,7 @@ private class GstReturnServiceTest {
     @isTest
     static void anInvalidBuyerGstin_isAnError_andTheBillCountsAsB2c() {
         Customer__c buyer = customer('Bad GSTIN Traders', null, null);
-        Bill__c b = bill(buyer.Id, null, 2, new List<Bill_Line_Item__c>{ line('Pad', 1, 100, 18, 'CGST_SGST', '8708', 'Pcs') });
+        Bill__c b = bill(buyer.Id, null, 2, new List<BillController.LineItemInput>{ line('Pad', 1, 100, 18, 'CGST_SGST', '8708', 'Pcs') });
         update new Bill__c(Id = b.Id, Recipient_GSTIN__c = '23ABCDE1234F1Z5');
 
         Test.startTest();
@@ -282,7 +274,7 @@ private class GstReturnServiceTest {
     @isTest
     static void inter_stateCgstSgst_isAnError() {
         Customer__c buyer = customer('Patil', null, 'Maharashtra');
-        bill(buyer.Id, null, 2, new List<Bill_Line_Item__c>{ line('Pad', 1, 100, 18, 'CGST_SGST', '8708', 'Pcs') });
+        bill(buyer.Id, null, 2, new List<BillController.LineItemInput>{ line('Pad', 1, 100, 18, 'CGST_SGST', '8708', 'Pcs') });
 
         Test.startTest();
         GstReturnService.GstReturn ret = GstReturnService.build(null, periodStart(), periodEnd());
@@ -343,7 +335,7 @@ private class GstReturnServiceTest {
         Workshop_Profile__c company = [SELECT Id FROM Workshop_Profile__c LIMIT 1];
         update new Workshop_Profile__c(Id = company.Id, GST_Registration_Type__c = 'Composition');
         Customer__c buyer = customer('Ramesh', null, null);
-        bill(buyer.Id, null, 2, new List<Bill_Line_Item__c>{ line('Pad', 1, 1000, 0, 'CGST_SGST', '8708', 'Pcs') });
+        bill(buyer.Id, null, 2, new List<BillController.LineItemInput>{ line('Pad', 1, 1000, 0, 'CGST_SGST', '8708', 'Pcs') });
 
         Test.startTest();
         GstReturnService.GstReturn ret = GstReturnService.build(company.Id, periodStart(), periodEnd());
@@ -372,7 +364,7 @@ private class GstReturnServiceTest {
     @isTest
     static void aBillsItemProblems_areOneLineEach_namingEveryItem() {
         Customer__c buyer = customer('Ramesh', null, null);
-        Bill__c b = bill(buyer.Id, null, 2, new List<Bill_Line_Item__c>{
+        Bill__c b = bill(buyer.Id, null, 2, new List<BillController.LineItemInput>{
             line('Bulb', 1, 100, 18, 'CGST_SGST', null, 'Pcs'),
             line('Pad', 1, 100, 18, 'CGST_SGST', '', 'Pcs'),
             line('Clip', 1, 100, 18, 'CGST_SGST', '87', 'bundle')
@@ -478,7 +470,7 @@ private class GstReturnServiceTest {
     static void theZip_carriesTheJson_onlyForARegularCompany() {
         Workshop_Profile__c company = [SELECT Id FROM Workshop_Profile__c LIMIT 1];
         Customer__c buyer = customer('Ramesh', null, null);
-        bill(buyer.Id, null, 2, new List<Bill_Line_Item__c>{ line('Pad', 1, 1000, 18, 'CGST_SGST', '8708', 'Pcs') });
+        bill(buyer.Id, null, 2, new List<BillController.LineItemInput>{ line('Pad', 1, 1000, 18, 'CGST_SGST', '8708', 'Pcs') });
 
         Test.startTest();
         GstReturnService.GstReturn regular = GstReturnService.build(company.Id, periodStart(), periodEnd());

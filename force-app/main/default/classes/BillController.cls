@@ -9,10 +9,11 @@
  * in place is never supported — "changing" a bill means creating a new
  * Bill__c record that supersedes it, with its own freshly, atomically
  * assigned Invoice_Number__c (Stage 1's locking logic, completely
- * unaffected by any of this). createNewVersion reverses the superseded
- * version's stock deductions (via BillStockService, the same mechanism a
- * line deletion already uses) before the new version's own line items
- * deduct stock again — otherwise a near-identical new version would double
+ * unaffected by any of this). A bill's lines and payments are stored on the
+ * bill itself (StoredLines, BillPayments), not as child records, to save
+ * data storage (architecture.md, Forty-second). createNewVersion reverses
+ * the superseded version's stock deductions (BillStockService, as deleting
+ * a bill does) before the new version's own lines deduct stock again — otherwise a near-identical new version would double
  * count both bills' worth of parts against inventory. Payments are
  * deliberately NOT carried forward to a new version — they stay on the
  * superseded bill for its own audit trail; the new version starts Unpaid.
@@ -91,7 +92,8 @@ public with sharing class BillController {
     }
 
     public class PaymentItem {
-        @AuraEnabled public Id id { get; set; }
+        // Its place on the bill ('p1', 'p2'...): payments are stored on the bill.
+        @AuraEnabled public String id { get; set; }
         @AuraEnabled public Decimal amount { get; set; }
         @AuraEnabled public String method { get; set; }
         @AuraEnabled public Datetime paidAt { get; set; }
@@ -256,10 +258,7 @@ public with sharing class BillController {
                 Bill_Date__c = request.billDate != null ? request.billDate : Date.today(),
                 Source_Estimate__c = request.sourceEstimateId
             );
-            insert bill;
-
-            insertLineItems(bill.Id, request.lineItems);
-            insertInitialPayment(bill.Id, request);
+            saveWithLines(bill, request);
 
             if (request.sourceEstimateId != null) {
                 update new Estimate__c(Id = request.sourceEstimateId, Status__c = 'Converted');
@@ -285,7 +284,7 @@ public with sharing class BillController {
             validate(request);
             Bill__c previous = [
                 SELECT Version_Number__c, Root_Bill__c, Source_Estimate__c, Job__c, Vehicle__c, Workshop_Profile__c,
-                       Invoice_Number__c, Bill_Date__c, Is_Cancelled__c, Paired_Bill__c, Bill_To_Party__c
+                       Invoice_Number__c, Bill_Date__c, Is_Cancelled__c, Paired_Bill__c, Bill_To_Party__c, Line_Items__c
                 FROM Bill__c
                 WHERE Id = :previousBillId
             ];
@@ -308,10 +307,7 @@ public with sharing class BillController {
             }
             Id rootId = previous.Root_Bill__c != null ? previous.Root_Bill__c : previousBillId;
 
-            List<Bill_Line_Item__c> previousLineItems = [
-                SELECT Part__c, Quantity__c FROM Bill_Line_Item__c WHERE Bill__c = :previousBillId
-            ];
-            BillStockService.restoreForRemovedLineItems(previousLineItems);
+            BillStockService.restore(StoredLines.read(previous.Line_Items__c));
 
             Id billToPartyId = resolveBillToPartyId(request.billToPartyId, request.newBillToParty);
             Id vehicleId = request.vehicleId != null || request.newVehicle != null
@@ -334,14 +330,11 @@ public with sharing class BillController {
                 Paired_Bill__c = previous.Paired_Bill__c,
                 Version_Number__c = (previous.Version_Number__c == null ? 1 : previous.Version_Number__c) + 1
             );
-            insert newVersion;
+            saveWithLines(newVersion, request);
             // The other half of the claim now points at this version.
             if (previous.Paired_Bill__c != null) {
                 update new Bill__c(Id = previous.Paired_Bill__c, Paired_Bill__c = newVersion.Id);
             }
-
-            insertLineItems(newVersion.Id, request.lineItems);
-            insertInitialPayment(newVersion.Id, request);
 
             update new Bill__c(Id = previousBillId, Is_Latest_Version__c = false);
 
@@ -362,7 +355,7 @@ public with sharing class BillController {
     @AuraEnabled
     public static BillSummary cancelBill(Id billId) {
         Bill__c bill = [
-            SELECT Invoice_Number__c, Is_Latest_Version__c, Is_Cancelled__c, Bill_Date__c, Workshop_Profile__c
+            SELECT Invoice_Number__c, Is_Latest_Version__c, Is_Cancelled__c, Bill_Date__c, Workshop_Profile__c, Line_Items__c
             FROM Bill__c WHERE Id = :billId FOR UPDATE
         ];
         if (bill.Is_Cancelled__c) {
@@ -372,7 +365,7 @@ public with sharing class BillController {
             throw new BillControllerException(bill.Invoice_Number__c + ' has been changed since. Delete its latest version from the Billing list.');
         }
         GstFilingLock.requireOpen(bill.Workshop_Profile__c, bill.Bill_Date__c, 'deleted');
-        BillStockService.restoreForRemovedLineItems([SELECT Part__c, Quantity__c FROM Bill_Line_Item__c WHERE Bill__c = :billId]);
+        BillStockService.restore(StoredLines.read(bill.Line_Items__c));
         update new Bill__c(Id = billId, Is_Cancelled__c = true, Cancelled_On__c = Date.today());
         return buildSummary(billId);
     }
@@ -384,22 +377,19 @@ public with sharing class BillController {
 
     /**
      * Records a payment against an existing bill outside of create/version
-     * time (the Bill Details screen's "Record Payment" action) — a plain
-     * Payment__c insert is all this needs, since PaymentTriggerHandler
-     * already recomputes Bill__c.Status__c (architecture.md's lock-and-sum
-     * pattern) from the full Payment__c ledger on every insert.
+     * time (the Bill Details screen's "Record Payment" action). BillPayments
+     * locks the bill row, adds the payment and recomputes Status__c.
      */
     @AuraEnabled
     public static BillSummary recordPayment(Id billId, Decimal amount, String method) {
         if (billId == null || amount == null || amount <= 0) {
             throw new BillControllerException('A positive payment amount is required.');
         }
-        insert new Payment__c(
-            Bill__c = billId,
-            Amount__c = amount,
-            Method__c = String.isBlank(method) ? 'Cash' : method,
-            Paid_At__c = Datetime.now()
-        );
+        try {
+            BillPayments.add(billId, amount, method);
+        } catch (BillPayments.BillPaymentsException e) {
+            throw new BillControllerException(e.getMessage());
+        }
         return buildSummary(billId);
     }
 
@@ -554,23 +544,24 @@ public with sharing class BillController {
         return String.isBlank(makeModel) ? vehicle.Name : vehicle.Name + ' — ' + makeModel;
     }
 
-    private static void insertLineItems(Id billId, List<LineItemInput> lineItems) {
-        List<Bill_Line_Item__c> items = new List<Bill_Line_Item__c>();
-        for (LineItemInput li : lineItems) {
-            items.add(new Bill_Line_Item__c(
-                Bill__c = billId,
-                Part__c = li.partId,
-                Description__c = li.description,
-                Quantity__c = li.quantity,
-                Unit_Price__c = li.unitPrice,
-                Tax_Rate_Percent__c = li.taxRatePercent == null ? 0 : li.taxRatePercent,
-                Gst_Type__c = String.isBlank(li.gstType) ? 'CGST_SGST' : li.gstType,
-                HSN_SAC_Code__c = li.hsnSacCode,
-                Unit__c = li.unitLabel,
-                Discount__c = li.discount == null ? 0 : li.discount
-            ));
+    /**
+     * Saves a new bill (or version) with its lines, totals and any first
+     * payment on the one record (StoredLines, BillPayments), then takes its
+     * parts out of stock.
+     */
+    private static void saveWithLines(Bill__c bill, CreateBillRequest request) {
+        try {
+            StoredLines.store(bill, bill.Workshop_Profile__c, request.lineItems);
+            if (request.initialPaymentAmount != null && request.initialPaymentAmount > 0) {
+                BillPayments.addFirst(bill, request.initialPaymentAmount, request.initialPaymentMethod);
+            }
+        } catch (StoredLines.StoredLinesException e) {
+            throw new BillControllerException(e.getMessage());
+        } catch (BillPayments.BillPaymentsException e) {
+            throw new BillControllerException(e.getMessage());
         }
-        insert items;
+        insert bill;
+        BillStockService.deduct(StoredLines.read(bill.Line_Items__c));
     }
 
     /**
@@ -593,17 +584,6 @@ public with sharing class BillController {
         }
     }
 
-    private static void insertInitialPayment(Id billId, CreateBillRequest request) {
-        if (request.initialPaymentAmount != null && request.initialPaymentAmount > 0) {
-            insert new Payment__c(
-                Bill__c = billId,
-                Amount__c = request.initialPaymentAmount,
-                Method__c = String.isBlank(request.initialPaymentMethod) ? 'Cash' : request.initialPaymentMethod,
-                Paid_At__c = Datetime.now()
-            );
-        }
-    }
-
     private static BillSummary buildSummary(Id billId) {
         Bill__c bill = [
             SELECT Invoice_Number__c, Financial_Year__c, Status__c, Bill_Date__c,
@@ -612,33 +592,14 @@ public with sharing class BillController {
                    Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c,
                    Vehicle__r.Chassis_Number__c, Notes__c,
                    Subtotal__c, GST_Amount__c, Total_Amount__c, Workshop_Profile__c,
-                   Is_Cancelled__c, Cancelled_On__c, Round_Off__c, Paired_Bill__c, Paired_Bill__r.Invoice_Number__c
+                   Is_Cancelled__c, Cancelled_On__c, Round_Off__c, Paired_Bill__c, Paired_Bill__r.Invoice_Number__c,
+                   Line_Items__c, Payments__c
             FROM Bill__c
             WHERE Id = :billId
         ];
 
-        List<LineItemInput> lineItemInputs = new List<LineItemInput>();
-        List<GstCalculatorService.GstLineItemInput> gstInputs = new List<GstCalculatorService.GstLineItemInput>();
-        for (Bill_Line_Item__c item : [
-            SELECT Part__c, Description__c, Quantity__c, Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c, HSN_SAC_Code__c, Unit__c, Discount__c
-            FROM Bill_Line_Item__c
-            WHERE Bill__c = :billId
-            ORDER BY CreatedDate, Id
-        ]) {
-            gstInputs.add(GstCalculatorService.inputFor(item));
-            LineItemInput li = new LineItemInput();
-            li.partId = item.Part__c;
-            li.description = item.Description__c;
-            li.quantity = item.Quantity__c;
-            li.unitPrice = item.Unit_Price__c;
-            li.taxRatePercent = item.Tax_Rate_Percent__c;
-            li.gstType = item.Gst_Type__c;
-            li.hsnSacCode = item.HSN_SAC_Code__c;
-            li.unitLabel = item.Unit__c;
-            li.discount = item.Discount__c;
-            lineItemInputs.add(li);
-        }
-        GstCalculatorService.GstBillResult breakdown = GstCalculatorService.calculateBill(gstInputs);
+        List<LineItemInput> lineItemInputs = StoredLines.read(bill.Line_Items__c);
+        GstCalculatorService.GstBillResult breakdown = GstCalculatorService.calculateBill(StoredLines.gstInputs(lineItemInputs));
 
         BillSummary summary = new BillSummary();
         summary.billId = billId;
@@ -675,21 +636,16 @@ public with sharing class BillController {
         summary.lineItems = lineItemInputs;
 
         List<PaymentItem> paymentItems = new List<PaymentItem>();
-        Decimal paid = 0;
-        for (Payment__c payment : [
-            SELECT Amount__c, Method__c, Paid_At__c
-            FROM Payment__c
-            WHERE Bill__c = :billId
-            ORDER BY Paid_At__c
-        ]) {
+        List<BillPayments.Payment> payments = BillPayments.read(bill.Payments__c);
+        for (BillPayments.Payment payment : payments) {
             PaymentItem item = new PaymentItem();
-            item.id = payment.Id;
-            item.amount = payment.Amount__c;
-            item.method = payment.Method__c;
-            item.paidAt = payment.Paid_At__c;
+            item.id = 'p' + (paymentItems.size() + 1);
+            item.amount = payment.amount;
+            item.method = payment.method;
+            item.paidAt = payment.paidAt;
             paymentItems.add(item);
-            paid += payment.Amount__c == null ? 0 : payment.Amount__c;
         }
+        Decimal paid = BillPayments.sum(payments);
         summary.payments = paymentItems;
         summary.amountPaid = paid;
         summary.amountDue = (bill.Total_Amount__c == null ? 0 : bill.Total_Amount__c) - paid;

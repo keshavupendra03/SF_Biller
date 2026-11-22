@@ -129,11 +129,11 @@ public with sharing class PaperBillController {
         Id customerId;
         Id vehicleId;
         Id partyId;
-        List<SObject> lineRecords;
+        List<BillController.LineItemInput> savedLines;
         if (recordId.getSObjectType() == Estimate__c.SObjectType) {
             Estimate__c estimate = [
                 SELECT Name, Version_Number__c, Is_Latest_Version__c, Workshop_Profile__c, Customer__c, Vehicle__c,
-                       Bill_To_Party__c, Estimate_Date__c, Notes__c
+                       Bill_To_Party__c, Estimate_Date__c, Notes__c, Line_Items__c
                 FROM Estimate__c WHERE Id = :recordId
             ];
             doc.documentType = 'estimate';
@@ -146,16 +146,12 @@ public with sharing class PaperBillController {
             customerId = estimate.Customer__c;
             vehicleId = estimate.Vehicle__c;
             partyId = estimate.Bill_To_Party__c;
-            lineRecords = [
-                SELECT Part__c, Part__r.Tax_Rate_Percent__c, Description__c, HSN_SAC_Code__c, Unit__c, Discount__c,
-                       Quantity__c, Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c
-                FROM Estimate_Line_Item__c WHERE Estimate__c = :recordId ORDER BY CreatedDate, Id
-            ];
+            savedLines = StoredLines.read(estimate.Line_Items__c);
         } else {
             Bill__c bill = [
                 SELECT Invoice_Number__c, Version_Number__c, Is_Latest_Version__c, Workshop_Profile__c, Customer__c,
                        Vehicle__c, Bill_To_Party__c, Bill_Date__c, Notes__c, Is_Cancelled__c,
-                       Paired_Bill__r.Invoice_Number__c
+                       Paired_Bill__r.Invoice_Number__c, Line_Items__c
                 FROM Bill__c WHERE Id = :recordId
             ];
             doc.documentType = 'bill';
@@ -172,11 +168,7 @@ public with sharing class PaperBillController {
             customerId = bill.Customer__c;
             vehicleId = bill.Vehicle__c;
             partyId = bill.Bill_To_Party__c;
-            lineRecords = [
-                SELECT Part__c, Part__r.Tax_Rate_Percent__c, Description__c, HSN_SAC_Code__c, Unit__c, Discount__c,
-                       Quantity__c, Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c
-                FROM Bill_Line_Item__c WHERE Bill__c = :recordId ORDER BY CreatedDate, Id
-            ];
+            savedLines = StoredLines.read(bill.Line_Items__c);
         }
         if (doc.workshopProfileId == null) {
             // A document with no company recorded belongs to the primary company.
@@ -209,27 +201,34 @@ public with sharing class PaperBillController {
         }
 
         doc.includeGst = false;
-        for (SObject line : lineRecords) {
-            if (((Decimal) line.get('Tax_Rate_Percent__c')) > 0) {
+        Set<Id> partIds = new Set<Id>();
+        for (BillController.LineItemInput saved : savedLines) {
+            if (saved.taxRatePercent != null && saved.taxRatePercent > 0) {
                 doc.includeGst = true;
             }
+            if (saved.partId != null) {
+                partIds.add(saved.partId);
+            }
         }
+        // A no-GST document saves every line at 0%, so Add GST would find
+        // nothing to add. The part remembers the rate it was typed with.
+        Map<Id, Part__c> parts = doc.includeGst || partIds.isEmpty()
+            ? new Map<Id, Part__c>()
+            : new Map<Id, Part__c>([SELECT Tax_Rate_Percent__c FROM Part__c WHERE Id IN :partIds]);
         doc.lines = new List<LoadedLine>();
-        for (SObject record : lineRecords) {
+        for (BillController.LineItemInput saved : savedLines) {
             LoadedLine line = new LoadedLine();
-            line.partId = (Id) record.get('Part__c');
-            line.description = (String) record.get('Description__c');
-            line.hsnSacCode = (String) record.get('HSN_SAC_Code__c');
-            line.unitLabel = (String) record.get('Unit__c');
-            line.discount = (Decimal) record.get('Discount__c');
-            line.quantity = (Decimal) record.get('Quantity__c');
-            line.unitPrice = (Decimal) record.get('Unit_Price__c');
-            line.gstType = (String) record.get('Gst_Type__c');
-            line.taxRatePercent = (Decimal) record.get('Tax_Rate_Percent__c');
-            // A no-GST document saves every line at 0%, so Add GST would find
-            // nothing to add. The part remembers the rate it was typed with.
+            line.partId = saved.partId;
+            line.description = saved.description;
+            line.hsnSacCode = saved.hsnSacCode;
+            line.unitLabel = saved.unitLabel;
+            line.discount = saved.discount;
+            line.quantity = saved.quantity;
+            line.unitPrice = saved.unitPrice;
+            line.gstType = saved.gstType;
+            line.taxRatePercent = saved.taxRatePercent;
             if (!doc.includeGst) {
-                Part__c part = (Part__c) record.getSObject('Part__r');
+                Part__c part = parts.get(saved.partId);
                 line.taxRatePercent = part != null && part.Tax_Rate_Percent__c != null ? part.Tax_Rate_Percent__c : DEFAULT_GST_RATE;
             }
             doc.lines.add(line);

@@ -174,7 +174,7 @@ public with sharing class InvoicePdfController {
                    Job__c, Job__r.Vehicle__r.Name, Job__r.Vehicle__r.Make__c,
                    Job__r.Vehicle__r.Model__c, Job__r.Vehicle__r.Chassis_Number__c,
                    Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c,
-                   Vehicle__r.Chassis_Number__c
+                   Vehicle__r.Chassis_Number__c, Line_Items__c, Payments__c
             FROM Bill__c
             WHERE Id = :billId
             LIMIT 1
@@ -219,25 +219,18 @@ public with sharing class InvoicePdfController {
             vehicleChassisNumber = bill.Job__r.Vehicle__r.Chassis_Number__c;
         }
 
-        List<Payment__c> payments = [SELECT Amount__c, Method__c FROM Payment__c WHERE Bill__c = :billId];
-        Decimal totalPaid = 0;
+        List<BillPayments.Payment> payments = BillPayments.read(bill.Payments__c);
+        Decimal totalPaid = BillPayments.sum(payments);
         Set<String> methods = new Set<String>();
-        for (Payment__c p : payments) {
-            totalPaid += p.Amount__c;
-            methods.add(p.Method__c);
+        for (BillPayments.Payment p : payments) {
+            methods.add(p.method);
         }
         amountPaid = totalPaid;
         if (!methods.isEmpty()) {
             paymentMode = String.join(new List<String>(methods), ', ');
         }
 
-        loadLines([
-            SELECT Description__c, HSN_SAC_Code__c, Quantity__c, Unit__c,
-                   Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c, Discount__c
-            FROM Bill_Line_Item__c
-            WHERE Bill__c = :billId
-            ORDER BY CreatedDate, Id
-        ]);
+        loadLines(StoredLines.read(bill.Line_Items__c));
         addRoundOff(bill.Round_Off__c);
         amountDue = grandTotal - totalPaid;
         amountInWords = AmountInWordsService.convert(grandTotal);
@@ -255,7 +248,7 @@ public with sharing class InvoicePdfController {
                    Job__c, Job__r.Vehicle__r.Name, Job__r.Vehicle__r.Make__c,
                    Job__r.Vehicle__r.Model__c, Job__r.Vehicle__r.Chassis_Number__c,
                    Vehicle__c, Vehicle__r.Name, Vehicle__r.Make__c, Vehicle__r.Model__c,
-                   Vehicle__r.Chassis_Number__c
+                   Vehicle__r.Chassis_Number__c, Line_Items__c
             FROM Estimate__c
             WHERE Id = :estimateId
             LIMIT 1
@@ -286,13 +279,7 @@ public with sharing class InvoicePdfController {
             );
         }
 
-        loadLines([
-            SELECT Description__c, HSN_SAC_Code__c, Quantity__c, Unit__c,
-                   Unit_Price__c, Tax_Rate_Percent__c, Gst_Type__c, Discount__c
-            FROM Estimate_Line_Item__c
-            WHERE Estimate__c = :estimateId
-            ORDER BY CreatedDate, Id
-        ]);
+        loadLines(StoredLines.read(estimate.Line_Items__c));
         addRoundOff(estimate.Round_Off__c);
         amountInWords = AmountInWordsService.convert(grandTotal);
     }
@@ -332,26 +319,26 @@ public with sharing class InvoicePdfController {
         return customer.Name == QuickBillController.WALK_IN_NAME && customer.Phone__c == QuickBillController.WALK_IN_PHONE;
     }
 
-    private void loadLines(List<SObject> items) {
+    private void loadLines(List<BillController.LineItemInput> items) {
         Integer i = 1;
         List<GstCalculatorService.GstLineItemInput> gstInputs = new List<GstCalculatorService.GstLineItemInput>();
-        for (SObject item : items) {
+        for (BillController.LineItemInput item : items) {
             GstCalculatorService.GstLineItemInput input = GstCalculatorService.inputFor(item);
             GstCalculatorService.GstLineResult result = GstCalculatorService.calculateLine(input);
             Decimal quantity = input.quantity;
             Decimal unitPrice = input.unitPrice;
             Decimal taxRate = input.taxRatePercent;
-            String gstType = (String) item.get('Gst_Type__c');
+            String gstType = item.gstType;
             Decimal taxable = result.subtotal;
             Decimal gstAmt = result.gst;
 
             LineRow row = new LineRow();
             row.rowNumber = i;
-            row.description = (String) item.get('Description__c');
-            row.hsnSacCode = (String) item.get('HSN_SAC_Code__c');
+            row.description = item.description;
+            row.hsnSacCode = item.hsnSacCode;
             row.quantity = quantity;
             row.unitPrice = unitPrice;
-            row.unit = (String) item.get('Unit__c');
+            row.unit = item.unitLabel;
             row.taxableAmount = taxable;
             row.gstAmount = gstAmt;
             row.taxRatePercent = taxRate;

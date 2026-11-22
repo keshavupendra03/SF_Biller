@@ -4,7 +4,7 @@
  * no ledger, no per-bill audit trail by explicit product decision). Locks
  * the affected Part__c rows with FOR UPDATE before adding each delta, the
  * same lock-then-read-then-write shape as InvoiceNumberingService and
- * PaymentStatusService, so two concurrent bill creations against the same
+ * BillPayments, so two concurrent bill creations against the same
  * part serialize instead of one silently clobbering the other's
  * deduction. Bulk-safe: one SELECT ... FOR UPDATE, one update DML,
  * regardless of how many parts are touched in this transaction.

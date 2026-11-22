@@ -115,20 +115,19 @@ private class JobSlipControllerTest {
         System.assertEquals(true, saved.Mats__c);
         System.assertEquals(false, saved.Tool_Kit__c);
 
-        List<Job_Slip_Line__c> lines = [
-            SELECT Customer_Request__c, Labour_Estimate__c, Sort_Order__c FROM Job_Slip_Line__c
-            WHERE Job_Slip__c = :slipId ORDER BY Sort_Order__c
-        ];
+        List<JobSlipController.JobSlipLine> lines = JobSlipController.repairLines(
+            [SELECT Repair_Lines__c FROM Job_Slip__c WHERE Id = :slipId]
+        );
         System.assertEquals(2, lines.size(), 'A completely blank row must not be saved.');
-        System.assertEquals('Front bumper damaged', lines[0].Customer_Request__c);
-        System.assertEquals(2, lines[1].Sort_Order__c);
+        System.assertEquals('Front bumper damaged', lines[0].customerRequest);
+        System.assertEquals('l2', lines[1].id, 'Kept in the order typed.');
 
         Vehicle__c updatedVehicle = [SELECT Engine_Number__c FROM Vehicle__c WHERE Id = :vehicle.Id];
         System.assertEquals('ENG999', updatedVehicle.Engine_Number__c);
     }
 
     @isTest
-    static void saveJobSlip_existingSlip_updatesInPlaceAndDeletesRemovedLines() {
+    static void saveJobSlip_existingSlip_updatesInPlaceAndDropsRemovedLines() {
         Id customerId = insertCustomer();
         Vehicle__c vehicle = insertVehicle(customerId, 'MP70ZD3946');
         Id slipId = JobSlipController.saveJobSlip(filledInput(customerId, vehicle.Id));
@@ -149,10 +148,12 @@ private class JobSlipControllerTest {
 
         System.assertEquals(slipId, savedId);
         System.assertEquals(1, [SELECT COUNT() FROM Job_Slip__c]);
-        List<Job_Slip_Line__c> lines = [SELECT Id, Observation__c FROM Job_Slip_Line__c WHERE Job_Slip__c = :slipId];
-        System.assertEquals(1, lines.size());
-        System.assertEquals(loaded.lines[0].id, lines[0].Id, 'The kept line must be updated in place, not recreated.');
-        System.assertEquals('Bumper + grille replacement', lines[0].Observation__c);
+        List<JobSlipController.JobSlipLine> lines = JobSlipController.repairLines(
+            [SELECT Repair_Lines__c FROM Job_Slip__c WHERE Id = :slipId]
+        );
+        System.assertEquals(1, lines.size(), 'The removed line is gone.');
+        System.assertEquals('Front bumper damaged', lines[0].customerRequest, 'The kept line keeps what it had.');
+        System.assertEquals('Bumper + grille replacement', lines[0].observation);
         Job_Slip__c saved = [SELECT Fuel_Level__c, Tool_Kit__c, Mats__c FROM Job_Slip__c WHERE Id = :slipId];
         System.assertEquals('F', saved.Fuel_Level__c);
         System.assertEquals(true, saved.Tool_Kit__c);
