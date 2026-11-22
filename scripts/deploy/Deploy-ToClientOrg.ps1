@@ -170,6 +170,51 @@ if ($remaining -ne 0) {
     exit 1
 }
 
+Write-Step "2d/7 Keeping the end-user profile logged in for 24 hours"
+# A profile has at most one session setting, and each org names it differently
+# (e.g. Ws_biller_enduser_profile_profileSessionSetting1791699339703), so it
+# can't be a fixed file in force-app: deploying one under another name fails with
+# "A session setting with this profile already exists". This finds the org's
+# own one (or makes it, if there's none) and sets 24 hours with no forced logout.
+# Not fatal: the org-wide 24 hours from Security.settings already applies.
+$endUserProfile = 'Ws biller enduser profile'
+$sessionDir = Join-Path ([System.IO.Path]::GetTempPath()) ("wsbiller-session-" + [guid]::NewGuid())
+$previousEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+try {
+    sf project retrieve start --metadata ProfileSessionSetting --target-org $TargetOrg --target-metadata-dir (Join-Path $sessionDir "retrieved") --unzip --wait 10 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "could not read the org's profile session settings" }
+    $existing = Get-ChildItem -Path (Join-Path $sessionDir "retrieved") -Recurse -Filter "*.profileSessionSetting" |
+        Where-Object { ([xml](Get-Content $_.FullName -Raw)).ProfileSessionSetting.profile -eq $endUserProfile } |
+        Select-Object -First 1
+    if ($existing) {
+        $settingName = $existing.BaseName
+        [xml]$setting = Get-Content $existing.FullName -Raw
+    } else {
+        $settingName = "Ws_Biller_End_User"
+        [xml]$setting = Get-Content (Join-Path $repoRoot "scripts\deploy\templates\EndUserProfileSessionSetting.xml") -Raw
+        $setting.ProfileSessionSetting.profile = $endUserProfile
+    }
+    $setting.ProfileSessionSetting.sessionTimeout = "1440"
+    $setting.ProfileSessionSetting.forceLogout = "false"
+    $deployDir = Join-Path $sessionDir "deploy"
+    New-Item -ItemType Directory -Force (Join-Path $deployDir "profileSessionSettings") | Out-Null
+    $setting.Save((Join-Path $deployDir "profileSessionSettings\$settingName.profileSessionSetting"))
+    @"
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+  <types><members>$settingName</members><name>ProfileSessionSetting</name></types>
+  <version>67.0</version>
+</Package>
+"@ | Set-Content -Path (Join-Path $deployDir "package.xml") -Encoding utf8
+    sf project deploy start --metadata-dir $deployDir --target-org $TargetOrg --wait 10 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "deploying $settingName failed" }
+    Write-Host "  $endUserProfile -> 24 hours, no forced logout ($settingName)."
+} catch {
+    Write-Host "  Couldn't set the end-user profile's session timeout ($_). The org-wide 24 hours still applies; set it by hand in Setup > Profiles > $endUserProfile > Session Settings if needed." -ForegroundColor Yellow
+}
+$ErrorActionPreference = $previousEAP
+
 Write-Step "3/7 Assigning WS_Biller_Full_Access to $AdminUsername"
 $previousEAP = $ErrorActionPreference
 $ErrorActionPreference = "Continue"

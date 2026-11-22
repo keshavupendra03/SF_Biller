@@ -2674,8 +2674,15 @@ Done:
 - `settings/Security.settings-meta.xml`: session timeout 24 hours (was 2), no
   forced logout. It names only those two fields; a retrieve before and after
   showed nothing else changed. System Administrator users follow it.
-- `profileSessionSettings/Ws_Biller_End_User`: the end-user profile's own
-  timeout, 1440 minutes, no forced logout (the org saves its name in lower case).
+- The end-user profile's own timeout, 1440 minutes, no forced logout: set by step
+  2d of `Deploy-ToClientOrg.ps1`, not by a file in force-app. A profile has at
+  most one session setting and every org gives it its own name
+  (`Ws_biller_enduser_profile_profileSessionSetting1791699339703` on wsbiller02),
+  so a fixed `Ws_Biller_End_User` file failed there: "A session setting with this
+  profile already exists" (the first deploy to wsbiller02, 2026-11-22). The step
+  retrieves the org's own one, changes the two values and deploys it under its
+  name, or creates one from `scripts/deploy/templates/` if there's none. A
+  failure only warns: the org-wide 24 hours still applies.
 - The app opens on Service Book: it's the first nav item, which Lightning uses as
   the landing page (checked: a fresh login and the app icon both land there).
 - The deploy script's checklist gives the per-PC Chrome steps.

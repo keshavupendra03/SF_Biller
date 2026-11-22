@@ -1,0 +1,7 @@
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\deploy\Deploy-ToClientOrg.ps1" -TargetOrg ws_biller03 -AdminUsername wsbiller03@rediffmail.com
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\deploy\Deploy-ToClientOrg.ps1" -TargetOrg ws_biller01v1 -AdminUsername wsbiller01v1@gmail.com
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\deploy\Deploy-ToClientOrg.ps1" -TargetOrg Ws_biller02 -AdminUsername wsbiller02@gmail.com
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\deploy\Deploy-ToClientOrg.ps1" -TargetOrg ws_biller04 -AdminUsername wsbiller04@rediffmail.com
