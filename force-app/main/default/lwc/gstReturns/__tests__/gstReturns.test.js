@@ -9,6 +9,8 @@ jest.mock('@salesforce/apex/WorkshopProfileController.listProfiles', () => ({ de
 jest.mock('@salesforce/apex/GstReturnController.getReturn', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/GstReturnController.downloadReturn', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/WorkshopProfileController.setGstFiledUpTo', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/ArchiveController.getArchivedBill', () => ({ default: jest.fn(() => new Promise(() => {})) }), { virtual: true });
+jest.mock('@salesforce/apex/ArchiveController.restoreBill', () => ({ default: jest.fn() }), { virtual: true });
 
 const mockNavigate = jest.fn();
 jest.mock('lightning/navigation', () => {
@@ -110,6 +112,31 @@ describe('c-gst-returns', () => {
 
         $(element, '[data-id="issue-bill"]').click();
         expect(mockNavigate).toHaveBeenCalledWith({ type: 'standard__navItemPage', attributes: { apiName: 'Bill_Detail' }, state: { c__recordId: 'b3' } });
+    });
+
+    it('a return with archived bills says so, and opens an archived bill from the archive', async () => {
+        getReturn.mockResolvedValue({
+            ...RETURN,
+            archivedCount: 2,
+            b2b: [{ ...RETURN.b2b[0], archiveId: 'doc1' }],
+            issues: [{ severity: 'warning', message: 'Check this.', billId: 'b9', archiveId: 'doc1', documentNumber: 'INV/2026-27/0009' }],
+            errorCount: 0
+        });
+        const element = await createScreen();
+
+        expect($(element, '[data-id="archived-note"]').textContent).toBe('Includes 2 archived bills, read from the archive.');
+        $(element, '[data-id="issue-bill"]').click();
+        await flushPromises();
+
+        expect(mockNavigate).not.toHaveBeenCalled();
+        const viewer = $(element, 'c-archived-bill');
+        expect(viewer.billId).toBe('b9');
+        expect(viewer.documentId).toBe('doc1');
+    });
+
+    it('a return with no archived bills has no note', async () => {
+        const element = await createScreen();
+        expect($(element, '[data-id="archived-note"]')).toBeNull();
     });
 
     it('a clean return says it is ready to file', async () => {

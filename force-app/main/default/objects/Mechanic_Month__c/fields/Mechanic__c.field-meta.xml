@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Mechanic__c</fullName>
+    <label>Mechanic</label>
+    <type>Lookup</type>
+    <referenceTo>Mechanic__c</referenceTo>
+    <relationshipLabel>Months</relationshipLabel>
+    <relationshipName>Months</relationshipName>
+    <deleteConstraint>Restrict</deleteConstraint>
+    <required>true</required>
+</CustomField>

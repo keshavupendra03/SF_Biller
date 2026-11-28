@@ -4,7 +4,8 @@ import { disablePullToRefresh } from 'c/disablePullToRefresh';
 
 const MENU_ITEMS = [
     { id: 'workshopProfile', title: 'Workshop Profile', icon: 'utility:store', tabApiName: 'Workshop_Profile_Page' },
-    { id: 'jobStages', title: 'Job Stages', icon: 'utility:trail', tabApiName: 'Job_Stages_Page' }
+    { id: 'jobStages', title: 'Job Stages', icon: 'utility:trail', tabApiName: 'Job_Stages_Page' },
+    { id: 'archive', title: 'Archive', icon: 'utility:archive', tabApiName: 'Archive_Settings_Page' }
 ];
 
 export default class SettingsMenu extends NavigationMixin(LightningElement) {

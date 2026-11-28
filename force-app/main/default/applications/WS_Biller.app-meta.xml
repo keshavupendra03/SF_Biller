@@ -8,6 +8,7 @@
     <navType>Standard</navType>
     <tabs>Service_Book</tabs>
     <tabs>Jobs_Board</tabs>
+    <tabs>Attendance</tabs>
     <tabs>Customer_List</tabs>
     <tabs>Billing_List</tabs>
     <tabs>GST_Returns</tabs>
@@ -32,6 +33,7 @@
     <tabs>Settings_Menu</tabs>
     <tabs>Workshop_Profile_Page</tabs>
     <tabs>Job_Stages_Page</tabs>
+    <tabs>Archive_Settings_Page</tabs>
     <tabs>standard-report</tabs>
     <tabs>standard-Dashboard</tabs>
     <uiType>Lightning</uiType>

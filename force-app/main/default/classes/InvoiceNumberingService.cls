@@ -112,6 +112,12 @@ public with sharing class InvoiceNumberingService {
         if (highest.get('highest') != null) {
             last = ((Decimal) highest.get('highest')).intValue();
         }
+        // Bills archived out of Salesforce keep their highest number on the company.
+        List<Workshop_Profile__c> company = [SELECT Invoice_Last_Numbers__c FROM Workshop_Profile__c WHERE Id = :profileId];
+        Integer archived = company.isEmpty() ? null : BillArchive.lastNumbers(company[0]).get(fy);
+        if (archived != null && archived > last) {
+            last = archived;
+        }
         for (Bill__c bill : [
             SELECT Invoice_Number__c FROM Bill__c
             WHERE Financial_Year__c = :fy AND Invoice_Sequence__c = null

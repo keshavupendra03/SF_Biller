@@ -43,6 +43,16 @@ actual metadata, don't assume):
 `Job_Status_Stage__c` · `Job__c` · `Job_Mechanic__c` ·
 `Mechanic__c` · `Surveyor__c` · `Bill__c` · `Bill_To_Party__c` · `Estimate__c`
 
+`Mechanic_Month__c` was added 2026-11-25 (§F, Forty-fourth): mechanic attendance
+and pay, one record per mechanic per month. `Mechanic__c` gained `Pay_Type__c`,
+`Pay_Amount__c`, `Weekly_Off__c` and `Pay_Start__c` with it.
+
+`Archive_Settings__c` (hierarchy custom setting) was added 2026-11-26 (§F, Forty-fifth),
+with `Workshop_Profile__c.Invoice_Last_Numbers__c` and `Customer__c.Archived_Spend__c`.
+Archived data lives in Salesforce Files, not in objects. `Mechanic__c.Archived_To__c`
+and `Archived_Balance__c` were added 2026-11-26 (§F, Forty-seventh) for archived
+attendance months.
+
 **Since 2026-11-22 (§F, Forty-second) a document's lines and payments are not
 records of their own.** Every Salesforce record costs 2 KB of data storage
 whatever it holds, and a Developer org has 5 MB, so `Bill_Line_Item__c`,
@@ -2691,3 +2701,246 @@ Tried and not adopted (yet): Service Book in a bare Visualforce page through
 Lightning Out opened in 6.3-7.6 s with 34-45 MB, against 9.5-12 s and about 115 MB
 in the app. It would break §B's one-app rule, toasts don't show there and
 navigation needs reworking, so it waits on the user. The test page was deleted.
+
+**Forty-fourth (2026-11-25): mechanic attendance and pay.** User request (a client
+asked): mark attendance, keep salaries, give and track salary advances, as simply as
+possible and phone-first, without many records.
+- One `Mechanic_Month__c` per mechanic per month: `Days__c` one letter a day (P, H
+  half day, A, L paid leave, - not marked), `Entries__c` JSON (advance, payment,
+  bonus, deduction: amount, date, Cash/UPI/Bank Transfer, note), and the month
+  worked out (days present/absent, earned, advances, paid, brought forward,
+  balance) as plain fields for reports. 5 mechanics: 60 records a year.
+- Rules the user chose: pay type per mechanic. **Monthly**: salary, less salary / 30
+  per absent day (half for a half day), plus a day for a weekly off worked; days not
+  marked count as worked, so only absences need marking. **Daily**: wage x (present
+  + half / 2 + paid leave). One paid weekly off per mechanic (Sunday by default).
+  Advances come off what is due and the balance carries into the next month:
+  brought forward + earned + bonus - deductions - advances - paid.
+- Pay is tracked from the month it is first set (`Pay_Start__c`); attendance kept
+  before then earns nothing, so months never set up don't suddenly show as owed.
+  From then on every month has a record (missing ones are made), so a balance
+  always carries forward, and a change to one month reworks every later month. A
+  pay change applies from this month; months already worked out keep their own.
+- `MechanicPay` holds the rules; `AttendanceController` serves the screen. Every
+  write locks the month's row (and a pay change the mechanic's) first.
+- Screen `attendanceBook` (tab Attendance, after Jobs Board): **Today** (each
+  mechanic with big Present / Half day / Absent buttons, tap again to clear, "Mark
+  everyone else present"), **Month** (a mechanic's calendar, colour per mark, tap a
+  day to change it, totals and pay), **Pay** (one line: "Left to pay Raju ₹11,750" /
+  "Due to Raju" / "Raju owes ₹800", the sums, Give advance / Pay salary / Bonus /
+  Deduction, the month's entries with remove). Helpers in `attendanceUtils`.
+
+Platform issues:
+- SOQL won't combine `FOR UPDATE` with `ORDER BY` ("Explicit ORDER BY not allowed
+  when locking rows"): locked rows are sorted in Apex (`MechanicPay.byMonth`).
+- Marking one day costs about 5 queries (the month, and reworking it and later
+  ones), so "Mark everyone else present" handles about 19 mechanics in one go before
+  the 100-query limit. Fine for a small workshop; batch it if a client has more.
+- A new LWC page in a fresh browser profile took over 40 s to first show at full
+  speed: browser checks need a long wait or a warmed profile.
+
+**Forty-fifth (2026-11-26): archiving old data into Files, stage 1 (bills, old
+estimates).** User request: clients will use this for years on 5 MB. Decided after
+weighing Cloudflare D1: Salesforce Files only (free, nothing leaves Salesforce, no
+second system to run). Files use the 20 MB file storage, not data storage.
+- Each org sets its own rules on More > Settings > Archive (`Archive_Settings__c`;
+  blank = default): bills older than 18 months are archived, but only months whose
+  GST is marked filed (a company not registered for GST: by age alone); estimates
+  older than 6 months are **deleted**, every version (user's choice: no legal need to
+  keep them); a storage warning at 70%. Fields for jobs (6), job slips (6), dormant
+  customers (24) and attendance (24) are in place for the next stages. Archiving is
+  **off** until switched on per org; "Run now" works either way.
+- One zip per company per month (`ArchiveStore`, `Compression.ZipWriter`), linked to
+  the company, never edited (a changed File keeps its old version: double storage);
+  more for a month later goes into "part 2". An index file per run lists every
+  archived bill (number, date, customer, phone, vehicle, party, total, file) for
+  search; a "restored" file lists bills brought back. Kind/company/month/part are in
+  the File's Description.
+- A bill goes with its whole group, every version and both halves of an insurance
+  claim, or waits. One transaction per month: write, read back and check, keep the
+  financial year's last invoice number on the company (InvoiceNumberingService reads
+  it, so a back-dated bill never reuses a number), add what was paid to the
+  customer's Archived_Spend__c (lifetime spend unchanged), delete, empty the bin.
+- The bill is archived as the queried `Bill__c` itself, customer/party/vehicle
+  details included (JSON round-trips SObjects with relationships), with the company
+  record as it was: InvoicePdfController's `applyBill` prints it exactly as before
+  (`?archive=<file>`); DocumentPdfService has archived download and share link.
+- Billing gets "Old bills": search, a read-only view, Print, and "Bring back", which
+  re-inserts the whole group under the same numbers (BillTriggerHandler lets a
+  restored bill into a filed month: it was issued already) and relinks versions and
+  pairs.
+- `ArchiveJob` (Queueable) runs from the nightly scheduler when on: old estimates,
+  then one bill month per step, chaining. A failure rolls back, is shown on the
+  Archive screen, and emailed to the job's user.
+
+Platform issues:
+- Apex names are case-insensitive: a parameter called `json` hid the `JSON` class
+  ("Method does not exist: void serialize(...) from the type String"), and one bad
+  class failed the whole deploy (31 components) by dependency.
+- Developer Edition allows chained Queueables only 5 deep: archiving does up to 5
+  months a night and carries on the next night.
+- `OrgLimits` reports storage in whole MB; under 1 MB reads as 0.
+- Several Files download as one zip from
+  `/sfc/servlet.shepherd/document/download/<id1>/<id2>/...`.
+- A deploy failed once with "The org cannot be found" (the CLI's My Domain lookup
+  timed out); the same command worked on retry.
+
+**Forty-sixth (2026-11-26): archiving, stage 2 (dormant customers, their cars and
+Service Book).** User request: "start stage 2", with customers brought back
+automatically when looked up.
+- What goes, as one unit (`CustomerArchive`): a customer with every car and its
+  Service Book, or a car filed under the Walk-in Customer (which never goes itself).
+  Dormant = not seen for `Customers_Dormant_Months__c` (24; minimum 6). "Seen" is
+  the latest of when the customer and each car were added, each car's last Service
+  Book day, and the date of any archived bill (bill index entries now carry the
+  customer and vehicle Ids, `cu`/`ve`). `LastModifiedDate` is **not** used for
+  dormancy: the Forty-second fold touched every car, and archiving a bill touches its
+  customer (Archived_Spend__c). Instead, anything changed in the last 30 days waits.
+- Never archived while any bill, estimate, job or job slip in Salesforce points at
+  the customer or one of the cars (Bill/Job/Job_Slip lookups are Restrict, Estimate
+  SetNull): bills leave first (stage 1), so the order works out by itself.
+- One "customers" file and one "customer-index" file per run, written, read back,
+  then cars and customers deleted and emptied from the bin, all in one
+  transaction. Every Name/custom field is kept (from describe, less formulas), so a
+  later field is archived without code changes. The nightly run archives customers
+  at most once every 28 days (Run now: whenever), so this adds about a dozen files a
+  year, not one a night; up to 300 units / 4,000 records per run.
+- Bringing back makes new records (an Id can't be reused) and writes a "moved"
+  file: old Id to new Id. That marks the unit brought back (left out of searches)
+  and lets a later archived bill find its customer and car (`BillArchive.restore`
+  calls `CustomerArchive.liveIds`, which brings them back first if still archived,
+  and follows a customer archived again since). A phone now on a live customer folds
+  the archived one into them (Archived_Spend__c added); a car number now live gets
+  the archived Service Book days the live car doesn't have, and blank details.
+- When it happens by itself: `QuickBillController.findByPhone` (Quick Bill, Quick
+  Estimate, Paper Bill, the Service Book's mobile box) on a full 10-digit number;
+  the Service Book saving a new car number (`resolveNewVehicle`); a new Service Book
+  card's car number on leaving the box. Partial matches never bring anything back:
+  the Service Book search lists archived cars tagged "Archived" (opening one brings
+  it back), and Customers lists them under "In the archive" with Bring back.
+  `findLiveByPhone` is the lookup without the archive.
+- Every archive file is now linked to a company (`FirstPublishLocationId`; files of
+  no company to the first one). Stage 1's index and "restored" files were linked to
+  nothing, which leaves a File private to whoever made it: a bill restored by staff
+  would have stayed in searches for the admin's nightly run.
+- Archive reads use one query for all files of a kind (`ArchiveStore.readAll`),
+  not one per file (100-query limit), and the file list is cached per transaction.
+
+Platform issues:
+- `number` is a reserved word in Apex ("Identifier name is reserved: number"), and
+  like the `json` parameter in Forty-fifth it failed every dependent class.
+- Records made in a test all have `LastModifiedDate` = now and
+  `Test.setCreatedDate` can't change it, so the 30-day guard is a `@TestVisible`
+  variable the tests turn off.
+
+**Forty-seventh (2026-11-26): archiving, stage 3 (jobs, job slips, attendance).**
+User request: "go for stage 3".
+- Jobs (`WorkArchive`): not changed for `Jobs_After_Months__c` (6), whatever the
+  stage, and no bill or estimate in Salesforce points at the job (both lookups are
+  SetNull: archiving would silently empty them, so the job waits until its bills
+  are archived). The job's `Job_Mechanic__c` rows (master-detail) go with it; the
+  file keeps the mechanics' names. Also keeps the Jobs Board quick: `getBoardData`
+  loads every job and every mechanic link.
+- Job slips: `Slip_Date__c` (or created date) older than `Job_Slips_After_Months__c`
+  (6). Nothing points at a slip. The slips file keeps each company's header
+  (name, address, phone, email, job slip terms) as it was.
+- Neither comes back into Salesforce. The customer's page lists them under
+  "Archived jobs and job slips" (`ArchiveController.customerHistory`, also under
+  the Id the customer had before being archived and brought back): a job opens in
+  place, a slip prints through `documentPreview` with `archive-id`, as an archived
+  bill does. `JobSlipPdfController` takes `?archive=` and prints from the copy;
+  `DocumentPdfService`'s archived download/share link handle a slip Id too.
+- Attendance (`AttendanceArchive`): months starting before
+  `Mechanic_Months_After_Months__c` (24) ago, oldest first. Every month's opening
+  balance is the previous month's closing balance, so the mechanic keeps the last
+  archived month and its closing balance (`Archived_To__c`, `Archived_Balance__c`).
+  `MechanicPay.closingBefore` uses that when no earlier month is in Salesforce;
+  `lockMonth` refuses an archived month ("... is archived: it can be seen but not
+  changed") and `fillMonths` never makes one again. Without both, marking a day in
+  an old month would have made it again blank and reworked every later balance
+  from zero. The Attendance screen reads archived months from the file and shows
+  them read-only (`isArchived`).
+- Archived jobs, slips and bills count as the customer being seen
+  (`CustomerArchive.candidates` reads the work index too).
+- Nightly run, step one: old estimates, jobs and slips, attendance, then customers
+  (so a customer a job kept can go the same night). Jobs/slips and customers run
+  at most once every 28 days unless more than one run's worth is waiting (a backlog
+  clears a batch a night): 500 jobs, 500 slips, 1,000 months and 300 customers a
+  run. Attendance has no 28-day wait: a month becomes ready once a month anyway.
+
+Platform issues:
+- `number` again (a field on a new wrapper class): reserved, renamed `docNumber`.
+- `LastModifiedDate` can't be set in a test, so the jobs cut-off has a
+  `@TestVisible` override (`jobsCutForTest`).
+
+**Forty-eighth (2026-11-26): archiving, stage 4 (GST returns from the archive).**
+User request: "go for stage 4".
+- `GstReturnService.build` reads the company's archived bills for the period
+  (`BillArchive.billsFor`: the "bills" month files of that company whose month
+  falls in the period, one query for all of them, less bills brought back since)
+  and adds them to the live ones before the one pass that makes every table, the
+  GSTR-3B figures and the checkup. Every version and deleted bill is in the month
+  file, so Documents issued (Table 13) counts them as before. A return for an
+  archived month, and the CA's zip and portal JSON, come out the same as before the
+  bills were archived (`GstReturnArchiveTest` compares them).
+- Documents issued also treats archived numbers dated outside the period (read
+  from the bills index) as issued elsewhere, as it does live ones, so a back-dated
+  number in an archived month is not warned about as missing.
+- Rows and checkup lines of an archived bill carry its archive file (`archiveId`):
+  the GST Returns screen opens it in the archived-bill viewer (view, print, Bring
+  back) rather than a Bill Detail that no longer exists, and says "Includes N
+  archived bills, read from the archive."
+- A bill brought back is counted once: the live copy, its archived one left out.
+
+Platform issues:
+- A Currency value read back from JSON loses its scale (1770.00 comes back as
+  1770.0). Harmless in sums, but it would have printed differently in the CSV and
+  portal JSON, so `BillArchive.asSaved` puts two places back on an archived bill's
+  amounts when it's read.
+
+**Forty-ninth (2026-11-27): testing the archive (stages 1-4) end to end.** User
+request: test all the new work hard, to find bugs before a client does. Done as a
+code review, harder Apex tests, and a real run on the dev org with ZZ data
+(cleaned up after).
+- Fixed, found by the end-user test (`ArchiveHardeningTest`, runs as the "Ws
+  biller enduser profile"): **staff saw no archive at all**. Old bills, archived
+  customers, slips and attendance were invisible to anyone but the admin who wrote
+  the files. `ArchiveStore.files()` now finds archive files through their
+  ContentDocumentLinks to the companies, then reads them by Id.
+- Fixed: customer archiving looked only at the 2,000 oldest customers, so a few
+  years of regulars would have hidden every dormant customer behind them for good.
+  It now pages through (keyset on CreatedDate, Id), up to 5 pages a run.
+- Fixed: the archive file list stopped at 2,000 files (every Bring back adds one):
+  the oldest archive would have silently dropped out of searches. No cap now.
+- Fixed: a damaged or missing archive file would have stopped Quick Bill, Paper
+  Bill and the Service Book (phone or car lookups) and emptied the Customers list.
+  Lookups now roll back and carry on as if not archived
+  (`CustomerArchive.bringBackByPhone/ByCar`, `searchQuietly`); the Customers list
+  shows live customers whatever the archive does.
+- Fixed: each index was read and parsed several times a request (the Archive
+  screen: 3-4 times). Parsed once per transaction now, cleared when a file is written.
+- Proved: a run that fails after archiving (`ArchiveJobFailureTest`) gets
+  everything back, including records already emptied from the Recycle Bin, and
+  leaves no archive file. One night's full load (30 customers with 60 cars, 200
+  slips, 40 bills, 18 attendance months in one step, `ArchiveBulkTest`) stays inside
+  the limits.
+- Real run on dev (second company's old month marked filed for the test, then put
+  back): Run now archived 2 bills, 1 slip, 2 attendance months; the GST return and
+  CA zip for that month were identical before and after; archived bill and slip
+  printed as real PDFs; staff screens (Old bills, print preview, customer page,
+  Attendance at phone width) all worked; the next number in that year was 0003.
+
+Platform issues:
+- A SOQL query on ContentVersion/ContentDocument returns only the user's own files
+  and library files unless it filters by Id, **even in a without sharing class**:
+  files shared through a record link are left out. And
+  `ContentDocumentId IN :ids OR OwnerId = :me` no longer counts as "by Id": it
+  quietly returns only the user's own files. Only tests run as a real end user
+  showed it; as the admin who owns the files everything looked fine.
+- Apex names ignore case: test constants `CUSTOMERS`, `BILLS` clashed with local
+  lists `customers`, `bills` ("Comparison arguments must be compatible types").
+- `Database.rollback` does undo `Database.emptyRecycleBin` done in the same
+  transaction.
+- PowerShell's `Set-Content -Encoding utf8` writes a byte-order mark, which breaks
+  `sf apex run --file` ("Invalid identifier 'Date'"). Write Apex scripts from bash.
+- This dev org allows only 2 companies (validation "You can only have 2 companies").

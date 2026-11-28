@@ -7,6 +7,7 @@ import changeVisit from '@salesforce/apex/ServiceBookController.changeVisit';
 import getVehicleCard from '@salesforce/apex/ServiceBookController.getVehicleCard';
 import searchCarModels from '@salesforce/apex/ServiceBookController.searchCarModels';
 import search from '@salesforce/apex/ServiceBookController.search';
+import bringBack from '@salesforce/apex/ServiceBookController.bringBack';
 import searchCustomers from '@salesforce/apex/BillController.searchCustomers';
 import findCustomerByPhone from '@salesforce/apex/QuickBillController.findCustomerByPhone';
 import getCustomer from '@salesforce/apex/PaperBillController.getCustomer';
@@ -417,7 +418,7 @@ export default class ServiceCard extends NavigationMixin(LightningElement) {
         }
         return search({ term, entryDate: this.entryDate }).then((cards) =>
             cards
-                .filter((c) => c.vehicleId)
+                .filter((c) => c.vehicleId && !c.archivedId)
                 .map((c) => ({ value: c.vehicleId, label: c.registrationNumber, sub: [c.carModel, c.customerName].filter((p) => p).join(' · ') }))
         );
     };
@@ -509,7 +510,8 @@ export default class ServiceCard extends NavigationMixin(LightningElement) {
         this.openCar(event.detail.option.value);
     }
 
-    // A car number typed in full that's already on file is that car.
+    // A car number typed in full that's already on file is that car. One
+    // archived for being dormant is brought back first.
     handleCarNumberLeave() {
         const typed = this.draft.registrationNumber.trim();
         if (typed.length < 2 || !this.isNewCar) {
@@ -519,9 +521,19 @@ export default class ServiceCard extends NavigationMixin(LightningElement) {
             .then((cards) => {
                 const simple = (text) => (text || '').replace(/[\s-]/g, '').toLowerCase();
                 const same = (cards || []).find((c) => simple(c.registrationNumber) === simple(typed));
-                if (same && this.isNewCar && this.draft.registrationNumber.trim() === typed) {
-                    this.becomeKnownCar(same);
+                const stillTyped = () => this.isNewCar && this.draft.registrationNumber.trim() === typed;
+                if (!same || !stillTyped()) {
+                    return undefined;
                 }
+                if (!same.archivedId) {
+                    this.becomeKnownCar(same);
+                    return undefined;
+                }
+                return bringBack({ archivedId: same.archivedId, archivedVehicleId: same.archivedVehicleId, entryDate: this.entryDate }).then((card) => {
+                    if (card.vehicleId && stillTyped()) {
+                        this.becomeKnownCar(card);
+                    }
+                });
             })
             .catch((error) => this.showError(error));
     }

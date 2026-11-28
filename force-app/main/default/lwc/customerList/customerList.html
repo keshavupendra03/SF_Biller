@@ -64,6 +64,23 @@
             </ul>
         </template>
 
+        <template if:true={hasArchived}>
+            <h2 class="slds-text-title_caps slds-m-top_medium slds-m-bottom_x-small" data-id="archived-heading">In the archive</h2>
+            <ul class="list-rows">
+                <template for:each={decoratedArchived} for:item="cust">
+                    <li key={cust.archivedId} class="list-row list-row_archived" data-id="archived-row">
+                        <span class="avatar-circle avatar-circle_archived">{cust.initial}</span>
+                        <span class="list-row-body">
+                            <span class="slds-text-body_regular slds-text-heading_small">{cust.name}</span>
+                            <span class="slds-text-body_small slds-text-color_weak">{cust.details}</span>
+                        </span>
+                        <lightning-button data-id={cust.archivedId} label={cust.buttonLabel} icon-name="utility:undo"
+                            disabled={cust.disabled} onclick={handleBringBack}></lightning-button>
+                    </li>
+                </template>
+            </ul>
+        </template>
+
         <template if:true={hasNoCustomers}>
             <p class="slds-text-color_weak slds-p-vertical_medium">No customers found.</p>
         </template>

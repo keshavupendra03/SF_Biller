@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Pay_Start__c</fullName>
+    <description>First day of the month pay was first set up. Months from here on have a Mechanic_Month__c each, so balances carry forward without gaps.</description>
+    <label>Pay Tracked From</label>
+    <type>Date</type>
+</CustomField>

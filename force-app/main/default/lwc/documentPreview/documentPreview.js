@@ -3,6 +3,8 @@ import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import FORM_FACTOR from '@salesforce/client/formFactor';
 import getPdfDownload from '@salesforce/apex/DocumentPdfService.getPdfDownload';
 import getPublicLink from '@salesforce/apex/DocumentPdfService.getPublicLink';
+import getArchivedPdfDownload from '@salesforce/apex/DocumentPdfService.getArchivedPdfDownload';
+import getArchivedPublicLink from '@salesforce/apex/DocumentPdfService.getArchivedPublicLink';
 
 export default class DocumentPreview extends LightningElement {
     @api recordId;
@@ -13,6 +15,8 @@ export default class DocumentPreview extends LightningElement {
     @api pageName = 'InvoicePdf';
     // Which company a blank job slip is for. Other documents know their own.
     @api workshopProfileId;
+    // Set for a bill archived into Files: the archive file it's in (BillArchive).
+    @api archiveId;
 
     isFrameLoading = true;
     isDownloading = false;
@@ -33,10 +37,14 @@ export default class DocumentPreview extends LightningElement {
 
     get previewUrl() {
         const company = this.workshopProfileId ? `&workshop=${this.workshopProfileId}` : '';
-        return `/apex/${this.pageName}?id=${this.recordId}&format=html${company}`;
+        const archive = this.archiveId ? `&archive=${this.archiveId}` : '';
+        return `/apex/${this.pageName}?id=${this.recordId}&format=html${company}${archive}`;
     }
 
     fetchLink() {
+        if (this.archiveId) {
+            return getArchivedPublicLink({ billId: this.recordId, archiveId: this.archiveId });
+        }
         return getPublicLink({ recordId: this.recordId, workshopProfileId: this.workshopProfileId });
     }
 
@@ -111,7 +119,10 @@ export default class DocumentPreview extends LightningElement {
     }
 
     downloadInPage() {
-        return getPdfDownload({ recordId: this.recordId, workshopProfileId: this.workshopProfileId }).then((download) => {
+        const pdf = this.archiveId
+            ? getArchivedPdfDownload({ billId: this.recordId, archiveId: this.archiveId })
+            : getPdfDownload({ recordId: this.recordId, workshopProfileId: this.workshopProfileId });
+        return pdf.then((download) => {
             const bytes = atob(download.base64Data);
             const buffer = new Uint8Array(bytes.length);
             for (let i = 0; i < bytes.length; i++) {

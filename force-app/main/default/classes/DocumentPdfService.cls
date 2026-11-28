@@ -50,10 +50,64 @@ public with sharing class DocumentPdfService {
         return download;
     }
 
+    /**
+     * A bill (BillArchive) or job slip (WorkArchive) archived into Files: the
+     * same PDF, from its archive copy. billId is the bill's or slip's Id.
+     */
+    @AuraEnabled
+    public static PdfDownload getArchivedPdfDownload(Id billId, Id archiveId) {
+        if (billId.getSObjectType() == Job_Slip__c.SObjectType) {
+            WorkArchive.FoundSlip found = WorkArchive.findSlip(archiveId, billId);
+            PdfDownload slip = new PdfDownload();
+            slip.fileName = sanitize(found.slip.Name) + '.pdf';
+            slip.base64Data = EncodingUtil.base64Encode(renderArchivedPdf(billId, archiveId));
+            return slip;
+        }
+        BillArchive.MonthFile file = BillArchive.findBill(archiveId, billId);
+        PdfDownload download = new PdfDownload();
+        download.fileName = archivedTitle(file.bills[0]) + '.pdf';
+        download.base64Data = EncodingUtil.base64Encode(renderArchivedPdf(billId, archiveId));
+        return download;
+    }
+
+    /** The phone's share link for an archived bill; the File sits on its company and goes in five minutes. */
+    @AuraEnabled
+    public static PublicLink getArchivedPublicLink(Id billId, Id archiveId) {
+        if (billId.getSObjectType() == Job_Slip__c.SObjectType) {
+            WorkArchive.FoundSlip found = WorkArchive.findSlip(archiveId, billId);
+            DocumentInfo slip = new DocumentInfo();
+            slip.documentNumber = found.slip.Name;
+            slip.title = sanitize(found.slip.Name);
+            Id slipLocation = found.company != null ? found.company.Id : WorkshopProfileService.primaryId();
+            return publish(saveFileVersion(slipLocation, slip.title, renderArchivedPdf(billId, archiveId)), slip);
+        }
+        BillArchive.MonthFile file = BillArchive.findBill(archiveId, billId);
+        DocumentInfo info = new DocumentInfo();
+        info.documentNumber = file.bills[0].Invoice_Number__c;
+        info.title = archivedTitle(file.bills[0]);
+        Id location = file.company != null ? file.company.Id : WorkshopProfileService.primaryId();
+        return publish(saveFileVersion(location, info.title, renderArchivedPdf(billId, archiveId)), info);
+    }
+
+    private static String archivedTitle(Bill__c bill) {
+        return sanitize(bill.Invoice_Number__c) + versionSuffix(bill.Version_Number__c);
+    }
+
+    private static Blob renderArchivedPdf(Id billId, Id archiveId) {
+        PageReference page = billId.getSObjectType() == Job_Slip__c.SObjectType ? Page.JobSlipPdf : Page.InvoicePdf;
+        page.getParameters().put('id', billId);
+        page.getParameters().put('archive', archiveId);
+        return Test.isRunningTest() ? Blob.valueOf('test-pdf') : page.getContentAsPDF();
+    }
+
     @AuraEnabled
     public static PublicLink getPublicLink(Id recordId, Id workshopProfileId) {
         DocumentInfo info = loadInfo(recordId);
-        Id documentId = saveFileVersion(recordId, info.title, renderPdf(recordId, workshopProfileId));
+        return publish(saveFileVersion(recordId, info.title, renderPdf(recordId, workshopProfileId)), info);
+    }
+
+    // A download link for the File, valid for a while, and its five-minute cleanup.
+    private static PublicLink publish(Id documentId, DocumentInfo info) {
         Datetime expiresAt = Datetime.now().addDays(LINK_VALID_DAYS);
 
         List<ContentDistribution> existing = [

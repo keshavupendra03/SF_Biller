@@ -3,6 +3,7 @@ import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import FORM_FACTOR from '@salesforce/client/formFactor';
 import getDay from '@salesforce/apex/ServiceBookController.getDay';
 import search from '@salesforce/apex/ServiceBookController.search';
+import bringBack from '@salesforce/apex/ServiceBookController.bringBack';
 import { disablePullToRefresh } from 'c/disablePullToRefresh';
 
 const SEARCH_DELAY_MS = 300;
@@ -54,6 +55,8 @@ export default class ServiceBook extends LightningElement {
     results = [];
     hasSearched = false;
     highlightIndex = -1;
+
+    isBringingBack = false;
 
     _searchTimer;
     _searchSeq = 0;
@@ -224,12 +227,14 @@ export default class ServiceBook extends LightningElement {
             return {
                 ...result,
                 index,
-                key: result.vehicleId || result.customerId,
+                key: result.archivedId ? `archived-${result.archivedId}-${result.archivedVehicleId || ''}` : result.vehicleId || result.customerId,
                 rowClass: index === this.highlightIndex ? 'sb-result sb-result_active' : 'sb-result',
-                hasNoCar: !result.vehicleId,
+                isArchived: !!result.archivedId,
+                hasNoCar: !result.vehicleId && !result.registrationNumber,
                 shownVisits: days.map((day) => ({ ...day, dateLabel: formatShort(day.entryDate) })),
                 moreVisitsLabel: olderCount ? `and ${olderCount} older ${olderCount === 1 ? 'visit' : 'visits'}` : '',
-                hasNoVisits: !!result.vehicleId && days.length === 0 && olderCount === 0
+                hasNoVisits: !!result.vehicleId && days.length === 0 && olderCount === 0,
+                actionLabel: result.archivedId ? 'Bring back' : this.writeButtonLabel
             };
         });
     }
@@ -311,8 +316,25 @@ export default class ServiceBook extends LightningElement {
     }
 
     // Nothing is saved yet: looking a car up mustn't put a card in the book.
-    // The card makes its entry when something is written on it.
+    // The card makes its entry when something is written on it. An archived
+    // customer or car is brought back first (CustomerArchive).
     openResult(result) {
+        if (result.archivedId) {
+            if (this.isBringingBack) {
+                return;
+            }
+            this.isBringingBack = true;
+            bringBack({ archivedId: result.archivedId, archivedVehicleId: result.archivedVehicleId, entryDate: this.selectedDate })
+                .then((card) => {
+                    this.dispatchEvent(new ShowToastEvent({ title: 'Brought back', message: `${card.registrationNumber || card.customerName} is back from the archive.`, variant: 'success' }));
+                    this.openResult(card);
+                })
+                .catch((error) => this.showError(error))
+                .finally(() => {
+                    this.isBringingBack = false;
+                });
+            return;
+        }
         if (!result.vehicleId) {
             this.addNewCard({ customerId: result.customerId, customerName: result.customerName, phone: result.phone || '' }, false);
             return;

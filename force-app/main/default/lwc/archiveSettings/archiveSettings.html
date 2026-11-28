@@ -1,0 +1,98 @@
+<template>
+    <div class="as-screen">
+        <h1 class="as-title">Archive</h1>
+        <p class="as-intro">Old bills, finished jobs, old job slips and attendance, and customers who haven't been back for a long time, are moved into Salesforce Files to free up storage. Old bills can still be found and printed from Billing, old jobs and job slips from the customer's page, and old attendance on the Attendance screen. A customer or car comes back by itself when staff look them up.</p>
+
+        <template lwc:if={isLoading}>
+            <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+        </template>
+
+        <template lwc:if={hasStatus}>
+            <!-- Storage -->
+            <section class="as-card">
+                <h2 class="as-card-title">Storage</h2>
+                <p class="as-label">Records (data storage)</p>
+                <div class="as-bar"><div class={dataBar.cls} style={dataBar.style}></div></div>
+                <p class="as-bar-text" data-id="data-text">{dataBar.text}</p>
+                <template lwc:if={dataBar.over}>
+                    <p class="as-warning" data-id="data-warning">Storage is getting full. Archive more by lowering the months below, then Run now.</p>
+                </template>
+                <p class="as-label slds-m-top_small">Files (where the archive is kept)</p>
+                <div class="as-bar"><div class={fileBar.cls} style={fileBar.style}></div></div>
+                <p class="as-bar-text">{fileBar.text}</p>
+                <p class="as-note" data-id="archive-text">{archiveText}</p>
+                <template lwc:if={hasDownload}>
+                    <a class="as-link" href={status.downloadUrl} target="_blank" data-id="download">Download the whole archive (zip)</a>
+                </template>
+            </section>
+
+            <!-- Rules -->
+            <section class="as-card">
+                <h2 class="as-card-title">Rules</h2>
+                <lightning-input type="toggle" data-id="is-on" data-field="isOn" label="Archive automatically every night"
+                    message-toggle-active="On" message-toggle-inactive="Off" checked={form.isOn} onchange={handleField}></lightning-input>
+
+                <div class="as-rule">
+                    <lightning-input type="number" min="3" max="240" step="1" data-id="bills-months" data-field="billsAfterMonths"
+                        label="Archive bills older than (months)" value={form.billsAfterMonths} onchange={handleField}></lightning-input>
+                    <p class="as-help">Only months whose GST is marked filed. Every version of a bill, and both bills of an insurance claim, go together.</p>
+                </div>
+                <div class="as-rule">
+                    <lightning-input type="number" min="1" max="240" step="1" data-id="estimates-months" data-field="estimatesAfterMonths"
+                        label="Delete estimates older than (months)" value={form.estimatesAfterMonths} onchange={handleField}></lightning-input>
+                    <p class="as-help">Deleted, not archived: an estimate isn't a tax document. A bill made from one keeps everything.</p>
+                </div>
+                <div class="as-rule">
+                    <lightning-input type="number" min="1" max="240" step="1" data-id="jobs-months" data-field="jobsAfterMonths"
+                        label="Archive jobs not moved for (months)" value={form.jobsAfterMonths} onchange={handleField}></lightning-input>
+                    <p class="as-help">Not while a bill or estimate in Salesforce is for the job. Also keeps the Jobs Board quick to open.</p>
+                </div>
+                <div class="as-rule">
+                    <lightning-input type="number" min="1" max="240" step="1" data-id="slips-months" data-field="jobSlipsAfterMonths"
+                        label="Archive job slips older than (months)" value={form.jobSlipsAfterMonths} onchange={handleField}></lightning-input>
+                    <p class="as-help">Still listed and printable on the customer's page.</p>
+                </div>
+                <div class="as-rule">
+                    <lightning-input type="number" min="3" max="240" step="1" data-id="attendance-months" data-field="mechanicMonthsAfterMonths"
+                        label="Archive attendance older than (months)" value={form.mechanicMonthsAfterMonths} onchange={handleField}></lightning-input>
+                    <p class="as-help">Each mechanic's balance carries on. Archived months can be seen but not changed.</p>
+                </div>
+                <div class="as-rule">
+                    <lightning-input type="number" min="6" max="240" step="1" data-id="customers-months" data-field="customersDormantMonths"
+                        label="Archive customers not seen for (months)" value={form.customersDormantMonths} onchange={handleField}></lightning-input>
+                    <p class="as-help">With their cars and Service Book, and cars filed under Walk-in. Never while a bill, estimate, job or job slip in Salesforce is theirs. Typing their mobile or car number brings them back.</p>
+                </div>
+                <div class="as-rule">
+                    <lightning-input type="number" min="10" max="100" step="1" data-id="alert-percent" data-field="storageAlertPercent"
+                        label="Warn when storage is above (%)" value={form.storageAlertPercent} onchange={handleField}></lightning-input>
+                </div>
+                <lightning-button variant="brand" data-id="save" label={saveLabel} disabled={isSaving} onclick={handleSave}></lightning-button>
+            </section>
+
+            <!-- What would happen now -->
+            <section class="as-card">
+                <h2 class="as-card-title">If archiving ran now</h2>
+                <p data-id="bills-ready">{billsReadyText}</p>
+                <p class="slds-m-top_x-small" data-id="work-ready">{workText}</p>
+                <p class="slds-m-top_x-small" data-id="attendance-ready">{attendanceText}</p>
+                <p class="slds-m-top_x-small" data-id="customers-ready">{customersText}</p>
+                <p class="slds-m-top_x-small" data-id="estimates-ready">{estimatesText}</p>
+
+                <div class="as-actions">
+                    <template lwc:if={confirmingRun}>
+                        <div class="as-confirm" data-id="confirm-run">
+                            <p>Archive and delete these now? Archived bills stay findable in Billing, and archived customers come back when looked up.</p>
+                            <lightning-button label="Not now" onclick={handleCancelRun}></lightning-button>
+                            <lightning-button variant="brand" data-id="confirm-run-yes" label="Yes, run now" onclick={handleRun}></lightning-button>
+                        </div>
+                    </template>
+                    <template lwc:else>
+                        <lightning-button data-id="run-now" label="Run now" icon-name="utility:archive" disabled={nothingToDo} onclick={handleAskRun}></lightning-button>
+                        <lightning-button data-id="refresh" label="Refresh" icon-name="utility:refresh" onclick={handleRefresh}></lightning-button>
+                    </template>
+                </div>
+                <p class="as-note" data-id="last-run">Last run: {lastRunText}</p>
+            </section>
+        </template>
+    </div>
+</template>

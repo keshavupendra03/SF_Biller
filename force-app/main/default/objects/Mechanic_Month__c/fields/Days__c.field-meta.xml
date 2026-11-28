@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Days__c</fullName>
+    <description>One letter per day of the month: P present, H half day, A absent, L paid leave, - not marked.</description>
+    <label>Days</label>
+    <type>Text</type>
+    <length>31</length>
+</CustomField>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Archiving_On__c</fullName>
+    <description>Off until the workshop switches it on: archiving deletes records from Salesforce after filing them away.</description>
+    <label>Archiving On</label>
+    <type>Checkbox</type>
+    <defaultValue>false</defaultValue>
+</CustomField>

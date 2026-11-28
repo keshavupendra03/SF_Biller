@@ -79,6 +79,9 @@
                             <template if:true={bill.isDeleted}>
                                 <span class="slds-badge slds-theme_error" data-id="deleted-badge">Deleted</span>
                             </template>
+                            <template if:true={bill.dateText}>
+                                <span class="slds-text-body_small slds-text-color_weak" data-id="bill-date">{bill.dateText}</span>
+                            </template>
                             <span class="slds-text-body_small slds-text-color_weak">{bill.name}</span>
                             <template if:true={bill.buyer}>
                                 <span class="slds-text-body_small slds-text-color_weak" data-id="bill-buyer">{bill.buyer}</span>
@@ -94,15 +97,17 @@
                             -->
                         </span>
                     </button>
-                    <lightning-button
-                        data-id="easy-bill"
-                        data-record={bill.id}
-                        label="Easy Bill"
-                        title={bill.easyBillLabel}
-                        icon-name="utility:edit"
-                        onclick={handleOpenInEasyBill}
-                        class="bill-row-easy"
-                    ></lightning-button>
+                    <template if:false={bill.isArchived}>
+                        <lightning-button
+                            data-id="easy-bill"
+                            data-record={bill.id}
+                            label="Easy Bill"
+                            title={bill.easyBillLabel}
+                            icon-name="utility:edit"
+                            onclick={handleOpenInEasyBill}
+                            class="bill-row-easy"
+                        ></lightning-button>
+                    </template>
                 </div>
             </template>
         </template>
@@ -111,8 +116,13 @@
             <p class="slds-text-color_weak slds-p-vertical_medium">{kind.empty}</p>
         </template>
 
-        <template if:false={isEstimates}>
+        <template if:true={showDeletedToggle}>
             <lightning-button data-id="toggle-deleted" variant="base" label={deletedToggleLabel} onclick={handleToggleDeleted} class="slds-m-top_small"></lightning-button>
+        </template>
+
+        <template lwc:if={openArchived}>
+            <c-archived-bill bill-id={openArchived.billId} document-id={openArchived.documentId}
+                onclose={handleCloseArchived} onrestored={handleRestored}></c-archived-bill>
         </template>
     </div>
 </template>

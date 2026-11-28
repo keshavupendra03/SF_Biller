@@ -37,7 +37,8 @@ public with sharing class BillTriggerHandler {
             }
             Workshop_Profile__c company = companies.get(bill.Workshop_Profile__c);
             Date filedUpTo = company == null ? null : company.GST_Filed_Up_To__c;
-            if (GstFilingLock.isLocked(filedUpTo, bill.Bill_Date__c)) {
+            // A bill brought back from the archive was issued already: its filed month doesn't stop it.
+            if (!BillArchive.restoring && GstFilingLock.isLocked(filedUpTo, bill.Bill_Date__c)) {
                 bill.addError('Bill_Date__c', GstFilingLock.lockedMessage(filedUpTo, bill.Bill_Date__c, 'added'));
                 continue;
             }

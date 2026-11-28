@@ -42,6 +42,9 @@
                 <span class={statusClass}>{statusLabel}</span>
                 <span class="slds-text-body_small">{periodText} · {summaryText}</span>
                 <p class="slds-text-body_small slds-text-color_weak gr-status-text">{statusText}</p>
+                <template lwc:if={archivedNote}>
+                    <p class="slds-text-body_small slds-text-color_weak" data-id="archived-note">{archivedNote}</p>
+                </template>
             </div>
 
             <template lwc:if={isUnregistered}>
@@ -71,7 +74,7 @@
                                         <lightning-icon icon-name={issue.icon} variant={issue.iconVariant} size="x-small" class="gr-issue-icon"></lightning-icon>
                                         <span class="gr-issue-body">
                                             <template lwc:if={issue.billId}>
-                                                <button type="button" class="slds-button slds-text-link gr-bill-link" data-id="issue-bill" data-bill-id={issue.billId} onclick={handleOpenBill}>{issue.documentNumber}</button>
+                                                <button type="button" class="slds-button slds-text-link gr-bill-link" data-id="issue-bill" data-bill-id={issue.billId} data-archive-id={issue.archiveId} onclick={handleOpenBill}>{issue.documentNumber}</button>
                                             </template>
                                             {issue.message}
                                         </span>
@@ -103,7 +106,7 @@
                                         <tbody>
                                             <template for:each={b2bRows} for:item="row">
                                                 <tr key={row.key}>
-                                                    <td><button type="button" class="slds-button slds-text-link" data-bill-id={row.billId} onclick={handleOpenBill}>{row.invoiceNumber}</button></td>
+                                                    <td><button type="button" class="slds-button slds-text-link" data-bill-id={row.billId} data-archive-id={row.archiveId} onclick={handleOpenBill}>{row.invoiceNumber}</button></td>
                                                     <td>{row.date}</td><td>{row.gstin}</td><td>{row.receiverName}</td><td>{row.placeOfSupply}</td>
                                                     <td class="gr-num">{row.rate}%</td><td class="gr-num">{row.taxable}</td><td class="gr-num">{row.tax}</td><td class="gr-num">{row.value}</td>
                                                 </tr>
@@ -119,7 +122,7 @@
                                         <tbody>
                                             <template for:each={b2clRows} for:item="row">
                                                 <tr key={row.key}>
-                                                    <td><button type="button" class="slds-button slds-text-link" data-bill-id={row.billId} onclick={handleOpenBill}>{row.invoiceNumber}</button></td>
+                                                    <td><button type="button" class="slds-button slds-text-link" data-bill-id={row.billId} data-archive-id={row.archiveId} onclick={handleOpenBill}>{row.invoiceNumber}</button></td>
                                                     <td>{row.date}</td><td>{row.placeOfSupply}</td>
                                                     <td class="gr-num">{row.rate}%</td><td class="gr-num">{row.taxable}</td><td class="gr-num">{row.tax}</td><td class="gr-num">{row.value}</td>
                                                 </tr>
@@ -221,6 +224,11 @@
                 </template>
             </div>
             <a lwc:ref="downloadLink" class="slds-hide" aria-hidden="true">download</a>
+        </template>
+
+        <template lwc:if={openArchived}>
+            <c-archived-bill bill-id={openArchived.billId} document-id={openArchived.documentId}
+                onclose={handleCloseArchived} onrestored={handleRestored}></c-archived-bill>
         </template>
     </div>
 </template>

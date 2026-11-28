@@ -34,6 +34,16 @@
     font-weight: 700;
 }
 
+.list-row_archived {
+    background-color: #fafaf9;
+    border: 1px dashed #c9c9c9;
+}
+
+.avatar-circle_archived {
+    background-color: #ecebea;
+    color: #706e6b;
+}
+
 .slip-company {
     display: block;
     margin-bottom: 0.5rem;

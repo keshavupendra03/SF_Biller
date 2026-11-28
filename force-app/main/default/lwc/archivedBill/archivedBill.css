@@ -1,0 +1,80 @@
+.ab-archived {
+    margin-left: 0.5rem;
+    background-color: #e6eefa;
+    color: #1a4fa0;
+}
+
+.ab-deleted {
+    margin-bottom: 0.75rem;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    background-color: #fde8e8;
+    color: #ba0517;
+    font-weight: 700;
+}
+
+.ab-facts > div,
+.ab-totals > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.25rem 0;
+}
+
+.ab-facts dt,
+.ab-totals dt {
+    color: #555;
+}
+
+.ab-facts dd,
+.ab-totals dd {
+    font-weight: 700;
+    text-align: right;
+}
+
+.ab-lines {
+    margin: 0.75rem 0;
+    border-top: 1px solid #e5e5e5;
+}
+
+.ab-line {
+    display: flex;
+    flex-direction: column;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f3f3f3;
+}
+
+.ab-line-name {
+    font-weight: 700;
+}
+
+.ab-line-detail {
+    font-size: 0.8125rem;
+    color: #555;
+}
+
+.ab-total {
+    margin-top: 0.25rem;
+    border-top: 1px solid #c9c9c9;
+    font-size: 1.125rem;
+}
+
+.ab-notes {
+    margin-top: 0.5rem;
+    color: #444;
+}
+
+.ab-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    background-color: #fff4e0;
+}
+
+.ab-confirm p {
+    flex-basis: 100%;
+}

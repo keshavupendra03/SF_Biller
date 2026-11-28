@@ -242,9 +242,22 @@ public with sharing class QuickBillController {
         return walkIn.Id;
     }
 
+    /**
+     * The customer with this phone number. One archived for being dormant
+     * (CustomerArchive) is brought back first: typing their number is
+     * looking for them.
+     */
+    public static Customer__c findByPhone(String phone) {
+        Customer__c live = findLiveByPhone(phone);
+        if (live == null && CustomerArchive.bringBackByPhone(phone) != null) {
+            live = findLiveByPhone(phone);
+        }
+        return live;
+    }
+
     // Matches however the number was saved: as typed, digits only, the
     // last 10 digits, or with +91 in front.
-    public static Customer__c findByPhone(String phone) {
+    public static Customer__c findLiveByPhone(String phone) {
         if (String.isBlank(phone)) {
             return null;
         }

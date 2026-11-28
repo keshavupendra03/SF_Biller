@@ -6,6 +6,8 @@ import getCustomerDetail from '@salesforce/apex/CustomerController.getCustomerDe
 import updateCustomer from '@salesforce/apex/CustomerController.updateCustomer';
 import createVehicle from '@salesforce/apex/CustomerController.createVehicle';
 import listProfiles from '@salesforce/apex/WorkshopProfileController.listProfiles';
+import customerHistory from '@salesforce/apex/ArchiveController.customerHistory';
+import getArchivedJob from '@salesforce/apex/ArchiveController.getArchivedJob';
 import { STATE_OPTIONS, checkGstinBox, withStateFromGstin, tidyState, changedValue } from 'c/gst';
 
 const EMPTY_VEHICLE = { registrationNumber: '', make: '', model: '', year: '', color: '', chassisNumber: '' };
@@ -22,6 +24,12 @@ const STATUS_BADGE_CLASS = {
 
 function badgeClassForStatus(status) {
     return STATUS_BADGE_CLASS[status] || 'slds-badge';
+}
+
+function shortDate(iso) {
+    if (!iso) return '';
+    const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export default class CustomerDetail extends NavigationMixin(LightningElement) {
@@ -44,6 +52,13 @@ export default class CustomerDetail extends NavigationMixin(LightningElement) {
     blankSlipRecordId;
     blankSlipCompanyId;
 
+    // Jobs and job slips archived into Files (WorkArchive): listed, a job
+    // opened in place, a slip printed from its archive copy.
+    archivedWork = [];
+    openArchivedJobId;
+    archivedJob;
+    archivedSlip;
+
     connectedCallback() {
         disablePullToRefresh(this);
     }
@@ -63,7 +78,11 @@ export default class CustomerDetail extends NavigationMixin(LightningElement) {
             this.newVehicle = { ...EMPTY_VEHICLE };
             this.showBlankSlipChooser = false;
             this.blankSlipRecordId = undefined;
+            this.archivedWork = [];
+            this.openArchivedJobId = undefined;
+            this.archivedSlip = undefined;
             this.loadDetail();
+            this.loadArchived();
         }
     }
 
@@ -77,6 +96,76 @@ export default class CustomerDetail extends NavigationMixin(LightningElement) {
             .finally(() => {
                 this.isLoading = false;
             });
+    }
+
+    // Separate from the customer's own details, so a slow archive read never holds up the page.
+    loadArchived() {
+        const customerId = this.customerId;
+        return customerHistory({ customerId })
+            .then((rows) => {
+                if (customerId === this.customerId) {
+                    this.archivedWork = rows || [];
+                }
+            })
+            .catch(() => {
+                this.archivedWork = [];
+            });
+    }
+
+    get hasArchivedWork() {
+        return this.hasDetail && this.archivedWork.length > 0;
+    }
+
+    get decoratedArchivedWork() {
+        return this.archivedWork.map((r) => {
+            const isOpen = r.recordId === this.openArchivedJobId && !!this.archivedJob;
+            const j = isOpen ? this.archivedJob : null;
+            return {
+                ...r,
+                kindLabel: r.kind === 'slip' ? 'Job slip' : 'Job',
+                sub: [r.vehicle, r.detail].filter((p) => p).join(' • '),
+                dateText: shortDate(r.workDate),
+                isOpen,
+                jobLines: j
+                    ? [
+                          { label: 'Stage', value: j.stageName },
+                          { label: 'Opened', value: shortDate(j.createdDate) },
+                          { label: 'Last moved', value: shortDate(j.lastChanged) },
+                          { label: 'Vehicle', value: j.vehicle },
+                          { label: 'Mechanics', value: j.mechanicNames },
+                          { label: 'Surveyor', value: j.surveyorName },
+                          { label: 'Notes', value: j.notes }
+                      ].filter((line) => line.value)
+                    : []
+            };
+        });
+    }
+
+    handleOpenArchived(event) {
+        const recordId = event.currentTarget.dataset.recordId;
+        const row = this.archivedWork.find((r) => r.recordId === recordId);
+        if (!row) {
+            return;
+        }
+        if (row.kind === 'slip') {
+            this.archivedSlip = { recordId: row.recordId, documentId: row.documentId, heading: `Job Slip ${row.docNumber}` };
+            return;
+        }
+        if (this.openArchivedJobId === recordId) {
+            this.openArchivedJobId = undefined;
+            this.archivedJob = undefined;
+            return;
+        }
+        getArchivedJob({ documentId: row.documentId, jobId: row.recordId })
+            .then((job) => {
+                this.archivedJob = job;
+                this.openArchivedJobId = recordId;
+            })
+            .catch((error) => this.showError(error));
+    }
+
+    handleCloseArchivedSlip() {
+        this.archivedSlip = undefined;
     }
 
     get hasDetail() {

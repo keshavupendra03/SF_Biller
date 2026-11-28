@@ -5,6 +5,7 @@ import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import listBills from '@salesforce/apex/BillController.listBills';
 import listEstimates from '@salesforce/apex/EstimateController.listEstimates';
 import listProfiles from '@salesforce/apex/WorkshopProfileController.listProfiles';
+import searchArchivedBills from '@salesforce/apex/ArchiveController.searchBills';
 import { gstDueDates } from 'c/gst';
 
 // Record Payment feature disabled (2026-10) — uncomment to restore the
@@ -18,7 +19,9 @@ import { gstDueDates } from 'c/gst';
 
 const LIST_OPTIONS = [
     { label: 'Bills', value: 'bills' },
-    { label: 'Estimates', value: 'estimates' }
+    { label: 'Estimates', value: 'estimates' },
+    // Bills moved into Files by the Archive (architecture.md, Forty-fifth).
+    { label: 'Old bills', value: 'archived' }
 ];
 
 const WALK_IN_NAME = 'Walk-in Customer';
@@ -44,6 +47,14 @@ const KINDS = {
         newLabel: 'New Estimate',
         searchPlaceholder: 'Search by estimate number, customer, phone or party',
         empty: 'No estimates found.'
+    },
+    archived: {
+        newPage: 'New_Bill',
+        quickPage: 'Quick_Bill',
+        quickLabel: 'Quick Bill',
+        newLabel: 'New Bill',
+        searchPlaceholder: 'Search old bills by number, customer, phone, vehicle or party',
+        empty: 'No old bills found. Bills are moved here by the Archive (More > Settings > Archive).'
     }
 };
 
@@ -98,6 +109,17 @@ export default class BillingList extends NavigationMixin(LightningElement) {
         return this.listType === 'estimates';
     }
 
+    get isArchived() {
+        return this.listType === 'archived';
+    }
+
+    get showDeletedToggle() {
+        return this.listType === 'bills';
+    }
+
+    // An archived bill open in its viewer: { billId, documentId }.
+    openArchived;
+
     loadReminders() {
         return listProfiles()
             .then((profiles) => {
@@ -145,9 +167,18 @@ export default class BillingList extends NavigationMixin(LightningElement) {
         this.isLoading = true;
         const seq = ++this._loadSeq;
         const workshopProfileId = this.companyFilter || undefined;
-        const request = this.isEstimates
-            ? listEstimates({ searchTerm: this.searchTerm, workshopProfileId })
-            : listBills({ filter: this.showDeleted ? 'Cancelled' : 'All', searchTerm: this.searchTerm, workshopProfileId });
+        let request;
+        if (this.isArchived) {
+            request = searchArchivedBills({ term: this.searchTerm }).then((rows) =>
+                (rows || [])
+                    .filter((r) => !workshopProfileId || r.workshopProfileId === workshopProfileId)
+                    .map((r) => ({ ...r, id: r.billId }))
+            );
+        } else if (this.isEstimates) {
+            request = listEstimates({ searchTerm: this.searchTerm, workshopProfileId });
+        } else {
+            request = listBills({ filter: this.showDeleted ? 'Cancelled' : 'All', searchTerm: this.searchTerm, workshopProfileId });
+        }
         return request
             .then((results) => {
                 // A reply for the other list, or an older search, is dropped.
@@ -177,7 +208,10 @@ export default class BillingList extends NavigationMixin(LightningElement) {
                 buyer: party && buyer ? `Buyer: ${buyer}` : '',
                 companyName: b.companyName,
                 totalAmount: formatAmount(b.totalAmount),
-                isDeleted: !this.isEstimates && this.showDeleted,
+                isDeleted: this.isArchived ? b.isCancelled === true : !this.isEstimates && this.showDeleted,
+                isArchived: this.isArchived,
+                documentId: b.documentId,
+                dateText: this.isArchived && b.billDate ? new Date(b.billDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
                 easyBillLabel: `Open ${this.isEstimates ? 'estimate' : 'bill'} ${this.isEstimates ? b.estimateNumber : b.invoiceNumber} in Easy Bill`
             };
         });
@@ -217,7 +251,22 @@ export default class BillingList extends NavigationMixin(LightningElement) {
         this.loadBills();
     }
 
+    handleCloseArchived() {
+        this.openArchived = undefined;
+    }
+
+    // A bill brought back from the archive: show it where it now lives.
+    handleRestored(event) {
+        this.openArchived = undefined;
+        this[NavigationMixin.Navigate]({
+            type: 'standard__navItemPage',
+            attributes: { apiName: 'Bill_Detail' },
+            state: { c__recordId: event.detail.billId }
+        });
+    }
+
     handleListTypeChange(event) {
+        this.openArchived = undefined;
         this.listType = event.detail.value;
         this.showDeleted = false;
         this.bills = [];
@@ -243,6 +292,11 @@ export default class BillingList extends NavigationMixin(LightningElement) {
 
     handleSelectBill(event) {
         const id = event.currentTarget.dataset.id;
+        if (this.isArchived) {
+            const row = this.bills.find((b) => b.id === id);
+            this.openArchived = { billId: id, documentId: row && row.documentId };
+            return;
+        }
         this[NavigationMixin.Navigate]({
             type: 'standard__navItemPage',
             attributes: { apiName: this.kind.detailPage },

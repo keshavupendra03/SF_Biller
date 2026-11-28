@@ -94,6 +94,9 @@ public with sharing class ServiceBookController {
         @AuraEnabled public Date previousVisitStart { get; set; }
         // Every other visit of this car, newest first.
         @AuraEnabled public List<VisitGroup> otherVisits { get; set; }
+        // Set on a search result that's archived (CustomerArchive): opening it brings it back.
+        @AuraEnabled public String archivedId { get; set; }
+        @AuraEnabled public String archivedVehicleId { get; set; }
     }
 
     public class CarModelOption {
@@ -196,7 +199,63 @@ public with sharing class ServiceBookController {
             card.hasEntryForDate = false;
             cards.add(card);
         }
+        addArchived(cards, term);
         return cards;
+    }
+
+    // Archived customers and cars that match, after the live ones: one result
+    // per car, or the customer alone if they had none.
+    private static void addArchived(List<ServiceCard> cards, String term) {
+        Integer shown = 0;
+        for (ArchiveStore.IndexEntry e : CustomerArchive.searchQuietly(term, 10)) {
+            List<String> numbers = e.v == null ? new List<String>() : e.v.split(' ');
+            for (Integer i = 0; i < Math.max(numbers.size(), 1) && shown < 10; i++) {
+                shown++;
+                ServiceCard card = new ServiceCard();
+                card.archivedId = e.id;
+                card.customerName = e.c;
+                card.phone = shownPhone(e.p);
+                card.visitDays = new List<Visit>();
+                card.otherVisits = new List<VisitGroup>();
+                card.hasEntryForDate = false;
+                if (!numbers.isEmpty()) {
+                    card.registrationNumber = numbers[i];
+                    card.archivedVehicleId = e.vs != null && e.vs.size() > i ? e.vs[i] : null;
+                }
+                cards.add(card);
+            }
+        }
+    }
+
+    /**
+     * Brings an archived customer or car (from search) back into Salesforce
+     * and returns it as a search result: the car asked for, or the customer
+     * alone when it was a customer with no car.
+     */
+    @AuraEnabled
+    public static ServiceCard bringBack(String archivedId, String archivedVehicleId, Date entryDate) {
+        try {
+            CustomerArchive.Restored r = CustomerArchive.restore(archivedId);
+            Date day = entryDate != null ? entryDate : Date.today();
+            Id askedCar = String.isBlank(archivedVehicleId) ? null : Id.valueOf(archivedVehicleId);
+            if (askedCar != null && r.vehicleIds.containsKey(askedCar)) {
+                return getVehicleCard(r.vehicleIds.get(askedCar), day);
+            }
+            if (!r.vehicleIds.isEmpty()) {
+                return getVehicleCard(r.vehicleIds.values()[0], day);
+            }
+            Customer__c customer = [SELECT Id, Name, Phone__c FROM Customer__c WHERE Id = :r.customerId];
+            ServiceCard card = new ServiceCard();
+            card.customerId = customer.Id;
+            card.customerName = customer.Name;
+            card.phone = shownPhone(customer.Phone__c);
+            card.visitDays = new List<Visit>();
+            card.otherVisits = new List<VisitGroup>();
+            card.hasEntryForDate = false;
+            return card;
+        } catch (CustomerArchive.CustomerArchiveException e) {
+            throw new ServiceBookControllerException(e.getMessage());
+        }
     }
 
     @AuraEnabled
@@ -304,7 +363,7 @@ public with sharing class ServiceBookController {
         return (List<Entry>) JSON.deserialize(vehicle.Service_Book__c, List<Entry>.class);
     }
 
-    private static void writeBook(Vehicle__c vehicle, List<Entry> entries) {
+    public static void writeBook(Vehicle__c vehicle, List<Entry> entries) {
         List<Entry> ordered = sortedByDate(entries);
         String body = ordered.isEmpty() ? null : JSON.serialize(ordered, true);
         if (body != null && body.length() > StoredLines.MAX_LENGTH) {
@@ -388,6 +447,12 @@ public with sharing class ServiceBookController {
             }
             fillDetails(vehicleId, request);
             return vehicleId;
+        }
+        // A car archived for being dormant comes back with its Service Book.
+        Id archivedCar = CustomerArchive.bringBackByCar(typed);
+        if (archivedCar != null) {
+            fillDetails(archivedCar, request);
+            return archivedCar;
         }
 
         CustomerController.NewVehicleInput vehicle = new CustomerController.NewVehicleInput();

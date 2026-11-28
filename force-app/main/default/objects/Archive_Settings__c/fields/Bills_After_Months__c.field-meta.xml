@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Bills_After_Months__c</fullName>
+    <description>Bills dated more than this many months ago are archived, once their month's GST is marked filed. Default 18.</description>
+    <label>Archive Bills After (Months)</label>
+    <type>Number</type>
+    <precision>3</precision>
+    <scale>0</scale>
+</CustomField>

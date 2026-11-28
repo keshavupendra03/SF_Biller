@@ -35,6 +35,8 @@ function taxOf(row) {
  * period (GstFilingLock), once the checkup has no errors.
  */
 export default class GstReturns extends NavigationMixin(LightningElement) {
+    // An archived bill opened from the return (c-archived-bill).
+    openArchived;
     companyId;
     profile;
     periodValue;
@@ -300,12 +302,36 @@ export default class GstReturns extends NavigationMixin(LightningElement) {
 
     // ---- actions -------------------------------------------------------------
 
+    // An archived bill opens from its archive copy; the rest on their own page.
     handleOpenBill(event) {
+        const { billId, archiveId } = event.currentTarget.dataset;
+        if (archiveId) {
+            this.openArchived = { billId, documentId: archiveId };
+            return;
+        }
         this[NavigationMixin.Navigate]({
             type: 'standard__navItemPage',
             attributes: { apiName: 'Bill_Detail' },
-            state: { c__recordId: event.currentTarget.dataset.billId }
+            state: { c__recordId: billId }
         });
+    }
+
+    handleCloseArchived() {
+        this.openArchived = undefined;
+    }
+
+    handleRestored(event) {
+        this.openArchived = undefined;
+        this[NavigationMixin.Navigate]({
+            type: 'standard__navItemPage',
+            attributes: { apiName: 'Bill_Detail' },
+            state: { c__recordId: event.detail.billId }
+        });
+    }
+
+    get archivedNote() {
+        const n = this.ret && this.ret.archivedCount;
+        return n ? `Includes ${n} archived bill${n === 1 ? '' : 's'}, read from the archive.` : '';
     }
 
     get downloadLabel() {

@@ -4,6 +4,8 @@ import CustomerDetail from 'c/customerDetail';
 import getCustomerDetail from '@salesforce/apex/CustomerController.getCustomerDetail';
 import updateCustomer from '@salesforce/apex/CustomerController.updateCustomer';
 import createVehicle from '@salesforce/apex/CustomerController.createVehicle';
+import customerHistory from '@salesforce/apex/ArchiveController.customerHistory';
+import getArchivedJob from '@salesforce/apex/ArchiveController.getArchivedJob';
 
 jest.mock('@salesforce/apex/WorkshopProfileController.listProfiles', () => ({ default: jest.fn(() => Promise.resolve([])) }), { virtual: true });
 jest.mock('@salesforce/apex/CustomerController.getCustomerDetail', () => ({ default: jest.fn() }), { virtual: true });
@@ -11,6 +13,10 @@ jest.mock('@salesforce/apex/CustomerController.updateCustomer', () => ({ default
 jest.mock('@salesforce/apex/CustomerController.createVehicle', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPdfDownload', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPublicLink', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/DocumentPdfService.getArchivedPdfDownload', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/DocumentPdfService.getArchivedPublicLink', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/ArchiveController.customerHistory', () => ({ default: jest.fn(() => Promise.resolve([])) }), { virtual: true });
+jest.mock('@salesforce/apex/ArchiveController.getArchivedJob', () => ({ default: jest.fn() }), { virtual: true });
 
 const mockNavigate = jest.fn();
 jest.mock('lightning/navigation', () => {
@@ -72,6 +78,40 @@ describe('c-customer-detail', () => {
         expect(element.shadowRoot.textContent).toContain('INV/2026-27/0001');
         expect(element.shadowRoot.textContent).toContain('EST-0001');
         expect(element.shadowRoot.textContent).toContain('JOB-0001');
+    });
+
+    it('lists archived jobs and job slips: a job opens in place, a slip prints from the archive', async () => {
+        getCustomerDetail.mockResolvedValue(DETAIL);
+        customerHistory.mockResolvedValueOnce([
+            { kind: 'slip', recordId: 'slipOld', documentId: 'doc1', docNumber: 'JS-0003', workDate: '2025-04-02', vehicle: 'MP09AB1234', detail: 'Brake noise' },
+            { kind: 'job', recordId: 'jobOld', documentId: 'doc2', docNumber: 'JOB-0002', workDate: '2025-03-10', vehicle: 'MP09AB1234', detail: 'Delivered' }
+        ]);
+        getArchivedJob.mockResolvedValue({ jobNumber: 'JOB-0002', stageName: 'Delivered', mechanicNames: 'Anil, Raju', notes: 'Clutch replaced', createdDate: '2025-03-10' });
+        const element = createElement('c-customer-detail', { is: CustomerDetail });
+        document.body.appendChild(element);
+        CurrentPageReference.emit(createPageRef('cust1'));
+        await flushPromises();
+
+        expect(customerHistory).toHaveBeenCalledWith({ customerId: 'cust1' });
+        const rows = element.shadowRoot.querySelectorAll('[data-id="archived-row"]');
+        expect(rows).toHaveLength(2);
+        expect(rows[0].textContent).toContain('JS-0003');
+        expect(rows[0].textContent).toContain('Job slip • MP09AB1234 • Brake noise');
+
+        rows[1].click();
+        await flushPromises();
+        expect(getArchivedJob).toHaveBeenCalledWith({ documentId: 'doc2', jobId: 'jobOld' });
+        const job = element.shadowRoot.querySelector('[data-id="archived-job"]');
+        expect(job.textContent).toContain('Anil, Raju');
+        expect(job.textContent).toContain('Clutch replaced');
+        expect(mockNavigate).not.toHaveBeenCalled();
+
+        rows[0].click();
+        await flushPromises();
+        const preview = element.shadowRoot.querySelector('c-document-preview');
+        expect(preview.recordId).toBe('slipOld');
+        expect(preview.archiveId).toBe('doc1');
+        expect(preview.pageName).toBe('JobSlipPdf');
     });
 
     it('opening a job carries the current customer id so its Back can return here', async () => {

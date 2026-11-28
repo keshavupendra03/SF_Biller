@@ -44,6 +44,7 @@
                                 <span class="sb-result-number">{result.registrationNumber}</span>
                                 <span class="sb-result-model">{result.carModel}</span>
                                 <template lwc:if={result.hasNoCar}><span class="sb-result-model">No car on file yet</span></template>
+                                <template lwc:if={result.isArchived}><span class="sb-result-archived" data-id="archived-tag">Archived</span></template>
                             </span>
                             <span class="sb-result-customer">
                                 <span class="sb-result-name">{result.customerName}</span>
@@ -58,7 +59,7 @@
                         </template>
                         <template lwc:if={result.moreVisitsLabel}><span class="sb-result-more">{result.moreVisitsLabel}</span></template>
                         <template lwc:if={result.hasNoVisits}><span class="sb-result-more">No work written yet</span></template>
-                        <span class="sb-result-action">{writeButtonLabel}</span>
+                        <span class="sb-result-action">{result.actionLabel}</span>
                     </button>
                 </template>
                 <template lwc:if={showNoResults}>

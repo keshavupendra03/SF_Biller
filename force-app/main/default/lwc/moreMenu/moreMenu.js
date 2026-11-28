@@ -21,7 +21,7 @@ const MENU_ITEMS = [
     {
         id: 'settings',
         title: 'Settings',
-        description: 'Workshop profile, job stages',
+        description: 'Workshop profile, job stages, archive',
         icon: 'utility:settings',
         tabApiName: 'Settings_Menu'
     }

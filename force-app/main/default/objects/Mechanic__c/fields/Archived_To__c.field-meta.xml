@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Archived_To__c</fullName>
+    <description>The last month of this mechanic's attendance archived into Files (AttendanceArchive). That month and earlier ones can be seen but not changed.</description>
+    <label>Archived To</label>
+    <type>Date</type>
+</CustomField>

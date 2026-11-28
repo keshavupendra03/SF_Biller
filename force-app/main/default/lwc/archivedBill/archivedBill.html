@@ -1,0 +1,68 @@
+<template>
+    <section role="dialog" tabindex="-1" aria-modal="true" aria-label={heading} class="slds-modal slds-fade-in-open">
+        <div class="slds-modal__container">
+            <header class="slds-modal__header">
+                <h2 class="slds-text-heading_medium" data-id="heading">{heading}</h2>
+                <span class="slds-badge ab-archived">Archived</span>
+            </header>
+
+            <div class="slds-modal__content slds-p-around_medium">
+                <template lwc:if={isLoading}>
+                    <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+                </template>
+                <template lwc:if={bill}>
+                    <template lwc:if={bill.isCancelled}>
+                        <p class="ab-deleted" data-id="deleted">Deleted. Its number was reported to GST as cancelled.</p>
+                    </template>
+                    <dl class="ab-facts">
+                        <div><dt>Date</dt><dd data-id="date">{dateText}</dd></div>
+                        <template lwc:if={bill.companyName}><div><dt>Company</dt><dd>{bill.companyName}</dd></div></template>
+                        <template lwc:if={bill.billToPartyName}><div><dt>Bill to</dt><dd>{bill.billToPartyName}</dd></div></template>
+                        <div><dt>Customer</dt><dd data-id="customer">{bill.customerName}</dd></div>
+                        <template lwc:if={bill.vehicle}><div><dt>Vehicle</dt><dd>{bill.vehicle}</dd></div></template>
+                        <template lwc:if={versionText}><div><dt>Version</dt><dd>{versionText}</dd></div></template>
+                        <template lwc:if={bill.pairedInvoiceNumber}><div><dt>Insurance claim</dt><dd>With {bill.pairedInvoiceNumber}</dd></div></template>
+                    </dl>
+
+                    <ul class="ab-lines" data-id="lines">
+                        <template for:each={lines} for:item="line">
+                            <li key={line.key} class="ab-line">
+                                <span class="ab-line-name">{line.description}</span>
+                                <span class="ab-line-detail">{line.detail}</span>
+                            </li>
+                        </template>
+                    </ul>
+
+                    <dl class="ab-totals">
+                        <template for:each={totals} for:item="t">
+                            <div key={t.key}><dt>{t.label}</dt><dd>{t.value}</dd></div>
+                        </template>
+                        <div class="ab-total"><dt>Total</dt><dd data-id="total">{totalText}</dd></div>
+                    </dl>
+                    <template lwc:if={bill.notes}><p class="ab-notes">{bill.notes}</p></template>
+
+                    <template lwc:if={confirmingRestore}>
+                        <div class="ab-confirm" data-id="confirm-restore">
+                            <p>Bring {bill.invoiceNumber} back into Billing, with its other versions and any insurance-claim bill? It keeps its number.</p>
+                            <lightning-button label="Keep it archived" onclick={handleKeep}></lightning-button>
+                            <lightning-button variant="brand" data-id="restore-yes" label={restoreLabel} disabled={isRestoring} onclick={handleRestore}></lightning-button>
+                        </div>
+                    </template>
+                </template>
+            </div>
+
+            <footer class="slds-modal__footer">
+                <lightning-button data-id="close" label="Close" onclick={handleClose}></lightning-button>
+                <template lwc:if={bill}>
+                    <lightning-button data-id="restore" label="Bring back" icon-name="utility:undo" onclick={handleAskRestore} class="slds-m-left_x-small"></lightning-button>
+                    <lightning-button data-id="print" variant="brand" label="Print" icon-name="utility:print" onclick={handlePrint} class="slds-m-left_x-small"></lightning-button>
+                </template>
+            </footer>
+        </div>
+    </section>
+    <div class="slds-backdrop slds-backdrop_open" role="presentation"></div>
+
+    <template lwc:if={showPreview}>
+        <c-document-preview record-id={billId} archive-id={documentId} heading={heading} onclose={handleClosePreview}></c-document-preview>
+    </template>
+</template>

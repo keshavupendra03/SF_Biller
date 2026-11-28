@@ -1,0 +1,262 @@
+<template>
+    <div class="ab-screen">
+        <!-- Three big tabs -->
+        <nav class="ab-tabs" role="tablist" aria-label="Attendance">
+            <template for:each={views} for:item="v">
+                <button key={v.value} type="button" role="tab" class={v.cls} aria-selected={v.pressed} data-id={v.value} data-view={v.value} onclick={handleView}>
+                    <lightning-icon icon-name={v.icon} size="x-small" class="ab-tab-icon"></lightning-icon>
+                    <span>{v.label}</span>
+                </button>
+            </template>
+        </nav>
+
+        <template lwc:if={noMechanics}>
+            <div class="ab-empty" data-id="no-mechanics">
+                <p class="ab-empty-title">No mechanics yet</p>
+                <p>Add your mechanics first, then mark their attendance here.</p>
+                <lightning-button variant="brand" label="Add mechanics" icon-name="utility:add" onclick={handleAddMechanics} class="slds-m-top_small"></lightning-button>
+            </div>
+        </template>
+
+        <!-- ================= Today ================= -->
+        <template lwc:if={isToday}>
+            <template lwc:if={hasMechanics}>
+                <header class="ab-head">
+                    <div class="ab-head-row">
+                        <lightning-button-icon data-id="prev-day" icon-name="utility:chevronleft" alternative-text="Previous day" onclick={handlePrevDay}></lightning-button-icon>
+                        <div class="ab-head-text">
+                            <h1 class="ab-head-title" data-id="day-heading">{dayHeading}</h1>
+                            <template lwc:if={dayIsToday}><span class="ab-today-tag">Today</span></template>
+                        </div>
+                        <lightning-button-icon data-id="next-day" icon-name="utility:chevronright" alternative-text="Next day" disabled={dayIsToday} onclick={handleNextDay}></lightning-button-icon>
+                    </div>
+                    <div class="ab-head-tools">
+                        <lightning-input data-id="day-picker" type="date" label="Change date" variant="label-hidden" max={todayIso} value={day} onchange={handleDayPicked} class="ab-date-picker"></lightning-input>
+                        <template lwc:if={dayNotToday}>
+                            <lightning-button label="Go to today" onclick={handleGoToday}></lightning-button>
+                        </template>
+                    </div>
+                </header>
+
+                <div class="ab-summary" data-id="day-counts">{dayCountsText}</div>
+
+                <div class="ab-list">
+                    <template for:each={decoratedDayRows} for:item="row">
+                        <div key={row.mechanicId} class={row.rowCls} data-id="day-row">
+                            <div class="ab-row-head">
+                                <span class="ab-name">{row.name}</span>
+                                <span class="ab-row-status" data-id="row-status">{row.statusText}</span>
+                            </div>
+                            <div class="ab-marks" role="group" aria-label={row.name}>
+                                <template for:each={row.buttons} for:item="b">
+                                    <button key={b.status} type="button" class={b.cls} aria-pressed={b.pressed} disabled={b.disabled}
+                                        data-id="mark" data-mechanic-id={row.mechanicId} data-status={b.status} onclick={handleMark}>{b.label}</button>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <lightning-button data-id="mark-all" variant="brand" label={markAllLabel} icon-name="utility:check" disabled={markAllDisabled} onclick={handleMarkAll} stretch class="ab-mark-all"></lightning-button>
+                <p class="ab-hint">Tap a mark again to take it off. A weekly off needs no mark.</p>
+            </template>
+            <template lwc:if={dayLoading}>
+                <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+            </template>
+        </template>
+
+        <!-- ================= Month ================= -->
+        <template lwc:if={isMonth}>
+            <template lwc:if={hasMechanics}>
+                <header class="ab-head">
+                    <div class="ab-head-row">
+                        <lightning-button-icon data-id="prev-month" icon-name="utility:chevronleft" alternative-text="Previous month" onclick={handlePrevMonth}></lightning-button-icon>
+                        <h1 class="ab-head-title" data-id="month-heading">{monthHeading}</h1>
+                        <lightning-button-icon data-id="next-month" icon-name="utility:chevronright" alternative-text="Next month" disabled={monthIsCurrent} onclick={handleNextMonth}></lightning-button-icon>
+                    </div>
+                </header>
+
+                <div class="ab-chips" role="group" aria-label="Mechanic">
+                    <template for:each={mechanicChips} for:item="c">
+                        <button key={c.id} type="button" class={c.cls} aria-pressed={c.pressed} data-id="mechanic-chip" data-mechanic={c.id} onclick={handlePickMechanic}>{c.name}</button>
+                    </template>
+                </div>
+
+                <template lwc:if={monthData}>
+                    <div class="ab-card">
+                        <div class="ab-cal" role="grid" aria-label={monthHeading}>
+                            <div class="ab-cal-row ab-cal-heads" role="row">
+                                <template for:each={weekdayHeads} for:item="h">
+                                    <span key={h.key} class="ab-cal-head" role="columnheader">{h.label}</span>
+                                </template>
+                            </div>
+                            <template for:each={weeks} for:item="w">
+                                <div key={w.key} class="ab-cal-row" role="row">
+                                    <template for:each={w.cells} for:item="cell">
+                                        <template lwc:if={cell.isBlank}>
+                                            <span key={cell.key} class={cell.cls}></span>
+                                        </template>
+                                        <template lwc:else>
+                                            <button key={cell.key} type="button" role="gridcell" class={cell.cls} title={cell.title} aria-label={cell.title}
+                                                disabled={cell.isFuture} data-id="cal-day" data-day={cell.day} data-future={cell.isFuture} onclick={handlePickDay}>
+                                                <span class="ab-cal-num">{cell.dayNumber}</span>
+                                                <span class="ab-cal-mark">{cell.mark}</span>
+                                            </button>
+                                        </template>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+
+                        <template lwc:if={monthIsArchived}>
+                            <p class="ab-hint" data-id="month-archived">This month is archived: it can be seen but not changed.</p>
+                        </template>
+                        <template lwc:elseif={selectedCalDay}>
+                            <div class="ab-day-edit" data-id="day-edit">
+                                <p class="ab-day-edit-title">{selectedDayLabel}</p>
+                                <div class="ab-marks ab-marks_wrap">
+                                    <template for:each={calendarButtons} for:item="b">
+                                        <button key={b.status} type="button" class={b.cls} data-id="cal-mark" data-status={b.status} onclick={handleCalendarMark}>{b.label}</button>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                        <template lwc:else>
+                            <p class="ab-hint">Tap a day to change it.</p>
+                        </template>
+
+                        <div class="ab-stats">
+                            <template for:each={monthSummary} for:item="s">
+                                <div key={s.key} class={s.cls}>
+                                    <span class="ab-stat-value">{s.value}</span>
+                                    <span class="ab-stat-label">{s.label}</span>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="ab-earned">
+                            <span class="ab-earned-label">{monthEarnedLabel}</span>
+                            <span class="ab-earned-value" data-id="month-earned">{monthEarnedText}</span>
+                        </div>
+                    </div>
+                </template>
+            </template>
+            <template lwc:if={monthLoading}>
+                <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+            </template>
+        </template>
+
+        <!-- ================= Pay ================= -->
+        <template lwc:if={isPay}>
+            <header class="ab-head">
+                <div class="ab-head-row">
+                    <lightning-button-icon data-id="prev-pay-month" icon-name="utility:chevronleft" alternative-text="Previous month" onclick={handlePrevPayMonth}></lightning-button-icon>
+                    <h1 class="ab-head-title" data-id="pay-heading">{payHeading}</h1>
+                    <lightning-button-icon data-id="next-pay-month" icon-name="utility:chevronright" alternative-text="Next month" disabled={payIsCurrent} onclick={handleNextPayMonth}></lightning-button-icon>
+                </div>
+            </header>
+
+            <template for:each={payCards} for:item="m">
+                <article key={m.mechanicId} class={m.cardCls} data-id="pay-card">
+                    <div class="ab-card-head">
+                        <div>
+                            <h2 class="ab-name">{m.name}</h2>
+                            <p class="ab-pay-text">{m.payText}</p>
+                        </div>
+                        <button type="button" class="slds-button ab-link" data-id="edit-pay" data-mechanic-id={m.mechanicId} onclick={handleEditPay}>{m.payLinkLabel}</button>
+                    </div>
+
+                    <template lwc:if={m.editingPay}>
+                        <div class="ab-form" data-id="pay-form">
+                            <lightning-radio-group type="button" label="Paid by" options={payTypeOptions} value={m.editingPay.payType} data-field="payType" onchange={handlePayField}></lightning-radio-group>
+                            <lightning-input type="number" formatter="decimal" step="1" min="1" label={m.payAmountLabel} value={m.editingPay.payAmount} data-field="payAmount" onchange={handlePayField}></lightning-input>
+                            <lightning-combobox label="Weekly off (paid)" options={weeklyOffOptions} value={m.editingPay.weeklyOff} data-field="weeklyOff" onchange={handlePayField}></lightning-combobox>
+                            <div class="ab-form-actions">
+                                <lightning-button label="Cancel" onclick={handleCancelPay}></lightning-button>
+                                <lightning-button variant="brand" data-id="save-pay" label={m.paySaveLabel} disabled={m.editingPay.saving} onclick={handleSavePay}></lightning-button>
+                            </div>
+                        </div>
+                    </template>
+
+                    <template lwc:if={m.noPay}>
+                        <p class="ab-warning">Set this mechanic's salary to work out their pay.</p>
+                    </template>
+                    <template lwc:else>
+                        <p class={m.balanceCls} data-id="balance">{m.balanceText}</p>
+
+                        <dl class="ab-sums">
+                            <template lwc:if={m.hasBrought}>
+                                <div class="ab-sum"><dt>Brought forward <span class="ab-sum-hint">{m.broughtHint}</span></dt><dd>{m.broughtText}</dd></div>
+                            </template>
+                            <div class="ab-sum"><dt>{m.earnedLabel} <span class="ab-sum-hint">{m.earnedDetail}</span></dt><dd>{m.earnedText}</dd></div>
+                            <template lwc:if={m.hasExtra}>
+                                <div class="ab-sum"><dt>Bonus less deductions</dt><dd>{m.extraText}</dd></div>
+                            </template>
+                            <div class="ab-sum"><dt>Advances given</dt><dd>{m.advancesText}</dd></div>
+                            <div class="ab-sum"><dt>Salary paid</dt><dd>{m.paidText}</dd></div>
+                        </dl>
+
+                        <template lwc:if={m.isArchived}>
+                            <p class="ab-hint" data-id="pay-archived">This month is archived: it can be seen but not changed.</p>
+                        </template>
+                        <div class="ab-actions" lwc:if={m.canChange}>
+                            <lightning-button data-id="give-advance" data-mechanic-id={m.mechanicId} data-type="advance" label="Give advance" icon-name="utility:money" onclick={handleOpenEntry}></lightning-button>
+                            <lightning-button data-id="pay-salary" data-mechanic-id={m.mechanicId} data-type="payment" variant="brand" label="Pay salary" icon-name="utility:moneybag" onclick={handleOpenEntry}></lightning-button>
+                            <lightning-button data-id="add-bonus" data-mechanic-id={m.mechanicId} data-type="bonus" label="Bonus" icon-name="utility:add" onclick={handleOpenEntry}></lightning-button>
+                            <lightning-button data-id="add-deduction" data-mechanic-id={m.mechanicId} data-type="deduction" label="Deduction" icon-name="utility:dash" onclick={handleOpenEntry}></lightning-button>
+                        </div>
+                    </template>
+
+                    <template lwc:if={m.entryForm}>
+                        <div class="ab-form" data-id="entry-form">
+                            <p class="ab-form-title">{m.entryTitle}</p>
+                            <lightning-input data-id="entry-amount" type="number" formatter="decimal" step="1" min="1" label="Amount (₹)" value={m.entryForm.amount} data-field="amount" onchange={handleEntryField} required></lightning-input>
+                            <lightning-input type="date" label="Date" max={todayIso} value={m.entryForm.entryDate} data-field="entryDate" onchange={handleEntryField}></lightning-input>
+                            <template lwc:if={m.entryNeedsMethod}>
+                                <lightning-radio-group type="button" label="Paid by" options={methodOptions} value={m.entryForm.method} data-field="method" onchange={handleEntryField}></lightning-radio-group>
+                            </template>
+                            <lightning-input label="Note (optional)" max-length="100" placeholder="e.g. For festival" value={m.entryForm.note} data-field="note" onchange={handleEntryField}></lightning-input>
+                            <div class="ab-form-actions">
+                                <lightning-button label="Cancel" onclick={handleCancelEntry}></lightning-button>
+                                <lightning-button variant="brand" data-id="save-entry" label={m.entrySaveLabel} disabled={m.entryForm.saving} onclick={handleSaveEntry}></lightning-button>
+                            </div>
+                        </div>
+                    </template>
+
+                    <template lwc:if={m.hasEntries}>
+                        <ul class="ab-entries" data-id="entries">
+                            <template for:each={m.entryRows} for:item="e">
+                                <li key={e.id} class="ab-entry">
+                                    <div class="ab-entry-main">
+                                        <span class="ab-entry-type">{e.typeLabel}</span>
+                                        <span class="ab-entry-detail">{e.dateText} {e.detail}</span>
+                                    </div>
+                                    <span class={e.amountCls}>{e.amountText}</span>
+                                    <template lwc:if={m.isArchived}></template>
+                                    <template lwc:elseif={e.confirming}>
+                                        <span class="ab-confirm">
+                                            <lightning-button variant="destructive" label="Remove" data-id="confirm-remove" onclick={handleRemoveEntry}></lightning-button>
+                                            <lightning-button label="Keep" onclick={handleKeepEntry}></lightning-button>
+                                        </span>
+                                    </template>
+                                    <template lwc:else>
+                                        <lightning-button-icon icon-name="utility:close" variant="bare" alternative-text="Remove this entry" data-id="remove-entry"
+                                            data-mechanic-id={m.mechanicId} data-entry-id={e.id} onclick={handleAskRemove}></lightning-button-icon>
+                                    </template>
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+                </article>
+            </template>
+
+            <template lwc:if={noPayList}>
+                <div class="ab-empty">
+                    <p>No mechanics to pay for {payHeading}.</p>
+                </div>
+            </template>
+            <template lwc:if={payLoading}>
+                <lightning-spinner alternative-text="Loading" size="small"></lightning-spinner>
+            </template>
+        </template>
+    </div>
+</template>

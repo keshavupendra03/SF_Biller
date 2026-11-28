@@ -117,7 +117,7 @@ public with sharing class CustomerController {
             throw new CustomerControllerException('A customer is required.');
         }
         Customer__c customer = [
-            SELECT Name, Phone__c, Email__c, Address__c, GSTIN__c, State__c
+            SELECT Name, Phone__c, Email__c, Address__c, GSTIN__c, State__c, Archived_Spend__c
             FROM Customer__c
             WHERE Id = :customerId
         ];
@@ -140,7 +140,8 @@ public with sharing class CustomerController {
             Object total = result.get('total');
             spend = total == null ? 0 : (Decimal) total;
         }
-        detail.lifetimeSpend = spend;
+        // Bills archived out of Salesforce keep what was paid on the customer.
+        detail.lifetimeSpend = spend + (customer.Archived_Spend__c == null ? 0 : customer.Archived_Spend__c);
 
         detail.vehicles = new List<VehicleItem>();
         for (Vehicle__c v : [

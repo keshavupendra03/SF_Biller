@@ -10,9 +10,11 @@ import searchCarModels from '@salesforce/apex/ServiceBookController.searchCarMod
 import searchCustomers from '@salesforce/apex/BillController.searchCustomers';
 import getCustomer from '@salesforce/apex/PaperBillController.getCustomer';
 import findCustomerByPhone from '@salesforce/apex/QuickBillController.findCustomerByPhone';
+import bringBack from '@salesforce/apex/ServiceBookController.bringBack';
 
 jest.mock('@salesforce/apex/ServiceBookController.getDay', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/ServiceBookController.search', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/ServiceBookController.bringBack', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/ServiceBookController.saveWork', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/ServiceBookController.saveCardDetails', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/ServiceBookController.changeVisit', () => ({ default: jest.fn() }), { virtual: true });
@@ -504,6 +506,46 @@ describe('c-service-book', () => {
         expect(inCard(card, '[data-id="card-number"]').textContent).toBe('MP09AB1234');
         expect(inCard(card, '[data-id="work"]').value).toBe('Oil changed\nWashed');
         expect(inCard(card, '[data-id="earlier-days"]').textContent).toContain('Brake pads replaced');
+    });
+
+    it('an archived car shows in search as archived, and opening it brings it back first', async () => {
+        const ARCHIVED = { archivedId: 'cust-old', archivedVehicleId: 'veh-old', registrationNumber: 'MP09AB1234', customerName: 'Ramesh Kumar', phone: '9000011111', visitDays: [], otherVisits: [] };
+        search.mockResolvedValue([ARCHIVED]);
+        bringBack.mockResolvedValue(NOT_TODAY);
+        const element = await createScreen();
+        await typeSearch(element, 'ramesh');
+
+        const result = $(element, '[data-id="result"]');
+        expect(result.querySelector('[data-id="archived-tag"]')).not.toBeNull();
+        expect(result.textContent).toContain('Bring back');
+        expect(result.textContent).not.toContain('No car on file yet');
+
+        press(element, 'Enter');
+        await flushPromises();
+        await flushPromises();
+
+        expect(bringBack).toHaveBeenCalledWith({ archivedId: 'cust-old', archivedVehicleId: 'veh-old', entryDate: todayIso() });
+        const card = cards(element)[0];
+        expect(inCard(card, '[data-id="card-number"]').textContent).toBe('MP09AB1234');
+        expect(inCard(card, '[data-id="earlier-days"]').textContent).toContain('Brake pads replaced');
+    });
+
+    it('an archived car number typed on a new card comes back and becomes that car', async () => {
+        search.mockResolvedValue([{ archivedId: 'veh-old', archivedVehicleId: 'veh-old', registrationNumber: 'MP09AB1234', visitDays: [], otherVisits: [] }]);
+        bringBack.mockResolvedValue({ ...CAR, workDone: null });
+        const element = await createScreen();
+        $(element, '[data-id="new-car"]').click();
+        await flushPromises();
+        const card = cards(element)[0];
+
+        await typeField(card, '[data-field="registrationNumber"]', 'MP09 AB 1234');
+        inCard(card, 'c-paper-field[data-field="registrationNumber"]').shadowRoot.querySelector('input').dispatchEvent(new CustomEvent('blur'));
+        await flushPromises();
+        await flushPromises();
+        await flushPromises();
+
+        expect(bringBack).toHaveBeenCalledWith({ archivedId: 'veh-old', archivedVehicleId: 'veh-old', entryDate: todayIso() });
+        expect(inCard(card, '[data-id="card-number"]').textContent).toBe('MP09AB1234');
     });
 
     it('picking a customer with one car on a new card opens that car', async () => {

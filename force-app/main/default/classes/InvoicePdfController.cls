@@ -126,11 +126,21 @@ public with sharing class InvoicePdfController {
         }
 
         String sobjectName = recordId.getSObjectType().getDescribe().getName();
-        if (sobjectName == 'Bill__c') {
+        String archive = ApexPages.currentPage().getParameters().get('archive');
+        if (sobjectName == 'Bill__c' && String.isNotBlank(archive)) {
+            loadArchivedBill(Id.valueOf(archive), recordId);
+        } else if (sobjectName == 'Bill__c') {
             loadBill(recordId);
         } else if (sobjectName == 'Estimate__c') {
             loadEstimate(recordId);
         }
+    }
+
+    // A bill archived into Files (BillArchive), with the company as it was then.
+    private void loadArchivedBill(Id documentId, Id billId) {
+        BillArchive.MonthFile file = BillArchive.findBill(documentId, billId);
+        applyWorkshopProfile(file.company);
+        applyBill(file.bills[0]);
     }
 
     // The company on the document. None recorded means it predates a second
@@ -147,7 +157,13 @@ public with sharing class InvoicePdfController {
         if (profiles.isEmpty()) {
             return;
         }
-        Workshop_Profile__c profile = profiles[0];
+        applyWorkshopProfile(profiles[0]);
+    }
+
+    private void applyWorkshopProfile(Workshop_Profile__c profile) {
+        if (profile == null) {
+            return;
+        }
         workshopName = profile.Name;
         workshopAddress = profile.Address__c;
         workshopPhone = profile.Phone__c;
@@ -182,8 +198,11 @@ public with sharing class InvoicePdfController {
         if (bills.isEmpty()) {
             return;
         }
-        Bill__c bill = bills[0];
-        loadWorkshopProfile(bill.Workshop_Profile__c);
+        loadWorkshopProfile(bills[0].Workshop_Profile__c);
+        applyBill(bills[0]);
+    }
+
+    private void applyBill(Bill__c bill) {
         recordFound = true;
         isEstimate = false;
         applyLabels();

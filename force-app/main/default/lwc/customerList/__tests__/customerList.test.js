@@ -3,10 +3,27 @@ import CustomerList from 'c/customerList';
 import listCustomers from '@salesforce/apex/CustomerController.listCustomers';
 import createCustomer from '@salesforce/apex/BillController.createCustomer';
 import listProfiles from '@salesforce/apex/WorkshopProfileController.listProfiles';
+import searchArchived from '@salesforce/apex/ArchiveController.searchCustomers';
+import restoreCustomer from '@salesforce/apex/ArchiveController.restoreCustomer';
 
 jest.mock('@salesforce/apex/CustomerController.listCustomers', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/BillController.createCustomer', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/WorkshopProfileController.listProfiles', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/ArchiveController.searchCustomers', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/ArchiveController.restoreCustomer', () => ({ default: jest.fn() }), { virtual: true });
+
+const mockNavigate = jest.fn();
+jest.mock('lightning/navigation', () => {
+    const Navigate = Symbol('Navigate');
+    const NavigationMixin = (Base) =>
+        class extends Base {
+            [Navigate](pageRef) {
+                mockNavigate(pageRef);
+            }
+        };
+    NavigationMixin.Navigate = Navigate;
+    return { NavigationMixin };
+});
 jest.mock('@salesforce/apex/DocumentPdfService.getPdfDownload', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DocumentPdfService.getPublicLink', () => ({ default: jest.fn() }), { virtual: true });
 
@@ -15,6 +32,10 @@ function flushPromises() {
 }
 
 describe('c-customer-list', () => {
+    beforeEach(() => {
+        searchArchived.mockResolvedValue([]);
+    });
+
     afterEach(() => {
         while (document.body.firstChild) {
             document.body.removeChild(document.body.firstChild);
@@ -33,6 +54,53 @@ describe('c-customer-list', () => {
 
         expect(listCustomers).toHaveBeenCalledWith({ searchTerm: '' });
         expect(element.shadowRoot.textContent).toContain('Ramesh Kumar');
+    });
+
+    it('a search also looks in the archive, and Bring back opens the customer', async () => {
+        listCustomers.mockResolvedValue([]);
+        searchArchived.mockResolvedValue([
+            { archivedId: 'old1', name: 'Sita Verma', phone: '9000022222', vehicles: 'MP09CD5678', lastSeen: '2024-03-10' }
+        ]);
+        restoreCustomer.mockResolvedValue('cust9');
+        const element = createElement('c-customer-list', { is: CustomerList });
+        document.body.appendChild(element);
+        await flushPromises();
+        expect(searchArchived).not.toHaveBeenCalled();
+
+        const search = element.shadowRoot.querySelector('[data-id="search"]');
+        search.value = 'sita';
+        search.dispatchEvent(new CustomEvent('change'));
+        await flushPromises();
+
+        expect(searchArchived).toHaveBeenCalledWith({ term: 'sita' });
+        const row = element.shadowRoot.querySelector('[data-id="archived-row"]');
+        expect(row.textContent).toContain('Sita Verma');
+        expect(row.textContent).toContain('MP09CD5678');
+        expect(row.textContent).toContain('Last seen Mar 2024');
+        expect(element.shadowRoot.textContent).not.toContain('No customers found.');
+
+        row.querySelector('lightning-button').click();
+        await flushPromises();
+
+        expect(restoreCustomer).toHaveBeenCalledWith({ archivedId: 'old1' });
+        expect(mockNavigate).toHaveBeenCalledWith(expect.objectContaining({ state: { c__customerId: 'cust9' } }));
+        expect(element.shadowRoot.querySelector('[data-id="archived-row"]')).toBeNull();
+    });
+
+    it('a broken archive never hides the live customers', async () => {
+        listCustomers.mockResolvedValue([{ id: 'cust1', name: 'Sita Verma', phone: '9000022222', email: '' }]);
+        searchArchived.mockRejectedValue({ body: { message: 'That archive file is missing.' } });
+        const element = createElement('c-customer-list', { is: CustomerList });
+        document.body.appendChild(element);
+        await flushPromises();
+
+        const search = element.shadowRoot.querySelector('[data-id="search"]');
+        search.value = 'sita';
+        search.dispatchEvent(new CustomEvent('change'));
+        await flushPromises();
+
+        expect(element.shadowRoot.textContent).toContain('Sita Verma');
+        expect(element.shadowRoot.querySelector('[data-id="archived-row"]')).toBeNull();
     });
 
     it('re-queries as the search term changes', async () => {

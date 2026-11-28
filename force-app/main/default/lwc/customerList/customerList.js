@@ -5,8 +5,18 @@ import { disablePullToRefresh } from 'c/disablePullToRefresh';
 import listCustomers from '@salesforce/apex/CustomerController.listCustomers';
 import createCustomer from '@salesforce/apex/BillController.createCustomer';
 import listProfiles from '@salesforce/apex/WorkshopProfileController.listProfiles';
+import searchArchived from '@salesforce/apex/ArchiveController.searchCustomers';
+import restoreCustomer from '@salesforce/apex/ArchiveController.restoreCustomer';
 import { STATE_OPTIONS, checkGstinBox, withStateFromGstin, changedValue } from 'c/gst';
 const EMPTY_NEW_CUSTOMER = { name: '', phone: '', address: '', email: '', gstin: '', state: '' };
+// Archived customers are looked for once this much is typed.
+const ARCHIVE_SEARCH_MIN = 3;
+
+function lastSeenText(iso) {
+    if (!iso) return '';
+    const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
+    return `Last seen ${new Date(y, m - 1, d).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}`;
+}
 
 export default class CustomerList extends NavigationMixin(LightningElement) {
     stateOptions = STATE_OPTIONS;
@@ -14,6 +24,10 @@ export default class CustomerList extends NavigationMixin(LightningElement) {
 
     searchTerm = '';
     isLoading = true;
+    // Archived (dormant) customers matching the search, shown under the live ones.
+    archived = [];
+    bringingBackId;
+    _searchSeq = 0;
 
     showCreateForm = false;
     newCustomer = { ...EMPTY_NEW_CUSTOMER };
@@ -33,13 +47,57 @@ export default class CustomerList extends NavigationMixin(LightningElement) {
 
     loadCustomers() {
         this.isLoading = true;
-        return listCustomers({ searchTerm: this.searchTerm })
-            .then((results) => {
-                this.customers = results;
+        const term = (this.searchTerm || '').trim();
+        const seq = ++this._searchSeq;
+        // The archive never stops the live list from showing.
+        const archivedSearch = term.length >= ARCHIVE_SEARCH_MIN ? searchArchived({ term }).catch(() => []) : Promise.resolve([]);
+        return Promise.all([listCustomers({ searchTerm: this.searchTerm }), archivedSearch])
+            .then(([results, archived]) => {
+                if (seq === this._searchSeq) {
+                    this.customers = results;
+                    this.archived = archived || [];
+                }
             })
             .catch((error) => this.showError(error))
             .finally(() => {
-                this.isLoading = false;
+                if (seq === this._searchSeq) {
+                    this.isLoading = false;
+                }
+            });
+    }
+
+    get decoratedArchived() {
+        return this.archived.map((c) => ({
+            ...c,
+            initial: c.name ? c.name.charAt(0).toUpperCase() : '?',
+            details: [c.phone, c.vehicles, lastSeenText(c.lastSeen)].filter((p) => p).join(' · '),
+            buttonLabel: this.bringingBackId === c.archivedId ? 'Bringing back…' : 'Bring back',
+            disabled: !!this.bringingBackId
+        }));
+    }
+
+    get hasArchived() {
+        return this.archived.length > 0;
+    }
+
+    // Back into Salesforce with their cars and Service Book, then open them.
+    handleBringBack(event) {
+        const archivedId = event.currentTarget.dataset.id;
+        const row = this.archived.find((c) => c.archivedId === archivedId);
+        this.bringingBackId = archivedId;
+        restoreCustomer({ archivedId })
+            .then((customerId) => {
+                this.showToast('Brought back', `${row ? row.name : 'The customer'} is back from the archive.`, 'success');
+                this.archived = this.archived.filter((c) => c.archivedId !== archivedId);
+                this[NavigationMixin.Navigate]({
+                    type: 'standard__navItemPage',
+                    attributes: { apiName: 'Customer_Detail' },
+                    state: { c__customerId: customerId }
+                });
+            })
+            .catch((error) => this.showError(error))
+            .finally(() => {
+                this.bringingBackId = undefined;
             });
     }
 
@@ -55,7 +113,7 @@ export default class CustomerList extends NavigationMixin(LightningElement) {
     }
 
     get hasNoCustomers() {
-        return !this.isLoading && this.customers.length === 0;
+        return !this.isLoading && this.customers.length === 0 && this.archived.length === 0;
     }
 
     handleSearchChange(event) {

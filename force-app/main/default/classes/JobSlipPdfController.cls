@@ -10,7 +10,9 @@
  *  - Workshop_Profile__c: a completely blank slip (Customers screen's Print
  *    Job Slip) — just that company's header, to keep a stack on the counter.
  * A saved slip prints its own company. A blank slip for a vehicle or customer
- * names its company in ?workshop= (the primary one if not given).
+ * names its company in ?workshop= (the primary one if not given). A slip
+ * archived into Files (WorkArchive) names its file in ?archive= and prints
+ * from the copy kept there, with its company's header as it was.
  * The repairs table always pads out to the paper form's 15 rows so a
  * printed slip still has room for handwritten additions.
  */
@@ -124,6 +126,11 @@ public with sharing class JobSlipPdfController {
         }
 
         SObjectType type = recordId.getSObjectType();
+        String archive = ApexPages.currentPage().getParameters().get('archive');
+        if (type == Job_Slip__c.SObjectType && String.isNotBlank(archive)) {
+            loadArchivedSlip(Id.valueOf(archive), recordId);
+            return;
+        }
         loadWorkshopProfile(companyFor(recordId, type));
         if (type == Job_Slip__c.SObjectType) {
             loadSlip(recordId);
@@ -167,14 +174,18 @@ public with sharing class JobSlipPdfController {
         List<Workshop_Profile__c> profiles = [
             SELECT Name, Address__c, Phone__c, Email__c, Job_Slip_Terms__c FROM Workshop_Profile__c WHERE Id = :profileId
         ];
+        applyWorkshopProfile(profiles.isEmpty() ? null : profiles[0]);
+    }
+
+    private void applyWorkshopProfile(Workshop_Profile__c profile) {
         String rawTerms = DEFAULT_TERMS;
-        if (!profiles.isEmpty()) {
-            workshopName = profiles[0].Name;
-            workshopAddress = profiles[0].Address__c;
-            workshopPhone = profiles[0].Phone__c;
-            workshopEmail = profiles[0].Email__c;
-            if (String.isNotBlank(profiles[0].Job_Slip_Terms__c)) {
-                rawTerms = profiles[0].Job_Slip_Terms__c;
+        if (profile != null) {
+            workshopName = profile.Name;
+            workshopAddress = profile.Address__c;
+            workshopPhone = profile.Phone__c;
+            workshopEmail = profile.Email__c;
+            if (String.isNotBlank(profile.Job_Slip_Terms__c)) {
+                rawTerms = profile.Job_Slip_Terms__c;
             }
         }
         terms = new List<String>();
@@ -186,7 +197,13 @@ public with sharing class JobSlipPdfController {
     }
 
     private void loadCustomer(Id customerId) {
-        Customer__c customer = [SELECT Name, Address__c, Phone__c, Email__c FROM Customer__c WHERE Id = :customerId];
+        applyCustomer([SELECT Name, Address__c, Phone__c, Email__c FROM Customer__c WHERE Id = :customerId]);
+    }
+
+    private void applyCustomer(Customer__c customer) {
+        if (customer == null) {
+            return;
+        }
         customerName = customer.Name;
         customerAddress = customer.Address__c;
         customerPhone = customer.Phone__c;
@@ -194,10 +211,16 @@ public with sharing class JobSlipPdfController {
     }
 
     private void loadVehicle(Id vehicleId) {
-        Vehicle__c v = [
+        applyVehicle([
             SELECT Name, Make__c, Model__c, Chassis_Number__c, Engine_Number__c, Date_Of_Sale__c
             FROM Vehicle__c WHERE Id = :vehicleId
-        ];
+        ]);
+    }
+
+    private void applyVehicle(Vehicle__c v) {
+        if (v == null) {
+            return;
+        }
         registrationNumber = v.Name;
         chassisNumber = v.Chassis_Number__c;
         engineNumber = v.Engine_Number__c;
@@ -213,12 +236,25 @@ public with sharing class JobSlipPdfController {
 
     private void loadSlip(Id jobSlipId) {
         Job_Slip__c s = JobSlipController.loadSlip(jobSlipId);
-        recordFound = true;
-        isBlank = false;
         loadCustomer(s.Customer__c);
         if (s.Vehicle__c != null) {
             loadVehicle(s.Vehicle__c);
         }
+        applySlip(s);
+    }
+
+    // An archived slip: its customer, car and company as they were then.
+    private void loadArchivedSlip(Id documentId, Id jobSlipId) {
+        WorkArchive.FoundSlip found = WorkArchive.findSlip(documentId, jobSlipId);
+        applyWorkshopProfile(found.company);
+        applyCustomer(found.slip.Customer__r);
+        applyVehicle(found.slip.Vehicle__r);
+        applySlip(found.slip);
+    }
+
+    private void applySlip(Job_Slip__c s) {
+        recordFound = true;
+        isBlank = false;
         slipNumber = s.Name;
         slipDate = formatDate(s.Slip_Date__c);
         timeIn = formatTime(s.Time_In__c);

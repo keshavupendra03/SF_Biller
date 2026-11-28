@@ -3,10 +3,14 @@ import BillingList from 'c/billingList';
 import listBills from '@salesforce/apex/BillController.listBills';
 import listEstimates from '@salesforce/apex/EstimateController.listEstimates';
 import listProfiles from '@salesforce/apex/WorkshopProfileController.listProfiles';
+import searchArchivedBills from '@salesforce/apex/ArchiveController.searchBills';
 
 jest.mock('@salesforce/apex/WorkshopProfileController.listProfiles', () => ({ default: jest.fn(() => Promise.resolve([])) }), { virtual: true });
 jest.mock('@salesforce/apex/BillController.listBills', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/EstimateController.listEstimates', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/ArchiveController.searchBills', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/ArchiveController.getArchivedBill', () => ({ default: jest.fn(() => new Promise(() => {})) }), { virtual: true });
+jest.mock('@salesforce/apex/ArchiveController.restoreBill', () => ({ default: jest.fn() }), { virtual: true });
 
 const mockNavigate = jest.fn();
 jest.mock('lightning/navigation', () => {
@@ -246,6 +250,62 @@ describe('c-billing-list', () => {
             const element = await createList();
             expect(element.shadowRoot.querySelector('[data-id="gst-reminder"]')).toBeNull();
             expect(listBills).toHaveBeenCalled();
+        });
+    });
+
+    describe('old bills (the archive)', () => {
+        const OLD = [
+            { billId: 'a1', documentId: 'doc1', invoiceNumber: 'INV/2024-25/0007', billDate: '2024-11-05', customerName: 'Sharma Traders', totalAmount: 3000, isCancelled: false, workshopProfileId: 'co1' },
+            { billId: 'a2', documentId: 'doc1', invoiceNumber: 'INV/2024-25/0008', billDate: '2024-11-06', customerName: 'Other', totalAmount: 500, isCancelled: true, workshopProfileId: 'co2' }
+        ];
+
+        async function openOldBills() {
+            listBills.mockResolvedValue([]);
+            searchArchivedBills.mockResolvedValue(OLD);
+            const element = createElement('c-billing-list', { is: BillingList });
+            document.body.appendChild(element);
+            await flushPromises();
+            element.shadowRoot.querySelector('[data-id="list-type"]').dispatchEvent(new CustomEvent('change', { detail: { value: 'archived' } }));
+            await flushPromises();
+            return element;
+        }
+
+        it('lists archived bills with their date, deleted ones marked, and no Easy Bill button', async () => {
+            const element = await openOldBills();
+
+            expect(searchArchivedBills).toHaveBeenCalledWith({ term: '' });
+            const rows = element.shadowRoot.querySelectorAll('[data-id="row"]');
+            expect(rows).toHaveLength(2);
+            expect(rows[0].textContent).toContain('INV/2024-25/0007');
+            expect(rows[0].querySelector('[data-id="bill-date"]').textContent).toContain('2024');
+            expect(rows[1].querySelector('[data-id="deleted-badge"]')).not.toBeNull();
+            expect(element.shadowRoot.querySelector('[data-id="easy-bill"]')).toBeNull();
+            expect(element.shadowRoot.querySelector('[data-id="toggle-deleted"]')).toBeNull();
+        });
+
+        it('opens an archived bill in its viewer instead of Bill Details', async () => {
+            const element = await openOldBills();
+
+            element.shadowRoot.querySelector('button.bill-row-main').click();
+            await flushPromises();
+
+            const viewer = element.shadowRoot.querySelector('c-archived-bill');
+            expect(viewer).not.toBeNull();
+            expect(viewer.billId).toBe('a1');
+            expect(viewer.documentId).toBe('doc1');
+            expect(mockNavigate).not.toHaveBeenCalled();
+        });
+
+        it('a bill brought back opens in Bill Details', async () => {
+            const element = await openOldBills();
+            element.shadowRoot.querySelector('button.bill-row-main').click();
+            await flushPromises();
+
+            element.shadowRoot.querySelector('c-archived-bill').dispatchEvent(new CustomEvent('restored', { detail: { billId: 'new1' } }));
+            await flushPromises();
+
+            expect(mockNavigate).toHaveBeenCalledWith({ type: 'standard__navItemPage', attributes: { apiName: 'Bill_Detail' }, state: { c__recordId: 'new1' } });
+            expect(element.shadowRoot.querySelector('c-archived-bill')).toBeNull();
         });
     });
 });

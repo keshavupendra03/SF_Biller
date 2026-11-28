@@ -9,6 +9,11 @@
  * documents issued, where deleted bills and versions replaced by an edit
  * (architecture.md §C.4) count as cancelled.
  *
+ * Bills archived into Files (BillArchive) are read from their month files and
+ * counted exactly as if they were still here (architecture.md, Forty-eighth),
+ * so a return for an archived month comes out the same; their rows and
+ * checkup lines carry the archive file (archiveId) to open them from.
+ *
  * Amounts come from GstCalculatorService line by line, as on the bills, and
  * are rounded once per reported row. Each line's CGST+SGST or IGST is reported
  * as charged (§C.3); the checkup flags any that don't fit the place of supply.
@@ -32,6 +37,8 @@ public with sharing class GstReturnService {
     /** One invoice at one rate: a B2B (Table 4) or B2C Large (Table 5) row. */
     public class InvoiceRow {
         @AuraEnabled public Id billId { get; set; }
+        // Set when the bill is archived: the archive file it's in.
+        @AuraEnabled public Id archiveId { get; set; }
         @AuraEnabled public String gstin { get; set; }
         @AuraEnabled public String receiverName { get; set; }
         @AuraEnabled public String invoiceNumber { get; set; }
@@ -103,6 +110,7 @@ public with sharing class GstReturnService {
         @AuraEnabled public String severity { get; set; }
         @AuraEnabled public String message { get; set; }
         @AuraEnabled public Id billId { get; set; }
+        @AuraEnabled public Id archiveId { get; set; }
         @AuraEnabled public String documentNumber { get; set; }
     }
 
@@ -119,6 +127,8 @@ public with sharing class GstReturnService {
         @AuraEnabled public Date filedUpTo { get; set; }
         @AuraEnabled public Boolean isFiled { get; set; }
         @AuraEnabled public Integer billCount { get; set; }
+        // How many of billCount are archived (read from Files).
+        @AuraEnabled public Integer archivedCount { get; set; }
         @AuraEnabled public Decimal invoiceValue { get; set; }
         @AuraEnabled public List<InvoiceRow> b2b { get; set; }
         @AuraEnabled public List<InvoiceRow> b2cl { get; set; }
@@ -153,6 +163,9 @@ public with sharing class GstReturnService {
     }
 
     // ---- building it --------------------------------------------------------
+
+    // The archived bills in the return being built: bill Id to its archive file.
+    private static Map<Id, Id> archivedDocs = new Map<Id, Id>();
 
     public static GstReturn build(Id companyId, Date startDate, Date endDate) {
         if (startDate == null || endDate == null || endDate < startDate) {
@@ -197,12 +210,22 @@ public with sharing class GstReturnService {
               AND (Workshop_Profile__c = :profileId OR Workshop_Profile__c = :orNoCompany)
             ORDER BY Bill_Date__c, Invoice_Number__c
         ];
+        BillArchive.PeriodBills archived = BillArchive.billsFor(profileId, startDate, endDate);
+        archivedDocs = archived.documentOf;
+        if (!archived.bills.isEmpty()) {
+            bills.addAll(archived.bills);
+            bills = byDateAndNumber(bills);
+        }
         ret.billCount = 0;
+        ret.archivedCount = 0;
         ret.invoiceValue = 0;
         for (Bill__c bill : bills) {
             if (isLive(bill)) {
                 ret.billCount++;
                 ret.invoiceValue += bill.Total_Amount__c == null ? 0 : bill.Total_Amount__c;
+                if (archivedDocs.containsKey(bill.Id)) {
+                    ret.archivedCount++;
+                }
             }
         }
 
@@ -231,6 +254,21 @@ public with sharing class GstReturnService {
         ret.documents = documentsIssued(bills, profileId, orNoCompany, startDate, endDate, ret);
         addSales(ret, bills, companyState);
         return finish(ret);
+    }
+
+    // As the query orders them: by date, then number.
+    private static List<Bill__c> byDateAndNumber(List<Bill__c> bills) {
+        Map<String, Bill__c> byKey = new Map<String, Bill__c>();
+        for (Bill__c b : bills) {
+            byKey.put(String.valueOf(b.Bill_Date__c) + '|' + (b.Invoice_Number__c == null ? '' : b.Invoice_Number__c) + '|' + b.Id, b);
+        }
+        List<String> keys = new List<String>(byKey.keySet());
+        keys.sort();
+        List<Bill__c> sorted = new List<Bill__c>();
+        for (String k : keys) {
+            sorted.add(byKey.get(k));
+        }
+        return sorted;
     }
 
     private static Boolean isLive(Bill__c bill) {
@@ -504,6 +542,20 @@ public with sharing class GstReturnService {
                 elsewhere.get(series).add(sequence);
             }
         }
+        // Numbers archived from outside the period count as elsewhere too.
+        for (ArchiveStore.IndexEntry e : ArchiveStore.index()) {
+            if (e.k != 'bill' || e.n == null || !String.valueOf(profileId).equals(e.co) || (e.d >= startDate && e.d <= endDate)) {
+                continue;
+            }
+            Integer sequence = InvoiceNumberingService.sequenceOf(e.n);
+            String series = e.n.substringBeforeLast('/');
+            if (sequence != null && bySeries.containsKey(series)) {
+                if (!elsewhere.containsKey(series)) {
+                    elsewhere.put(series, new Set<Integer>());
+                }
+                elsewhere.get(series).add(sequence);
+            }
+        }
 
         List<String> missing = new List<String>();
         for (String series : sortedKeys(bySeries.keySet())) {
@@ -572,6 +624,7 @@ public with sharing class GstReturnService {
     private static InvoiceRow invoiceRow(Bill__c bill, String gstin, String placeOfSupply, Decimal rate, Amounts sum) {
         InvoiceRow row = new InvoiceRow();
         row.billId = bill.Id;
+        row.archiveId = archivedDocs.get(bill.Id);
         row.gstin = gstin;
         row.receiverName = bill.Bill_To_Party__r != null ? bill.Bill_To_Party__r.Name : (bill.Customer__r != null ? bill.Customer__r.Name : null);
         row.invoiceNumber = bill.Invoice_Number__c;
@@ -640,6 +693,7 @@ public with sharing class GstReturnService {
         issue.severity = severity;
         issue.message = message;
         issue.billId = billId;
+        issue.archiveId = billId == null ? null : archivedDocs.get(billId);
         issue.documentNumber = documentNumber;
         ret.issues.add(issue);
     }

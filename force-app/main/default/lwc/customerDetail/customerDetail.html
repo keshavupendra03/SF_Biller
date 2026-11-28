@@ -105,6 +105,36 @@
                 <p class="slds-text-color_weak slds-m-bottom_medium">No jobs yet.</p>
             </template>
 
+            <!-- Archived jobs and job slips -->
+            <template if:true={hasArchivedWork}>
+                <div data-id="archived-work">
+                    <h3 class="slds-text-heading_small slds-m-top_medium">Archived jobs and job slips</h3>
+                    <p class="slds-text-body_small slds-text-color_weak slds-m-bottom_small">Kept in the archive. Tap a job to see it, or a job slip to print it.</p>
+                    <template for:each={decoratedArchivedWork} for:item="row">
+                        <div key={row.recordId}>
+                            <button type="button" class="slds-button slds-button_reset document-row document-row_archived" data-id="archived-row"
+                                data-record-id={row.recordId} onclick={handleOpenArchived}>
+                                <span class="document-row-body">
+                                    <span class="slds-text-body_regular">{row.docNumber}</span>
+                                    <span class="slds-text-body_small slds-text-color_weak">{row.kindLabel}<template if:true={row.sub}> • {row.sub}</template></span>
+                                </span>
+                                <span class="slds-text-body_small">{row.dateText}</span>
+                            </button>
+                            <template if:true={row.isOpen}>
+                                <dl class="archived-job slds-m-bottom_small" data-id="archived-job">
+                                    <template for:each={row.jobLines} for:item="line">
+                                        <div key={line.label} class="archived-job-line">
+                                            <dt class="slds-text-color_weak">{line.label}</dt>
+                                            <dd>{line.value}</dd>
+                                        </div>
+                                    </template>
+                                </dl>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </template>
+
             <hr class="slds-m-vertical_medium" />
 
             <!-- Bills -->
@@ -184,6 +214,10 @@
                 </div>
             </section>
             <div class="slds-backdrop slds-backdrop_open" role="presentation"></div>
+        </template>
+
+        <template if:true={archivedSlip}>
+            <c-document-preview record-id={archivedSlip.recordId} archive-id={archivedSlip.documentId} page-name="JobSlipPdf" heading={archivedSlip.heading} onclose={handleCloseArchivedSlip}></c-document-preview>
         </template>
 
         <template if:true={blankSlipRecordId}>
